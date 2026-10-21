@@ -38,3 +38,14 @@ export function dedupeAgainstExisting(todos, existingContent) {
 
   return { todos: kept, skipped: todos.length - kept.length };
 }
+
+/**
+ * True when every line in `todos` is a full line of `content`. Used to confirm
+ * that rolled todos survived in today's note (another plugin, such as
+ * Templater, may rewrite a new note right after we wrote to it).
+ */
+export function verifyTodosPresent(content, todos) {
+  if (todos.length === 0) return true;
+  const lines = new Set(content.split(/\r?\n/));
+  return todos.every((todo) => lines.has(todo));
+}

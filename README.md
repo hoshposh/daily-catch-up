@@ -14,7 +14,7 @@ This Obsidian plugin will rollover any incomplete todo items from the previous d
 
 Just create a new daily note using the `Daily notes` or `Periodic Notes` plugin. The previous day's incomplete todos will be rolled over to today's daily note.
 
-**Note:** Automatic rollover can cause conflicts with other plugins, particularly the Templater plugin. If you're using Templater for your daily notes, it's recommended that you disable automatic rollover in the plugin's settings and instead trigger it manually after creation.
+**Note:** Automatic rollover can conflict with other plugins that rewrite new notes, particularly Templater. If Templater is enabled and **#4** is set to mark or delete, the plugin waits 3 seconds after adding the todos and checks that they are still in today's note before changing the previous day's note (see Bugs/Issues).
 
 ### 2. Command: Manual Rollover Todos Now
 
@@ -118,7 +118,7 @@ And the previous day might look like
 - [x] Do the dishes
 ```
 
-1. There are sometimes conflicts with other plugins that deal with new notes -- particularly the Templater plugin. In these situations, your todos may be removed from your previous note, and then not be saved into your new daily note. The simplest remedy is to disable the automatic rollover, and instead trigger it manually.
+1. There are sometimes conflicts with other plugins that deal with new notes -- particularly the Templater plugin, which rewrites a new note shortly after it is created and can overwrite the rolled todos. When Templater is enabled and **#4** is set to mark or delete, the plugin waits 3 seconds, checks that the rolled todos are still in today's note, and otherwise leaves the previous day's note unchanged and shows a notice; run `Rollover Todos Now` to try again. This is a safety net, not a fix: a template slower than 3 seconds (for example one that calls the web) can still overwrite the todos after the check, and plugins other than Templater are not covered. If that affects you, disable the automatic rollover and trigger it manually after the note is created.
 
 ## Installation
 

@@ -7,7 +7,7 @@ import {
 import UndoModal from "./ui/UndoModal";
 import RolloverSettingTab from "./ui/RolloverSettingTab";
 import { getTodos, getSections, insertUnderHeading } from "./get-todos";
-import { dedupeAgainstExisting } from "./insert-todos";
+import { dedupeAgainstExisting, verifyTodosPresent } from "./insert-todos";
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
@@ -17,6 +17,11 @@ import {
 } from "./source-action";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
+
+// Templater reads a new note after ~300ms and writes the rendered result back,
+// which can overwrite what we just inserted. Slow templates take longer, so
+// this is how long we wait before trusting that the insertion survived.
+const TEMPLATER_SETTLE_MS = 3000;
 
 /* Just some boilerplate code for recursively going through subheadings for later
 function createRepresentationFromHeadings(headings) {
@@ -162,6 +167,14 @@ export default class RolloverTodosPlugin extends Plugin {
     if (allHeadings.length > 0) {
       console.log(createRepresentationFromHeadings(allHeadings));
     }
+  }
+
+  isTemplaterEnabled() {
+    return !!this.app.plugins?.getPlugin("templater-obsidian");
+  }
+
+  async waitForSettle(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   getCleanFolder(folder) {
@@ -317,11 +330,6 @@ export default class RolloverTodosPlugin extends Plugin {
           todosAdded -= todosAlreadyPresent;
         }
         if (sections_to_insert.length > 0) {
-          undoHistoryInstance.today = {
-            file: file,
-            oldContent: `${dailyNoteContent}`,
-          };
-
           for (const section of sections_to_insert) {
             const todosString = section.incompleteTodos.join("\n");
 
@@ -396,6 +404,31 @@ export default class RolloverTodosPlugin extends Plugin {
           }
 
           await this.app.vault.modify(file, dailyNoteContent);
+
+          // Before touching the previous day's note, make sure another plugin
+          // did not overwrite what we just inserted. If it did, the todos would
+          // otherwise be lost from both notes.
+          if (sourceAction !== "none" && this.isTemplaterEnabled()) {
+            await this.waitForSettle(TEMPLATER_SETTLE_MS);
+            const settledContent = await this.app.vault.read(file);
+            const insertedTodos = sections_to_insert.flatMap(
+              (section) => section.incompleteTodos
+            );
+            if (!verifyTodosPresent(settledContent, insertedTodos)) {
+              // No undo is recorded: it would restore today's note to its
+              // state before Templater rendered it.
+              new Notice(
+                "Rollover left the previous day's note unchanged: today's note was modified by another plugin (likely Templater) after the todos were added, and they may be missing. Run 'Rollover Todos Now' to try again.",
+                15000
+              );
+              return;
+            }
+          }
+
+          undoHistoryInstance.today = {
+            file: file,
+            oldContent: originalDailyNoteContent,
+          };
         }
       }
 

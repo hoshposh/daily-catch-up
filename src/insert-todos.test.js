@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { dedupeAgainstExisting } from "./insert-todos";
+import { dedupeAgainstExisting, verifyTodosPresent } from "./insert-todos";
 
 describe("dedupeAgainstExisting", () => {
   test("drops a todo that already exists in the note", () => {
@@ -74,5 +74,33 @@ describe("dedupeAgainstExisting", () => {
       todos,
       skipped: 0,
     });
+  });
+});
+
+describe("verifyTodosPresent", () => {
+  test("true when every todo is a full line of the content", () => {
+    expect(
+      verifyTodosPresent("## Tasks\n- [ ] a\n    - [ ] b\n", ["- [ ] a", "    - [ ] b"])
+    ).toBe(true);
+  });
+
+  test("false when a todo is missing", () => {
+    expect(verifyTodosPresent("## Tasks\n- [ ] a\n", ["- [ ] a", "- [ ] b"])).toBe(false);
+  });
+
+  test("a partial match inside a longer line does not count", () => {
+    expect(verifyTodosPresent("- [ ] a and more\n", ["- [ ] a"])).toBe(false);
+  });
+
+  test("works with CRLF line endings", () => {
+    expect(verifyTodosPresent("## Tasks\r\n- [ ] a\r\n", ["- [ ] a"])).toBe(true);
+  });
+
+  test("true when there is nothing to verify", () => {
+    expect(verifyTodosPresent("", [])).toBe(true);
+  });
+
+  test("false when the note was replaced by unrelated content", () => {
+    expect(verifyTodosPresent("# 2026-10-21\n", ["- [ ] a"])).toBe(false);
   });
 });
