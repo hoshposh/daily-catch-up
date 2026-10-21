@@ -6,7 +6,14 @@ import {
 } from "obsidian-daily-notes-interface";
 import UndoModal from "./ui/UndoModal";
 import RolloverSettingTab from "./ui/RolloverSettingTab";
-import { getTodos, getSections, insertUnderHeading, removeEmptyHeadings } from "./get-todos";
+import { getTodos, getSections, insertUnderHeading } from "./get-todos";
+import {
+  applySourceAction,
+  effectiveDoneStatusMarkers,
+  migrateSourceActionSettings,
+  normalizeMarker,
+  resolveSourceAction,
+} from "./source-action";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
 
@@ -42,7 +49,10 @@ export default class RolloverTodosPlugin extends Plugin {
   async loadSettings() {
     const DEFAULT_SETTINGS = {
       templateHeading: "none",
-      deleteOnComplete: false,
+      // what to do with rolled todos on the previous day's note:
+      // "none" | "delete" | "mark" (replaces the old deleteOnComplete toggle)
+      onRolloverSourceAction: "none",
+      rolloverSourceMarker: ">",
       removeEmptyTodos: false,
       rolloverChildren: false,
       rolloverOnFileCreate: true,
@@ -51,7 +61,11 @@ export default class RolloverTodosPlugin extends Plugin {
       ignoreBlockquotes: false,
       skipCompletedChildren: false,
     };
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const stored = (await this.loadData()) || {};
+    this.settings = migrateSourceActionSettings(
+      Object.assign({}, DEFAULT_SETTINGS, stored),
+      stored
+    );
   }
 
   async saveSettings() {
@@ -130,7 +144,7 @@ export default class RolloverTodosPlugin extends Plugin {
     return getTodos({
       lines: dnLines,
       withChildren: this.settings.rolloverChildren,
-      doneStatusMarkers: this.settings.doneStatusMarkers,
+      doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
       ignoreBlockquotes: this.settings.ignoreBlockquotes,
       skipCompletedChildren: this.settings.skipCompletedChildren,
     });
@@ -202,8 +216,9 @@ export default class RolloverTodosPlugin extends Plugin {
         10000
       );
     } else {
-      const { templateHeading, deleteOnComplete, removeEmptyTodos, leadingNewLine } =
+      const { templateHeading, removeEmptyTodos, leadingNewLine } =
         this.settings;
+      const sourceAction = resolveSourceAction(this.settings);
 
       // check if there is a daily note from yesterday
       const lastDailyNote = this.getLastDailyNote();
@@ -219,7 +234,7 @@ export default class RolloverTodosPlugin extends Plugin {
       const sections_yesterday = getSections({
         lines: lastDailyNoteLines,
         withChildren: this.settings.rolloverChildren,
-        doneStatusMarkers: this.settings.doneStatusMarkers,
+        doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
         ignoreBlockquotes: this.settings.ignoreBlockquotes,
         skipCompletedChildren: this.settings.skipCompletedChildren,
       });
@@ -354,22 +369,25 @@ export default class RolloverTodosPlugin extends Plugin {
         await this.app.vault.modify(file, dailyNoteContent);
       }
 
-      // if deleteOnComplete, get yesterday's content and modify it
-      if (deleteOnComplete) {
-        undoHistoryInstance.previousDay = {
-          file: lastDailyNote,
-          oldContent: `${lastDailyNoteContent}`,
-        };
-        let lines = lastDailyNoteContent.split("\n");
-
-        for (let i = lines.length - 1; i >= 0; i--) {
-          if (skippedLineIndices.has(i) || todos_yesterday.includes(lines[i])) {
-            lines.splice(i, 1);
-          }
+      // apply the configured action ("delete" | "mark") to yesterday's note
+      if (sourceAction !== "none") {
+        const { content: modifiedContent, changed } = applySourceAction({
+          content: lastDailyNoteContent,
+          action: sourceAction,
+          rolledTodos: sections_today.flatMap((s) => s.incompleteTodos),
+          // delete also removes empty todos that were not rolled over
+          deletedTodos: todos_yesterday,
+          skippedLineIndices: [...skippedLineIndices],
+          marker: normalizeMarker(this.settings.rolloverSourceMarker),
+          doneStatusMarkers: this.settings.doneStatusMarkers,
+        });
+        if (changed) {
+          undoHistoryInstance.previousDay = {
+            file: lastDailyNote,
+            oldContent: `${lastDailyNoteContent}`,
+          };
+          await this.app.vault.modify(lastDailyNote, modifiedContent);
         }
-
-        const cleanedLines = removeEmptyHeadings(lines);
-        await this.app.vault.modify(lastDailyNote, cleanedLines.join("\n"));
       }
 
       // Let user know rollover has been successful with X todos
@@ -380,7 +398,7 @@ export default class RolloverTodosPlugin extends Plugin {
       const emptiesToNotAddToTomorrowString =
         emptiesToNotAddToTomorrow == 0
           ? ""
-          : deleteOnComplete
+          : sourceAction === "delete"
           ? `- ${emptiesToNotAddToTomorrow} empty todo${
               emptiesToNotAddToTomorrow > 1 ? "s" : ""
             } removed.`

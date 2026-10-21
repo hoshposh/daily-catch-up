@@ -55,15 +55,19 @@ If you chose a template file to use for new daily notes in `Daily notes > Settin
 
 If you leave this field as blank, or select `None`, then incomplete todos will be rolled onto the end of today's note (for new notes with no template, the end is the beginning of the note).
 
-### 4. Delete todos from previous day
+### 4. After rollover, on the previous day's note
 
-By default, this plugin will actually make a copy of incomplete todos. So if you forgot to wash your dog yesterday, and didn't check it off, then you will have an incomplete checkmark on yesterday's daily note, and a new incomplete checkmark will be rolled into today's daily note. If you use the `Undo last rollover` command, deleted todos will be restored (remember, the time limit on this is 2 minutes).
+By default, this plugin makes a copy of incomplete todos. So if you forgot to wash your dog yesterday, and didn't check it off, then you will have an incomplete checkmark on yesterday's daily note, and a new incomplete checkmark will be rolled into today's daily note. You can choose what happens to the rolled todos on yesterday's note once today's note has a copy of them:
 
-Toggling this setting on will remove incomplete todos from the previous daily note once today's daily note has a copy of them.
+- **Leave them alone** (default): yesterday's note is unchanged.
+- **Mark them**: the rolled todos get a different checkbox character, so `- [ ] wash the dog` becomes `- [>] wash the dog`. The character is configurable (default `>`, the bullet-journal "forwarded" symbol). Only open todos are marked, including open children; completed children and plain text are left as they are. While this option is selected the marker also counts as a done marker (without changing your **#7** setting), so marked todos are not rolled over again.
+- **Delete them**: the rolled todos are removed from yesterday's note. This is destructive. Headings left empty by this are removed too.
+
+If you use the `Undo last rollover` command, marked or deleted todos will be restored (remember, the time limit on this is 2 minutes). If you previously had **Delete todos from previous day** turned on, your setting is carried over as **Delete them**.
 
 ### 5. Remove empty todos in rollover
 
-By default, this plugin will roll over anything that has a checkbox, whether it has content or not. Toggling this setting on will ignore empty todos. If you have **#4** from above toggled on, it will also delete empty todos.
+By default, this plugin will roll over anything that has a checkbox, whether it has content or not. Toggling this setting on will ignore empty todos. If **#4** is set to delete, it will also delete empty todos.
 
 ### 6. Roll over children of todos
 
@@ -77,7 +81,7 @@ The plugin supports Unicode characters, including complex emoji and grapheme clu
 
 ### 8. Skip completed children
 
-Only applies when **#6** is on. Completed nested todos (using the done status markers from **#7**), and everything nested beneath them, are not rolled over. If **#4** is on, they are removed from the previous note together with their rolled parent, so no orphaned child lines are left behind. Use `Undo last rollover` to bring them back.
+Only applies when **#6** is on. Completed nested todos (using the done status markers from **#7**), and everything nested beneath them, are not rolled over. If **#4** is set to delete, they are removed from the previous note together with their rolled parent, so no orphaned child lines are left behind. Use `Undo last rollover` to bring them back.
 
 ### 9. Ignore todos in callouts and blockquotes
 

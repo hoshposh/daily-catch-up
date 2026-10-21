@@ -1,4 +1,5 @@
 import { Setting, PluginSettingTab } from "obsidian";
+import { resolveSourceAction } from "../source-action";
 import { getDailyNoteSettings } from "obsidian-daily-notes-interface";
 
 export default class RolloverSettingTab extends PluginSettingTab {
@@ -53,15 +54,35 @@ export default class RolloverSettingTab extends PluginSettingTab {
       );
 
     new Setting(this.containerEl)
-      .setName("Delete todos from previous day")
+      .setName("After rollover, on the previous day's note")
       .setDesc(
-        `Once todos are found, they are added to Today's Daily Note. If successful, they are deleted from Yesterday's Daily note. Enabling this is destructive and may result in lost data. Keeping this disabled will simply duplicate them from yesterday's note and place them in the appropriate section. Note that currently, duplicate todos will be deleted regardless of what heading they are in, and which heading you choose from above.`
+        `What to do with the todos that were rolled over, once today's note has a copy of them. "Leave them alone" duplicates them and is the safest. "Mark them" changes their checkbox to the character below (e.g. [>] for "forwarded"); completed items and plain text are not touched. "Delete them" removes them and is destructive. Undo restores either change.`
       )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.deleteOnComplete || false)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions({
+            none: "Leave them alone",
+            mark: "Mark them",
+            delete: "Delete them",
+          })
+          .setValue(resolveSourceAction(this.plugin.settings))
           .onChange((value) => {
-            this.plugin.settings.deleteOnComplete = value;
+            this.plugin.settings.onRolloverSourceAction = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl)
+      .setName("Marker character")
+      .setDesc(
+        `The checkbox character used by "Mark them". Must be a single character; anything else falls back to ">". While marking is selected, this character also counts as a done marker, so marked todos are not rolled over again.`
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder(">")
+          .setValue(this.plugin.settings.rolloverSourceMarker || ">")
+          .onChange((value) => {
+            this.plugin.settings.rolloverSourceMarker = value;
             this.plugin.saveSettings();
           })
       );
