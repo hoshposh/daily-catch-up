@@ -1,5 +1,11 @@
 import { expect, test } from "vitest";
-import { getTodos, getSections, removeEmptyHeadings, insertUnderHeading } from "./get-todos";
+import {
+  getTodos,
+  getTodosAndSkipped,
+  getSections,
+  removeEmptyHeadings,
+  insertUnderHeading,
+} from "./get-todos";
 
 test("single todo element should return itself", () => {
   // GIVEN
@@ -803,4 +809,135 @@ test("insertUnderHeading with leadingNewLine adds blank line before inserted tex
   const content = "### Today's intent\n";
   const result = insertUnderHeading(content, "### Today's intent", "- [ ] todo", true);
   expect(result).toBe("### Today's intent\n\n- [ ] todo\n");
+});
+
+// ─── anchored todo regex ────────────────────────────────────────────────────
+
+test("bullet pattern in the middle of a line is not a todo", () => {
+  const lines = ["const s = `- [ ] ${item}`;", "see - [ ] foo"];
+  expect(getTodos({ lines })).toStrictEqual([]);
+});
+
+test("indented todos and blockquoted todos are still found by default", () => {
+  const lines = ["    - [ ] indented", "> - [ ] quoted", "\t* [ ] star"];
+  expect(getTodos({ lines })).toStrictEqual(lines);
+});
+
+// ─── ignoreBlockquotes ──────────────────────────────────────────────────────
+
+test("ignoreBlockquotes skips todos inside blockquotes and callouts", () => {
+  const lines = ["> [!tip]", "> - [ ] habit", "  > - [ ] indented habit", "- [ ] real"];
+  expect(getTodos({ lines, ignoreBlockquotes: true })).toStrictEqual(["- [ ] real"]);
+});
+
+test("ignoreBlockquotes is off by default", () => {
+  const lines = ["> - [ ] habit"];
+  expect(getTodos({ lines })).toStrictEqual(lines);
+});
+
+// ─── skipCompletedChildren ──────────────────────────────────────────────────
+
+test("skipCompletedChildren drops completed children and their descendants", () => {
+  const lines = [
+    "- [ ] parent",
+    "    - [x] done child",
+    "        - nested note",
+    "    - [ ] open child",
+    "    - plain note",
+    "- [ ] next",
+  ];
+  expect(
+    getTodos({ lines, withChildren: true, skipCompletedChildren: true })
+  ).toStrictEqual([
+    "- [ ] parent",
+    "    - [ ] open child",
+    "    - plain note",
+    "- [ ] next",
+  ]);
+});
+
+test("completed children are kept when skipCompletedChildren is off", () => {
+  const lines = ["- [ ] parent", "    - [x] done child", "        - nested"];
+  expect(getTodos({ lines, withChildren: true })).toStrictEqual(lines);
+});
+
+test("skipCompletedChildren respects custom doneStatusMarkers", () => {
+  const lines = ["- [ ] parent", "    - [?] done child", "    - [ ] open"];
+  expect(
+    getTodos({
+      lines,
+      withChildren: true,
+      skipCompletedChildren: true,
+      doneStatusMarkers: "xX?",
+    })
+  ).toStrictEqual(["- [ ] parent", "    - [ ] open"]);
+});
+
+test("skipCompletedChildren does not re-read skipped lines as top-level todos", () => {
+  // the skipped subtree contains an open todo; it must stay with its done parent
+  const lines = [
+    "- [ ] parent",
+    "    - [x] done child",
+    "        - [ ] open grandchild",
+    "- [ ] next",
+  ];
+  expect(
+    getTodos({ lines, withChildren: true, skipCompletedChildren: true })
+  ).toStrictEqual(["- [ ] parent", "- [ ] next"]);
+});
+
+test("skipCompletedChildren has no effect without withChildren", () => {
+  const lines = ["- [ ] parent", "    - [x] done child"];
+  expect(getTodos({ lines, skipCompletedChildren: true })).toStrictEqual([
+    "- [ ] parent",
+  ]);
+});
+
+test("getTodosAndSkipped reports the indices of skipped lines", () => {
+  const lines = [
+    "- [x] top done",
+    "- [ ] parent",
+    "    - [x] done child",
+    "        - nested note",
+    "    - [ ] open child",
+  ];
+  expect(
+    getTodosAndSkipped({ lines, withChildren: true, skipCompletedChildren: true })
+  ).toStrictEqual({
+    todos: ["- [ ] parent", "    - [ ] open child"],
+    skippedIndices: [2, 3],
+  });
+});
+
+test("getSections forwards parser options and reports absolute skipped line indices", () => {
+  const lines = [
+    "## Work",
+    "- [ ] Ship release",
+    "    - [x] Write changelog",
+    "        - covers breaking changes",
+    "    - [ ] Tag version",
+    "> - [ ] habit",
+    "## Home",
+    "- [ ] Laundry",
+    "    - [x] Sort",
+  ];
+  expect(
+    getSections({
+      lines,
+      withChildren: true,
+      ignoreBlockquotes: true,
+      skipCompletedChildren: true,
+    })
+  ).toStrictEqual([
+    {
+      headingPath: ["## Work"],
+      incompleteTodos: ["- [ ] Ship release", "    - [ ] Tag version"],
+      skippedLineIndices: [2, 3],
+    },
+    {
+      headingPath: ["## Home"],
+      incompleteTodos: ["- [ ] Laundry"],
+      skippedLineIndices: [8],
+    },
+  ]);
 });

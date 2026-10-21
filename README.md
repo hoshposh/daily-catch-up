@@ -75,6 +75,14 @@ By default, the plugin considers checkboxes containing 'x', 'X', or '-' as compl
 
 The plugin supports Unicode characters, including complex emoji and grapheme clusters, in checkbox content. This means you can use emojis or special Unicode characters as status markers and they will be handled correctly.
 
+### 8. Skip completed children
+
+Only applies when **#6** is on. Completed nested todos (using the done status markers from **#7**), and everything nested beneath them, are not rolled over. If **#4** is on, they are removed from the previous note together with their rolled parent, so no orphaned child lines are left behind. Use `Undo last rollover` to bring them back.
+
+### 9. Ignore todos in callouts and blockquotes
+
+Todos inside Markdown blockquotes (lines starting with `>`), such as habit lists kept in a `> [!tip]` callout, are not rolled over. Off by default.
+
 ## Bugs/Issues
 
 1. Sometimes you will use this plugin, and your unfinished todos will stay in the same spot. These could be formatting issues.

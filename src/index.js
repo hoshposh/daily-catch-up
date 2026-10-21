@@ -48,6 +48,8 @@ export default class RolloverTodosPlugin extends Plugin {
       rolloverOnFileCreate: true,
       doneStatusMarkers: "xX-",
       leadingNewLine: true,
+      ignoreBlockquotes: false,
+      skipCompletedChildren: false,
     };
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
@@ -129,6 +131,8 @@ export default class RolloverTodosPlugin extends Plugin {
       lines: dnLines,
       withChildren: this.settings.rolloverChildren,
       doneStatusMarkers: this.settings.doneStatusMarkers,
+      ignoreBlockquotes: this.settings.ignoreBlockquotes,
+      skipCompletedChildren: this.settings.skipCompletedChildren,
     });
   }
 
@@ -216,9 +220,16 @@ export default class RolloverTodosPlugin extends Plugin {
         lines: lastDailyNoteLines,
         withChildren: this.settings.rolloverChildren,
         doneStatusMarkers: this.settings.doneStatusMarkers,
+        ignoreBlockquotes: this.settings.ignoreBlockquotes,
+        skipCompletedChildren: this.settings.skipCompletedChildren,
       });
 
       const todos_yesterday = sections_yesterday.flatMap((s) => s.incompleteTodos);
+      // Completed children left behind by skipCompletedChildren; removed with
+      // their rolled parent when deleting, so they are not orphaned
+      const skippedLineIndices = new Set(
+        sections_yesterday.flatMap((s) => s.skippedLineIndices ?? [])
+      );
 
       console.log(
         `rollover-daily-todos: ${todos_yesterday.length} todos found in ${lastDailyNote.basename}.md`
@@ -352,7 +363,7 @@ export default class RolloverTodosPlugin extends Plugin {
         let lines = lastDailyNoteContent.split("\n");
 
         for (let i = lines.length - 1; i >= 0; i--) {
-          if (todos_yesterday.includes(lines[i])) {
+          if (skippedLineIndices.has(i) || todos_yesterday.includes(lines[i])) {
             lines.splice(i, 1);
           }
         }

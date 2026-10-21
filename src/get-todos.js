@@ -11,6 +11,18 @@ class TodoParser {
   // Boolean that encodes whether nested items should be rolled over
   #withChildren;
 
+  // When true, lines whose first non-whitespace char is `>` (blockquotes and
+  // callouts such as `> [!tip]`) are never treated as todos
+  #ignoreBlockquotes;
+
+  // When true, completed-todo children (and all their descendants) are left
+  // out when rolling over children. Only meaningful with #withChildren.
+  #skipCompletedChildren;
+
+  // Indices (into #lines) of child lines that were left out by
+  // #skipCompletedChildren, so callers can clean them up alongside the parent
+  #skippedIndices = [];
+
   // Parse content with segmentation to allow for Unicode grapheme clusters
   #parseIntoChars(content, contentType = "content") {
     // Use Intl.Segmenter to properly split grapheme clusters if available,
@@ -29,9 +41,17 @@ class TodoParser {
     }
   }
 
-  constructor(lines, withChildren, doneStatusMarkers) {
+  constructor(
+    lines,
+    withChildren,
+    doneStatusMarkers,
+    ignoreBlockquotes,
+    skipCompletedChildren
+  ) {
     this.#lines = lines;
     this.#withChildren = withChildren;
+    this.#ignoreBlockquotes = !!ignoreBlockquotes;
+    this.#skipCompletedChildren = !!skipCompletedChildren;
     if (doneStatusMarkers) {
       this.doneStatusMarkers = this.#parseIntoChars(
         doneStatusMarkers,
@@ -40,24 +60,37 @@ class TodoParser {
     }
   }
 
-  // Returns true if string s is a todo-item
-  #isTodo(s) {
-    // Extract the checkbox content
-    const match = s.match(/\s*[*+-] \[(.+?)\]/);
-    if (!match) return false;
+  // Returns the grapheme clusters inside the checkbox of list item `s`, or
+  // null if `s` is not a checkbox item or the content is not a single grapheme
+  #checkboxChars(s) {
+    if (this.#ignoreBlockquotes && /^\s*>/.test(s)) {
+      return null;
+    }
 
-    const checkboxContent = match[1];
+    // Anchored to the start of the line so bullet-like text inside code blocks
+    // or template literals is not matched. Blockquote prefixes are allowed so
+    // that #ignoreBlockquotes alone decides whether callout todos count.
+    const match = s.match(/^\s*(?:>\s*)*[*+-] \[(.+?)\]/);
+    if (!match) return null;
 
     // Parse content with segmentation to allow for Unicode grapheme clusters
-    const contentChars = this.#parseIntoChars(
-      checkboxContent,
-      "checkbox content"
-    );
+    const contentChars = this.#parseIntoChars(match[1], "checkbox content");
 
     // Valid checkbox content must be exactly one grapheme cluster
-    if (contentChars.length !== 1) {
-      return false;
-    }
+    return contentChars.length === 1 ? contentChars : null;
+  }
+
+  // Returns true if string s is a completed todo-item
+  #isDoneTodo(s) {
+    const contentChars = this.#checkboxChars(s);
+    if (!contentChars) return false;
+    return contentChars.some((char) => this.doneStatusMarkers.includes(char));
+  }
+
+  // Returns true if string s is a todo-item
+  #isTodo(s) {
+    const contentChars = this.#checkboxChars(s);
+    if (!contentChars) return false;
 
     const singleChar = contentChars[0];
 
@@ -92,15 +125,34 @@ class TodoParser {
     return false;
   }
 
-  // Returns a list of strings that are the nested items after line `parentLinum`
+  // Returns the nested items to include after line `parentLinum`, plus the
+  // number of source lines walked (more than children.length when completed
+  // children are skipped)
   #getChildren(parentLinum) {
     const children = [];
     let nextLinum = parentLinum + 1;
     while (this.#isChildOf(parentLinum, nextLinum)) {
+      if (
+        this.#skipCompletedChildren &&
+        this.#isDoneTodo(this.#lines[nextLinum])
+      ) {
+        // Drop the completed child together with everything nested under it
+        const childIndentation = this.#getIndentation(nextLinum);
+        this.#skippedIndices.push(nextLinum);
+        nextLinum++;
+        while (
+          nextLinum < this.#lines.length &&
+          this.#getIndentation(nextLinum) > childIndentation
+        ) {
+          this.#skippedIndices.push(nextLinum);
+          nextLinum++;
+        }
+        continue;
+      }
       children.push(this.#lines[nextLinum]);
       nextLinum++;
     }
-    return children;
+    return { children, consumed: nextLinum - parentLinum - 1 };
   }
 
   // Returns true if line `linum` has more indentation than line `parentLinum`
@@ -124,24 +176,43 @@ class TodoParser {
       if (this.#isTodo(line)) {
         todos.push(line);
         if (this.#withChildren && this.#hasChildren(l)) {
-          const cs = this.#getChildren(l);
-          todos = [...todos, ...cs];
-          l += cs.length;
+          const { children, consumed } = this.#getChildren(l);
+          todos = [...todos, ...children];
+          l += consumed;
         }
       }
     }
     return todos;
   }
+
+  // Indices of the child lines left out by #skipCompletedChildren. Only
+  // meaningful after getTodos() has run.
+  getSkippedIndices() {
+    return this.#skippedIndices;
+  }
 }
 
 // Utility-function that acts as a thin wrapper around `TodoParser`
-export const getTodos = ({
+export const getTodos = (options) => getTodosAndSkipped(options).todos;
+
+// Like `getTodos`, but also returns `skippedIndices`: the indices (into
+// `lines`) of completed children left out by `skipCompletedChildren`.
+export const getTodosAndSkipped = ({
   lines,
   withChildren = false,
   doneStatusMarkers = null,
+  ignoreBlockquotes = false,
+  skipCompletedChildren = false,
 }) => {
-  const todoParser = new TodoParser(lines, withChildren, doneStatusMarkers);
-  return todoParser.getTodos();
+  const todoParser = new TodoParser(
+    lines,
+    withChildren,
+    doneStatusMarkers,
+    ignoreBlockquotes,
+    skipCompletedChildren
+  );
+  const todos = todoParser.getTodos();
+  return { todos, skippedIndices: todoParser.getSkippedIndices() };
 };
 
 // Returns the heading level (1-6) for a line like "## Foo", or null if not a heading
@@ -153,29 +224,48 @@ function getHeadingLevel(line) {
 // Returns sections from `lines` that have incomplete todos, each with the full ancestor
 // heading chain. Each section is { headingPath: string[], incompleteTodos: string[] }
 // where headingPath is ordered from outermost to innermost heading.
+//
+// When skipCompletedChildren leaves lines out, the section also carries
+// `skippedLineIndices`: their indices in `lines`, so they can be removed from
+// the source note along with their rolled parent. The key is omitted otherwise.
 export const getSections = ({
   lines,
   withChildren = false,
   doneStatusMarkers = null,
+  ignoreBlockquotes = false,
+  skipCompletedChildren = false,
 }) => {
   const sections = [];
   const headingStack = []; // [{ heading: string, level: number }]
   let sectionLines = [];
+  let sectionStart = 0; // index in `lines` of sectionLines[0]
 
   const finalizeSection = () => {
-    const incompleteTodos = getTodos({ lines: sectionLines, withChildren, doneStatusMarkers });
+    const { todos: incompleteTodos, skippedIndices } = getTodosAndSkipped({
+      lines: sectionLines,
+      withChildren,
+      doneStatusMarkers,
+      ignoreBlockquotes,
+      skipCompletedChildren,
+    });
     if (incompleteTodos.length > 0) {
-      sections.push({
+      const section = {
         headingPath: headingStack.map((h) => h.heading),
         incompleteTodos,
-      });
+      };
+      if (skippedIndices.length > 0) {
+        section.skippedLineIndices = skippedIndices.map((i) => sectionStart + i);
+      }
+      sections.push(section);
     }
   };
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const level = getHeadingLevel(line);
     if (level !== null) {
       finalizeSection();
+      sectionStart = i + 1;
       while (headingStack.length > 0 && headingStack[headingStack.length - 1].level >= level) {
         headingStack.pop();
       }

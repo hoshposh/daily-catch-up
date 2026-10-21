@@ -95,6 +95,34 @@ export default class RolloverSettingTab extends PluginSettingTab {
       );
 
     new Setting(this.containerEl)
+      .setName("Skip completed children")
+      .setDesc(
+        `Only applies when "Roll over children of todos" is on. Completed nested todos, and everything nested under them, are not rolled over. If "Delete todos from previous day" is on, they are removed from the previous note together with their parent.`
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.skipCompletedChildren || false)
+          .onChange((value) => {
+            this.plugin.settings.skipCompletedChildren = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl)
+      .setName("Ignore todos in callouts and blockquotes")
+      .setDesc(
+        `When on, todos inside Markdown blockquotes (lines starting with '>') are not rolled over. Useful for habit lists kept inside callouts like '> [!tip]'.`
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.ignoreBlockquotes || false)
+          .onChange((value) => {
+            this.plugin.settings.ignoreBlockquotes = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl)
       .setName("Automatic rollover on daily note open")
       .setDesc(
         `If enabled, the plugin will automatically rollover todos when you open a daily note.`
