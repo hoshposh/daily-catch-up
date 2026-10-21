@@ -787,7 +787,7 @@ test("insertUnderHeading inserts at end of section including sub-headings", () =
 test("insertUnderHeading falls back to end of file when heading not found", () => {
   const content = "## Notes\n\nsome content\n";
   const result = insertUnderHeading(content, "### Missing heading", "- [ ] todo");
-  expect(result).toBe("## Notes\n\nsome content\n- [ ] todo");
+  expect(result).toBe("## Notes\n\nsome content\n- [ ] todo\n");
 });
 
 test("insertUnderHeading matches heading case-insensitively", () => {
@@ -940,4 +940,24 @@ test("getSections forwards parser options and reports absolute skipped line indi
       skippedLineIndices: [8],
     },
   ]);
+});
+
+test("insertUnderHeading keeps lines apart when the section is at the end of a file with no trailing newline", () => {
+  const result = insertUnderHeading("## Tasks\n- [ ] a", "## Tasks", "- [ ] x", false);
+  expect(result).toBe("## Tasks\n- [ ] a\n- [ ] x\n");
+});
+
+test("insertUnderHeading keeps the heading and todo apart when the next heading follows directly", () => {
+  const result = insertUnderHeading("## Tasks\n## Notes\n", "## Tasks", "- [ ] x", false);
+  expect(result).toBe("## Tasks\n- [ ] x\n\n## Notes\n");
+});
+
+test("insertUnderHeading fallback separates text from a last line without a newline", () => {
+  const result = insertUnderHeading("hello", "## Tasks", "- [ ] x", false);
+  expect(result).toBe("hello\n- [ ] x\n");
+});
+
+test("insertUnderHeading fallback on an empty note adds no leading blank line", () => {
+  const result = insertUnderHeading("", "## Tasks", "- [ ] x", false);
+  expect(result).toBe("- [ ] x\n");
 });

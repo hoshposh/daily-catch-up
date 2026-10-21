@@ -88,6 +88,20 @@ export default class RolloverSettingTab extends PluginSettingTab {
       );
 
     new Setting(this.containerEl)
+      .setName("Skip todos already in today's note")
+      .setDesc(
+        `Don't roll over a todo if today's note already has the same line (ignoring surrounding whitespace), e.g. a recurring task from your daily template. Its nested items are skipped with it. The skipped todos are still marked or deleted on the previous day's note, according to the setting above.`
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.skipExistingTodos || false)
+          .onChange((value) => {
+            this.plugin.settings.skipExistingTodos = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl)
       .setName("Remove empty todos in rollover")
       .setDesc(
         `If you have empty todos, they will not be rolled over to the next day.`

@@ -87,6 +87,10 @@ Only applies when **#6** is on. Completed nested todos (using the done status ma
 
 Todos inside Markdown blockquotes (lines starting with `>`), such as habit lists kept in a `> [!tip]` callout, are not rolled over. Off by default.
 
+### 10. Skip todos already in today's note
+
+Off by default. When on, a todo is not rolled over if today's note already contains the same line (compared ignoring surrounding whitespace, checkbox included). This is useful when your daily template already contains recurring tasks such as `- [ ] Standup`. If the skipped todo has nested items, they are skipped with it; a nested item that matches while its parent does not is still rolled over. Skipped todos still count as handled for **#4**: they are marked or deleted on the previous day's note, so they don't pile up there.
+
 ## Bugs/Issues
 
 1. Sometimes you will use this plugin, and your unfinished todos will stay in the same spot. These could be formatting issues.

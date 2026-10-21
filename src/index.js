@@ -7,6 +7,7 @@ import {
 import UndoModal from "./ui/UndoModal";
 import RolloverSettingTab from "./ui/RolloverSettingTab";
 import { getTodos, getSections, insertUnderHeading } from "./get-todos";
+import { dedupeAgainstExisting } from "./insert-todos";
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
@@ -58,6 +59,7 @@ export default class RolloverTodosPlugin extends Plugin {
       rolloverOnFileCreate: true,
       doneStatusMarkers: "xX-",
       leadingNewLine: true,
+      skipExistingTodos: false,
       ignoreBlockquotes: false,
       skipCompletedChildren: false,
     };
@@ -216,7 +218,7 @@ export default class RolloverTodosPlugin extends Plugin {
         10000
       );
     } else {
-      const { templateHeading, removeEmptyTodos, leadingNewLine } =
+      const { templateHeading, removeEmptyTodos, leadingNewLine, skipExistingTodos } =
         this.settings;
       const sourceAction = resolveSourceAction(this.settings);
 
@@ -291,82 +293,110 @@ export default class RolloverTodosPlugin extends Plugin {
       let templateHeadingNotFoundMessage = "";
       const templateHeadingSelected = templateHeading !== "none";
 
+      let todosAlreadyPresent = 0;
+
       if (sections_today.length > 0) {
         let dailyNoteContent = await this.app.vault.read(file);
-        undoHistoryInstance.today = {
-          file: file,
-          oldContent: `${dailyNoteContent}`,
-        };
+        const originalDailyNoteContent = dailyNoteContent;
 
-        for (const section of sections_today) {
-          const todosString = section.incompleteTodos.join("\n");
+        // Optionally leave out todos that today's note already has (compared
+        // against the note as it was before any insertion). They still count
+        // as handled for the previous day's note below.
+        let sections_to_insert = sections_today;
+        if (skipExistingTodos) {
+          sections_to_insert = sections_today
+            .map((section) => {
+              const { todos, skipped } = dedupeAgainstExisting(
+                section.incompleteTodos,
+                originalDailyNoteContent
+              );
+              todosAlreadyPresent += skipped;
+              return { ...section, incompleteTodos: todos };
+            })
+            .filter((section) => section.incompleteTodos.length > 0);
+          todosAdded -= todosAlreadyPresent;
+        }
+        if (sections_to_insert.length > 0) {
+          undoHistoryInstance.today = {
+            file: file,
+            oldContent: `${dailyNoteContent}`,
+          };
 
-          if (!templateHeadingSelected) {
-            // No template heading: append flat todos at end of file
-            dailyNoteContent += `\n${todosString}`;
-            continue;
-          }
+          for (const section of sections_to_insert) {
+            const todosString = section.incompleteTodos.join("\n");
 
-          // Build the path of sub-headings relative to the template heading.
-          // Strip everything up to and including the template heading itself so
-          // we only deal with the headings that need to be created/found inside it.
-          const templateIdx = section.headingPath.findIndex(
-            (h) => h.toLowerCase() === templateHeading.toLowerCase()
-          );
-          const relativePath =
-            templateIdx >= 0
-              ? section.headingPath.slice(templateIdx + 1)
-              : section.headingPath;
-
-          if (relativePath.length === 0) {
-            // Todos sit directly under the template heading
-            const updated = insertUnderHeading(
-              dailyNoteContent,
-              templateHeading,
-              todosString,
-              leadingNewLine
-            );
-            if (updated === dailyNoteContent) {
-              templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
+            if (!templateHeadingSelected) {
+              // No template heading: append flat todos at end of file
               dailyNoteContent += `\n${todosString}`;
-            } else {
-              dailyNoteContent = updated;
+              continue;
             }
-          } else {
-            // Walk the relative path to find the deepest heading that already
-            // exists in today's note — that becomes the insertion parent.
-            // Everything from there downward is created as a block.
-            const todayLines = dailyNoteContent.split(/\r?\n|\r|\n/g);
-            let insertUnder = templateHeading;
-            let firstMissingIdx = 0;
 
-            for (let i = 0; i < relativePath.length; i++) {
-              const h = relativePath[i];
-              if (todayLines.some((l) => l.toLowerCase() === h.toLowerCase())) {
-                insertUnder = h;
-                firstMissingIdx = i + 1;
+            // Build the path of sub-headings relative to the template heading.
+            // Strip everything up to and including the template heading itself so
+            // we only deal with the headings that need to be created/found inside it.
+            const templateIdx = section.headingPath.findIndex(
+              (h) => h.toLowerCase() === templateHeading.toLowerCase()
+            );
+            const relativePath =
+              templateIdx >= 0
+                ? section.headingPath.slice(templateIdx + 1)
+                : section.headingPath;
+
+            if (relativePath.length === 0) {
+              // Todos sit directly under the template heading
+              const updated = insertUnderHeading(
+                dailyNoteContent,
+                templateHeading,
+                todosString,
+                leadingNewLine
+              );
+              if (updated === dailyNoteContent) {
+                templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
+                dailyNoteContent += `\n${todosString}`;
+              } else {
+                dailyNoteContent = updated;
+              }
+            } else {
+              // Walk the relative path to find the deepest heading that already
+              // exists in today's note — that becomes the insertion parent.
+              // Everything from there downward is created as a block.
+              const todayLines = dailyNoteContent.split(/\r?\n|\r|\n/g);
+              let insertUnder = templateHeading;
+              let firstMissingIdx = 0;
+
+              for (let i = 0; i < relativePath.length; i++) {
+                const h = relativePath[i];
+                if (todayLines.some((l) => l.toLowerCase() === h.toLowerCase())) {
+                  insertUnder = h;
+                  firstMissingIdx = i + 1;
+                }
+              }
+
+              const missingHeadings = relativePath.slice(firstMissingIdx);
+              const block = [...missingHeadings, todosString].join("\n");
+
+              const updated = insertUnderHeading(
+                dailyNoteContent,
+                insertUnder,
+                block,
+                leadingNewLine
+              );
+              if (updated === dailyNoteContent) {
+                templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
+                dailyNoteContent += `\n${block}`;
+              } else {
+                dailyNoteContent = updated;
               }
             }
-
-            const missingHeadings = relativePath.slice(firstMissingIdx);
-            const block = [...missingHeadings, todosString].join("\n");
-
-            const updated = insertUnderHeading(
-              dailyNoteContent,
-              insertUnder,
-              block,
-              leadingNewLine
-            );
-            if (updated === dailyNoteContent) {
-              templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
-              dailyNoteContent += `\n${block}`;
-            } else {
-              dailyNoteContent = updated;
-            }
           }
-        }
 
-        await this.app.vault.modify(file, dailyNoteContent);
+          // keep the last appended todo on its own line
+          if (!templateHeadingSelected && !dailyNoteContent.endsWith("\n")) {
+            dailyNoteContent += "\n";
+          }
+
+          await this.app.vault.modify(file, dailyNoteContent);
+        }
       }
 
       // apply the configured action ("delete" | "mark") to yesterday's note
@@ -403,6 +433,12 @@ export default class RolloverTodosPlugin extends Plugin {
               emptiesToNotAddToTomorrow > 1 ? "s" : ""
             } removed.`
           : "";
+      const alreadyPresentString =
+        todosAlreadyPresent == 0
+          ? ""
+          : `- ${todosAlreadyPresent} line${
+              todosAlreadyPresent > 1 ? "s" : ""
+            } already in today's note, skipped.`;
       const part1 =
         templateHeadingNotFoundMessage.length > 0
           ? `${templateHeadingNotFoundMessage}`
@@ -414,7 +450,9 @@ export default class RolloverTodosPlugin extends Plugin {
         emptiesToNotAddToTomorrowString.length > 0 ? " " : ""
       }`;
 
-      let allParts = [part1, part2, part3];
+      const part4 = alreadyPresentString;
+
+      let allParts = [part1, part2, part3, part4];
       let nonBlankLines = [];
       allParts.forEach((part) => {
         if (part.length > 0) {

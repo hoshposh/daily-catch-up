@@ -331,8 +331,13 @@ export const insertUnderHeading = (
   const headingLineRegex = new RegExp(`^${escapedHeading}$`, "mi");
   const headingMatch = headingLineRegex.exec(noteContent);
 
+  // Text added after a line that has no newline of its own would be glued to
+  // that line, so a separator is needed (this also covers leadingNewLine)
+  const needsSeparator = (before) => before !== "" && !before.endsWith("\n");
+
   if (!headingMatch) {
-    return noteContent + (leadingNewLine ? "\n" : "") + textToInsert;
+    const prefix = leadingNewLine || needsSeparator(noteContent) ? "\n" : "";
+    return noteContent + prefix + textToInsert + "\n";
   }
 
   const level = getHeadingLevel(targetHeading);
@@ -343,10 +348,11 @@ export const insertUnderHeading = (
   const nextMatch = nextHeadingRegex.exec(noteContent);
 
   const insertionPoint = nextMatch !== null ? nextMatch.index : noteContent.length;
-  const prefix = leadingNewLine ? "\n" : "";
+  const before = noteContent.slice(0, insertionPoint);
+  const prefix = leadingNewLine || needsSeparator(before) ? "\n" : "";
 
   return (
-    noteContent.slice(0, insertionPoint) +
+    before +
     prefix +
     textToInsert +
     "\n" +
