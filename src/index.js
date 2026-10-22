@@ -425,20 +425,19 @@ export default class RolloverTodosPlugin extends Plugin {
 
       // apply the configured action ("delete" | "mark") to yesterday's note
       if (sourceAction !== "none") {
-        // The note may have been edited while we waited (Templater check), and
-        // the positions of skipped lines refer to the content we parsed. Only
-        // change it when it is still exactly what we read.
-        const currentLastDailyNoteContent = await this.app.vault.read(
-          lastDailyNote
-        );
-        if (currentLastDailyNoteContent !== lastDailyNoteContent) {
-          new Notice(
-            "Rollover left the previous day's note unchanged: it was edited while the rollover was running.",
-            10000
-          );
-        } else {
-          const { content: modifiedContent, changed } = applySourceAction({
-            content: lastDailyNoteContent,
+        // Read, check and write in one atomic step: the line positions refer
+        // to the content we parsed, and the note may have been edited since
+        // (by the user, a sync client or another plugin, e.g. during the
+        // Templater wait). Only change it when it is still exactly that.
+        let editedMeanwhile = false;
+        let changed = false;
+        await this.app.vault.process(lastDailyNote, (currentContent) => {
+          if (currentContent !== lastDailyNoteContent) {
+            editedMeanwhile = true;
+            return currentContent;
+          }
+          const result = applySourceAction({
+            content: currentContent,
             action: sourceAction,
             rolledLineIndices: sections_today.flatMap(
               (s) => s.incompleteLineIndices
@@ -450,13 +449,19 @@ export default class RolloverTodosPlugin extends Plugin {
             doneStatusMarkers: this.settings.doneStatusMarkers,
             ignoreBlockquotes: this.settings.ignoreBlockquotes,
           });
-          if (changed) {
-            undoHistoryInstance.previousDay = {
-              file: lastDailyNote,
-              oldContent: `${lastDailyNoteContent}`,
-            };
-            await this.app.vault.modify(lastDailyNote, modifiedContent);
-          }
+          changed = result.changed;
+          return result.content;
+        });
+        if (editedMeanwhile) {
+          new Notice(
+            "Rollover left the previous day's note unchanged: it was edited while the rollover was running.",
+            10000
+          );
+        } else if (changed) {
+          undoHistoryInstance.previousDay = {
+            file: lastDailyNote,
+            oldContent: `${lastDailyNoteContent}`,
+          };
         }
       }
 

@@ -38,6 +38,7 @@ Note that if you create a daily note in the future, and you try to run this comm
 
 ## Requirements
 
+- [ ] Obsidian 1.1.0 or newer.
 - [ ] You must have either:
   1. `Daily notes` plugin installed _or_
   2. `Periodic Notes` plugin installed AND the **Daily Notes** setting toggled on
