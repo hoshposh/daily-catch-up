@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
@@ -57,6 +57,25 @@ describe("normalizeMarker", () => {
     expect(normalizeMarker(undefined)).toBe(">");
     expect(normalizeMarker(" ")).toBe(">");
     expect(normalizeMarker("ab")).toBe(">");
+  });
+});
+
+describe("normalizeMarker without Intl.Segmenter", () => {
+  test("falls back to code points instead of throwing", async () => {
+    const original = Intl.Segmenter;
+    Intl.Segmenter = undefined;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      vi.resetModules();
+      const { normalizeMarker: normalize } = await import("./source-action");
+      expect(normalize(">")).toBe(">");
+      expect(normalize("➡")).toBe("➡");
+      expect(normalize("ab")).toBe(">");
+    } finally {
+      Intl.Segmenter = original;
+      vi.restoreAllMocks();
+      vi.resetModules();
+    }
   });
 });
 

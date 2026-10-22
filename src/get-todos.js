@@ -4,6 +4,13 @@ const graphemeSegmenter =
     ? new Intl.Segmenter("en", { granularity: "grapheme" })
     : null;
 
+// Splits text into grapheme clusters (emoji, combining characters). Falls back
+// to code points where Intl.Segmenter is not available.
+export const splitGraphemes = (text) =>
+  graphemeSegmenter
+    ? Array.from(graphemeSegmenter.segment(text), (s) => s.segment)
+    : Array.from(text);
+
 class TodoParser {
   // Support all unordered list bullet symbols as per spec (https://daringfireball.net/projects/markdown/syntax#list)
   bulletSymbols = ["-", "*", "+"];

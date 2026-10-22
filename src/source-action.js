@@ -5,7 +5,7 @@
 //   "mark"   - rewrite the checkbox of each rolled open todo to a marker, e.g.
 //              `- [ ] x` -> `- [>] x` (bullet-journal "forwarded")
 
-import { getTodos, removeEmptyHeadings } from "./get-todos";
+import { getTodos, removeEmptyHeadings, splitGraphemes } from "./get-todos";
 
 const ACTIONS = ["none", "delete", "mark"];
 const DEFAULT_MARKER = ">";
@@ -34,11 +34,7 @@ export function migrateSourceActionSettings(settings, storedSettings = {}) {
 // The marker must be a single visible grapheme; anything else falls back to ">"
 export function normalizeMarker(marker) {
   if (typeof marker !== "string" || marker.trim() === "") return DEFAULT_MARKER;
-  const graphemes = Array.from(
-    new Intl.Segmenter("en", { granularity: "grapheme" }).segment(marker),
-    (s) => s.segment
-  );
-  return graphemes.length === 1 ? marker : DEFAULT_MARKER;
+  return splitGraphemes(marker).length === 1 ? marker : DEFAULT_MARKER;
 }
 
 // While marking, the marker counts as "done" for the parser, so a rolled and

@@ -95,6 +95,8 @@ Todos inside Markdown blockquotes (lines starting with `>`), such as habit lists
 
 Off by default. When on, a todo is not rolled over if today's note already contains the same line (compared ignoring surrounding whitespace, checkbox included). This is useful when your daily template already contains recurring tasks such as `- [ ] Standup`. With **#6** on, a duplicate is skipped together with its nested items only if all of them are already in today's note too; otherwise the whole group is rolled over so that nothing is lost. A nested item that matches while its parent does not is still rolled over. Skipped todos still count as handled for **#4**: they are marked or deleted on the previous day's note, so they don't pile up there.
 
+**Which lines count as todos:** a todo is a list item (`-`, `*` or `+`) with a checkbox at the start of the line, optionally indented or inside a blockquote. Lines where something else comes before the bullet, such as `1. - [ ] task` or text inside a code block, are not treated as todos.
+
 ## Bugs/Issues
 
 1. Sometimes you will use this plugin, and your unfinished todos will stay in the same spot. These could be formatting issues.
