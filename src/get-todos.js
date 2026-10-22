@@ -36,6 +36,9 @@ class TodoParser {
   // #skipCompletedChildren, so callers can clean them up alongside the parent
   #skippedIndices = [];
 
+  // Indices (into #lines) of the lines getTodos() returned, in the same order
+  #todoIndices = [];
+
   // Parse content with segmentation to allow for Unicode grapheme clusters
   #parseIntoChars(content, contentType = "content") {
     // Use Intl.Segmenter to properly split grapheme clusters if available,
@@ -153,6 +156,7 @@ class TodoParser {
   // children are skipped)
   #getChildren(parentLinum) {
     const children = [];
+    const childIndices = [];
     let nextLinum = parentLinum + 1;
     while (this.#isChildOf(parentLinum, nextLinum)) {
       if (
@@ -174,9 +178,10 @@ class TodoParser {
         continue;
       }
       children.push(this.#lines[nextLinum]);
+      childIndices.push(nextLinum);
       nextLinum++;
     }
-    return { children, consumed: nextLinum - parentLinum - 1 };
+    return { children, childIndices, consumed: nextLinum - parentLinum - 1 };
   }
 
   // Returns true if line `linum` has more indentation than line `parentLinum`
@@ -199,14 +204,21 @@ class TodoParser {
       const line = this.#lines[l];
       if (this.#isTodo(line)) {
         todos.push(line);
+        this.#todoIndices.push(l);
         if (this.#withChildren && this.#hasChildren(l)) {
-          const { children, consumed } = this.#getChildren(l);
+          const { children, childIndices, consumed } = this.#getChildren(l);
           todos = [...todos, ...children];
+          this.#todoIndices.push(...childIndices);
           l += consumed;
         }
       }
     }
     return todos;
+  }
+
+  // Indices of the lines getTodos() returned. Only meaningful after getTodos().
+  getTodoIndices() {
+    return this.#todoIndices;
   }
 
   // Indices of the child lines left out by #skipCompletedChildren. Only
@@ -219,8 +231,10 @@ class TodoParser {
 // Utility-function that acts as a thin wrapper around `TodoParser`
 export const getTodos = (options) => getTodosAndSkipped(options).todos;
 
-// Like `getTodos`, but also returns `skippedIndices`: the indices (into
-// `lines`) of completed children left out by `skipCompletedChildren`.
+// Like `getTodos`, but also returns where things are in `lines`:
+// `todoIndices` are the indices of the returned todos (same order), and
+// `skippedIndices` those of completed children left out by
+// `skipCompletedChildren`.
 export const getTodosAndSkipped = ({
   lines,
   withChildren = false,
@@ -236,7 +250,11 @@ export const getTodosAndSkipped = ({
     skipCompletedChildren
   );
   const todos = todoParser.getTodos();
-  return { todos, skippedIndices: todoParser.getSkippedIndices() };
+  return {
+    todos,
+    todoIndices: todoParser.getTodoIndices(),
+    skippedIndices: todoParser.getSkippedIndices(),
+  };
 };
 
 // Returns the heading level (1-6) for a line like "## Foo", or null if not a heading
@@ -246,8 +264,10 @@ function getHeadingLevel(line) {
 }
 
 // Returns sections from `lines` that have incomplete todos, each with the full ancestor
-// heading chain. Each section is { headingPath: string[], incompleteTodos: string[] }
-// where headingPath is ordered from outermost to innermost heading.
+// heading chain. Each section is { headingPath: string[], incompleteTodos: string[],
+// incompleteLineIndices: number[] } where headingPath is ordered from outermost to
+// innermost heading and incompleteLineIndices are the positions of incompleteTodos in
+// `lines`, so the source note can be changed by position instead of by text.
 //
 // When skipCompletedChildren leaves lines out, the section also carries
 // `skippedLineIndices`: their indices in `lines`, so they can be removed from
@@ -265,7 +285,11 @@ export const getSections = ({
   let sectionStart = 0; // index in `lines` of sectionLines[0]
 
   const finalizeSection = () => {
-    const { todos: incompleteTodos, skippedIndices } = getTodosAndSkipped({
+    const {
+      todos: incompleteTodos,
+      todoIndices,
+      skippedIndices,
+    } = getTodosAndSkipped({
       lines: sectionLines,
       withChildren,
       doneStatusMarkers,
@@ -276,6 +300,7 @@ export const getSections = ({
       const section = {
         headingPath: headingStack.map((h) => h.heading),
         incompleteTodos,
+        incompleteLineIndices: todoIndices.map((i) => sectionStart + i),
       };
       if (skippedIndices.length > 0) {
         section.skippedLineIndices = skippedIndices.map((i) => sectionStart + i);

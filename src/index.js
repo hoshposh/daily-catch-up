@@ -222,6 +222,11 @@ export default class RolloverTodosPlugin extends Plugin {
       });
 
       const todos_yesterday = sections_yesterday.flatMap((s) => s.incompleteTodos);
+      // positions of every todo line found, including empty ones that may not
+      // be rolled over
+      const foundLineIndices = sections_yesterday.flatMap(
+        (s) => s.incompleteLineIndices
+      );
       // Completed children left behind by skipCompletedChildren; removed with
       // their rolled parent when deleting, so they are not orphaned
       const skippedLineIndices = new Set(
@@ -257,16 +262,20 @@ export default class RolloverTodosPlugin extends Plugin {
           todosAdded += section.incompleteTodos.length;
           return section;
         }
-        const filtered = section.incompleteTodos.filter((line) => {
+        // keep the line positions in step with the lines that stay
+        const incompleteTodos = [];
+        const incompleteLineIndices = [];
+        section.incompleteTodos.forEach((line, i) => {
           const trimmed = (line || "").trim();
           if (trimmed === "- [ ]" || trimmed === "- [  ]") {
             emptiesToNotAddToTomorrow++;
-            return false;
+          } else {
+            incompleteTodos.push(line);
+            incompleteLineIndices.push(section.incompleteLineIndices[i]);
           }
-          return true;
         });
-        todosAdded += filtered.length;
-        return { ...section, incompleteTodos: filtered };
+        todosAdded += incompleteTodos.length;
+        return { ...section, incompleteTodos, incompleteLineIndices };
       }).filter((s) => s.incompleteTodos.length > 0);
 
       // get today's content and modify it
@@ -436,9 +445,11 @@ export default class RolloverTodosPlugin extends Plugin {
           const { content: modifiedContent, changed } = applySourceAction({
             content: lastDailyNoteContent,
             action: sourceAction,
-            rolledTodos: sections_today.flatMap((s) => s.incompleteTodos),
+            rolledLineIndices: sections_today.flatMap(
+              (s) => s.incompleteLineIndices
+            ),
             // delete also removes empty todos that were not rolled over
-            deletedTodos: todos_yesterday,
+            deletedLineIndices: foundLineIndices,
             skippedLineIndices: [...skippedLineIndices],
             marker: normalizeMarker(this.settings.rolloverSourceMarker),
             doneStatusMarkers: this.settings.doneStatusMarkers,

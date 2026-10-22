@@ -26,7 +26,7 @@ This is an [Obsidian](https://obsidian.md) plugin. Obsidian plugins must ship as
 
 - `src/index.js` — `RolloverTodosPlugin` class (extends `Plugin`). Handles plugin lifecycle (`onload`), vault event registration, commands ("Rollover Todos Now", "Undo last rollover"), and the top-level `rollover()` orchestration logic.
 - `src/get-todos.js` — `TodoParser` class + `getTodos()` / `getTodosAndSkipped()` exports, plus the section helpers `getSections()` (todos grouped by full heading ancestry), `removeEmptyHeadings()`, `hasHeading()` and `insertUnderHeading()`. Pure logic on arrays of markdown lines. Uses `Intl.Segmenter` for correct Unicode grapheme cluster handling (emoji, combining characters in checkbox content).
-- `src/source-action.js` — pure `applySourceAction()` for what happens to the previous day's note after rollover (`none` / `delete` / `mark`), plus settings helpers (`resolveSourceAction`, `migrateSourceActionSettings`, `normalizeMarker`, `effectiveDoneStatusMarkers`).
+- `src/source-action.js` — pure `applySourceAction()` for what happens to the previous day's note after rollover (`none` / `delete` / `mark`), acting on line positions from `getSections()` (`incompleteLineIndices`, `skippedLineIndices`), never on line text, plus settings helpers (`resolveSourceAction`, `migrateSourceActionSettings`, `normalizeMarker`, `effectiveDoneStatusMarkers`).
 - `src/insert-todos.js` — pure `dedupeAgainstExisting()` (skip todos already in today's note) and `verifyTodosPresent()` (Templater safeguard).
 - `src/template-headings.js` — pure helpers for the template heading setting (`extractHeadings`, `headingOptions`).
 - `src/ui/RolloverSettingTab.js` — Obsidian `PluginSettingTab` for the settings panel.

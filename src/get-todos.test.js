@@ -571,9 +571,9 @@ test("getSections groups incomplete todos under their direct parent heading", ()
   const sections = getSections({ lines, doneStatusMarkers: "xX-" });
 
   expect(sections).toStrictEqual([
-    { headingPath: ["## Notes", "### Today's intent"], incompleteTodos: ["- [ ] task1"] },
-    { headingPath: ["## Notes", "### Today's intent", "#### Personal Projects"], incompleteTodos: ["- [ ] Create browser extension"] },
-    { headingPath: ["## Notes", "### Today's intent", "#### IRAP"], incompleteTodos: ["- [ ] Organize call"] },
+    { headingPath: ["## Notes", "### Today's intent"], incompleteTodos: ["- [ ] task1"], incompleteLineIndices: [3] },
+    { headingPath: ["## Notes", "### Today's intent", "#### Personal Projects"], incompleteTodos: ["- [ ] Create browser extension"], incompleteLineIndices: [8] },
+    { headingPath: ["## Notes", "### Today's intent", "#### IRAP"], incompleteTodos: ["- [ ] Organize call"], incompleteLineIndices: [13] },
   ]);
 });
 
@@ -589,7 +589,7 @@ test("getSections excludes sections with only completed todos", () => {
   const sections = getSections({ lines, doneStatusMarkers: "xX-" });
 
   expect(sections).toStrictEqual([
-    { headingPath: ["#### Has todos"], incompleteTodos: ["- [ ] still open"] },
+    { headingPath: ["#### Has todos"], incompleteTodos: ["- [ ] still open"], incompleteLineIndices: [4] },
   ]);
 });
 
@@ -604,8 +604,8 @@ test("getSections puts todos before any heading into empty headingPath", () => {
   const sections = getSections({ lines, doneStatusMarkers: "xX-" });
 
   expect(sections).toStrictEqual([
-    { headingPath: [], incompleteTodos: ["- [ ] floating todo"] },
-    { headingPath: ["## Notes"], incompleteTodos: ["- [ ] under heading"] },
+    { headingPath: [], incompleteTodos: ["- [ ] floating todo"], incompleteLineIndices: [0] },
+    { headingPath: ["## Notes"], incompleteTodos: ["- [ ] under heading"], incompleteLineIndices: [3] },
   ]);
 });
 
@@ -627,6 +627,7 @@ test("getSections respects withChildren option", () => {
         "    - [i] Sent notes",
         "- [ ] Organize call",
       ],
+      incompleteLineIndices: [1, 2, 3],
     },
   ]);
 });
@@ -642,7 +643,7 @@ test("getSections respects custom doneStatusMarkers", () => {
   const sections = getSections({ lines, doneStatusMarkers: "xXb" });
 
   expect(sections).toStrictEqual([
-    { headingPath: ["#### Section"], incompleteTodos: ["- [ ] open task"] },
+    { headingPath: ["#### Section"], incompleteTodos: ["- [ ] open task"], incompleteLineIndices: [2] },
   ]);
 });
 
@@ -657,8 +658,8 @@ test("getSections handles multiple headings at same level independently", () => 
   const sections = getSections({ lines });
 
   expect(sections).toStrictEqual([
-    { headingPath: ["#### Section A"], incompleteTodos: ["- [ ] todo A"] },
-    { headingPath: ["#### Section B"], incompleteTodos: ["- [ ] todo B"] },
+    { headingPath: ["#### Section A"], incompleteTodos: ["- [ ] todo A"], incompleteLineIndices: [1] },
+    { headingPath: ["#### Section B"], incompleteTodos: ["- [ ] todo B"], incompleteLineIndices: [3] },
   ]);
 });
 
@@ -677,6 +678,7 @@ test("getSections includes full heading ancestry for deeply nested todos", () =>
     {
       headingPath: ["### Today's intent", "#### Personal projects", "##### Seal workflow"],
       incompleteTodos: ["- [/] Adopt temporal for orchestration"],
+      incompleteLineIndices: [4],
     },
   ]);
 });
@@ -693,8 +695,8 @@ test("getSections resets ancestry correctly when sibling headings are encountere
   const sections = getSections({ lines });
 
   expect(sections).toStrictEqual([
-    { headingPath: ["#### Section A", "##### Sub A"], incompleteTodos: ["- [ ] todo under Sub A"] },
-    { headingPath: ["#### Section B"], incompleteTodos: ["- [ ] todo under Section B"] },
+    { headingPath: ["#### Section A", "##### Sub A"], incompleteTodos: ["- [ ] todo under Sub A"], incompleteLineIndices: [2] },
+    { headingPath: ["#### Section B"], incompleteTodos: ["- [ ] todo under Section B"], incompleteLineIndices: [4] },
   ]);
 });
 
@@ -905,6 +907,7 @@ test("skipCompletedChildren keeps a completed child that still has open todos un
       "        - [ ] open grandchild",
       "- [ ] next",
     ],
+    todoIndices: [0, 1, 2, 4],
     skippedIndices: [3],
   });
 });
@@ -928,6 +931,7 @@ test("getTodosAndSkipped reports the indices of skipped lines", () => {
     getTodosAndSkipped({ lines, withChildren: true, skipCompletedChildren: true })
   ).toStrictEqual({
     todos: ["- [ ] parent", "    - [ ] open child"],
+    todoIndices: [1, 4],
     skippedIndices: [2, 3],
   });
 });
@@ -955,11 +959,13 @@ test("getSections forwards parser options and reports absolute skipped line indi
     {
       headingPath: ["## Work"],
       incompleteTodos: ["- [ ] Ship release", "    - [ ] Tag version"],
+      incompleteLineIndices: [1, 4],
       skippedLineIndices: [2, 3],
     },
     {
       headingPath: ["## Home"],
       incompleteTodos: ["- [ ] Laundry"],
+      incompleteLineIndices: [7],
       skippedLineIndices: [8],
     },
   ]);

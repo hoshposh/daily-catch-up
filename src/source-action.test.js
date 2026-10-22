@@ -111,7 +111,7 @@ describe("effectiveDoneStatusMarkers", () => {
 describe("applySourceAction: none", () => {
   test("leaves content untouched", () => {
     const content = "- [ ] a\n- [x] b";
-    expect(applySourceAction({ content, action: "none", rolledTodos: ["- [ ] a"] })).toStrictEqual({
+    expect(applySourceAction({ content, action: "none", rolledLineIndices: [0] })).toStrictEqual({
       content,
       changed: false,
     });
@@ -119,28 +119,48 @@ describe("applySourceAction: none", () => {
 });
 
 describe("applySourceAction: delete", () => {
-  test("removes rolled lines and keeps the rest", () => {
+  test("removes the rolled lines by position and keeps the rest", () => {
     const content = "## Work\n- [ ] a\n- [x] b\n- [ ] c";
     const result = applySourceAction({
       content,
       action: "delete",
-      rolledTodos: ["- [ ] a", "- [ ] c"],
+      rolledLineIndices: [1, 3],
     });
     expect(result).toStrictEqual({ content: "## Work\n- [x] b", changed: true });
   });
 
-  test("also removes lines listed in deletedTodos (e.g. empty todos that were not rolled)", () => {
+  test("keeps lines that only have the same text as a rolled line", () => {
+    const content = "- [ ] parent A\n    - notes\n- [x] parent B\n    - notes";
+    const result = applySourceAction({
+      content,
+      action: "delete",
+      rolledLineIndices: [0, 1],
+    });
+    expect(result.content).toBe("- [x] parent B\n    - notes");
+  });
+
+  test("keeps an identical line inside a code block", () => {
+    const content = "- [ ] a\n```\n- [ ] a\n```";
+    const result = applySourceAction({
+      content,
+      action: "delete",
+      rolledLineIndices: [0],
+    });
+    expect(result.content).toBe("```\n- [ ] a\n```");
+  });
+
+  test("also removes deletedLineIndices (e.g. empty todos that were not rolled)", () => {
     const content = "- [ ] a\n- [ ]\n- [x] b";
     const result = applySourceAction({
       content,
       action: "delete",
-      rolledTodos: ["- [ ] a"],
-      deletedTodos: ["- [ ] a", "- [ ]"],
+      rolledLineIndices: [0],
+      deletedLineIndices: [0, 1],
     });
     expect(result.content).toBe("- [x] b");
   });
 
-  test("removes skipped completed children by line index, not by text", () => {
+  test("removes skipped completed children together with the rolled parent", () => {
     const content = [
       "## Work",
       "- [ ] parent",
@@ -151,21 +171,30 @@ describe("applySourceAction: delete", () => {
     const result = applySourceAction({
       content,
       action: "delete",
-      rolledTodos: ["- [ ] parent"],
+      rolledLineIndices: [1],
       skippedLineIndices: [2, 3],
     });
     expect(result.content).toBe("## Work\n- [x] done child");
   });
 
-  test("deletes on CRLF files, including the rolled lines themselves", () => {
+  test("works on CRLF files and keeps their line endings", () => {
     const content = "## Work\r\n- [ ] parent\r\n    - [x] done child\r\n- [x] kept\r\n";
     const result = applySourceAction({
       content,
       action: "delete",
-      rolledTodos: ["- [ ] parent"],
+      rolledLineIndices: [1],
       skippedLineIndices: [2],
     });
     expect(result.content).toBe("## Work\r\n- [x] kept\r\n");
+  });
+
+  test("ignores positions beyond the end of the note", () => {
+    const result = applySourceAction({
+      content: "- [ ] a",
+      action: "delete",
+      rolledLineIndices: [0, 5],
+    });
+    expect(result.content).toBe("");
   });
 
   test("drops headings left with no content", () => {
@@ -173,7 +202,7 @@ describe("applySourceAction: delete", () => {
     const result = applySourceAction({
       content,
       action: "delete",
-      rolledTodos: ["- [ ] a"],
+      rolledLineIndices: [1],
     });
     expect(result.content).toBe("## Home\n- [x] b");
   });
@@ -186,27 +215,25 @@ describe("applySourceAction: mark", () => {
     const result = applySourceAction({
       ...base,
       content: "- [ ] a\n- [x] b",
-      rolledTodos: ["- [ ] a"],
+      rolledLineIndices: [0],
     });
     expect(result).toStrictEqual({ content: "- [>] a\n- [x] b", changed: true });
   });
 
   test("marks open children as well as their parent", () => {
-    const rolled = ["- [ ] parent", "    - [ ] child"];
     const result = applySourceAction({
       ...base,
-      content: rolled.join("\n"),
-      rolledTodos: rolled,
+      content: "- [ ] parent\n    - [ ] child",
+      rolledLineIndices: [0, 1],
     });
     expect(result.content).toBe("- [>] parent\n    - [>] child");
   });
 
   test("leaves rolled completed children as they were", () => {
-    const rolled = ["- [ ] parent", "    - [x] done child", "    - plain note"];
     const result = applySourceAction({
       ...base,
-      content: rolled.join("\n"),
-      rolledTodos: rolled,
+      content: "- [ ] parent\n    - [x] done child\n    - plain note",
+      rolledLineIndices: [0, 1, 2],
     });
     expect(result.content).toBe("- [>] parent\n    - [x] done child\n    - plain note");
   });
@@ -215,7 +242,7 @@ describe("applySourceAction: mark", () => {
     const result = applySourceAction({
       ...base,
       content: "- [/] half",
-      rolledTodos: ["- [/] half"],
+      rolledLineIndices: [0],
     });
     expect(result.content).toBe("- [>] half");
   });
@@ -224,26 +251,34 @@ describe("applySourceAction: mark", () => {
     const result = applySourceAction({
       ...base,
       content: "- [ ] rolled\n- [ ]\n- [ ] kept",
-      rolledTodos: ["- [ ] rolled"],
+      rolledLineIndices: [0],
     });
     expect(result.content).toBe("- [>] rolled\n- [ ]\n- [ ] kept");
+  });
+
+  test("does not mark an identical line that was not rolled", () => {
+    const result = applySourceAction({
+      ...base,
+      content: "- [ ] a\n```\n- [ ] a\n```",
+      rolledLineIndices: [0],
+    });
+    expect(result.content).toBe("- [>] a\n```\n- [ ] a\n```");
   });
 
   test("works on CRLF files and keeps the line endings", () => {
     const result = applySourceAction({
       ...base,
       content: "- [ ] a\r\n- [x] b\r\n",
-      rolledTodos: ["- [ ] a"],
+      rolledLineIndices: [0],
     });
     expect(result.content).toBe("- [>] a\r\n- [x] b\r\n");
   });
 
   test("leaves blockquote children alone when ignoreBlockquotes is on", () => {
-    const rolled = ["- [ ] parent", "    > - [ ] habit in callout"];
     const result = applySourceAction({
       ...base,
-      content: rolled.join("\n"),
-      rolledTodos: rolled,
+      content: "- [ ] parent\n    > - [ ] habit in callout",
+      rolledLineIndices: [0, 1],
       ignoreBlockquotes: true,
     });
     expect(result.content).toBe("- [>] parent\n    > - [ ] habit in callout");
@@ -253,18 +288,18 @@ describe("applySourceAction: mark", () => {
     const result = applySourceAction({
       ...base,
       content: "> - [ ] quoted",
-      rolledTodos: ["> - [ ] quoted"],
+      rolledLineIndices: [0],
     });
     expect(result.content).toBe("> - [>] quoted");
   });
 
   test("supports multi-codepoint markers and $ in the marker", () => {
     expect(
-      applySourceAction({ ...base, marker: "➡️", content: "- [ ] a", rolledTodos: ["- [ ] a"] })
+      applySourceAction({ ...base, marker: "➡️", content: "- [ ] a", rolledLineIndices: [0] })
         .content
     ).toBe("- [➡️] a");
     expect(
-      applySourceAction({ ...base, marker: "$", content: "- [ ] a", rolledTodos: ["- [ ] a"] })
+      applySourceAction({ ...base, marker: "$", content: "- [ ] a", rolledLineIndices: [0] })
         .content
     ).toBe("- [$] a");
   });
@@ -273,7 +308,7 @@ describe("applySourceAction: mark", () => {
     const result = applySourceAction({
       ...base,
       content: "- [x] b",
-      rolledTodos: ["- [ ] a"],
+      rolledLineIndices: [0],
     });
     expect(result).toStrictEqual({ content: "- [x] b", changed: false });
   });
@@ -282,7 +317,7 @@ describe("applySourceAction: mark", () => {
     const result = applySourceAction({
       ...base,
       content: "## Work\n- [ ] a",
-      rolledTodos: ["- [ ] a"],
+      rolledLineIndices: [1],
     });
     expect(result.content).toBe("## Work\n- [>] a");
   });

@@ -52,14 +52,19 @@ export function effectiveDoneStatusMarkers(settings) {
 }
 
 /**
+ * Lines are addressed by position, never by text, so identical lines that were
+ * not rolled (under another parent, in a code block) are left alone.
+ *
  * @param {object} args
- * @param {string} args.content - the source note's current content
+ * @param {string} args.content - the source note's current content; positions
+ *   refer to its lines split on "\n"
  * @param {"none"|"delete"|"mark"} args.action
- * @param {string[]} args.rolledTodos - lines that were rolled over (verbatim)
- * @param {string[]} [args.deletedTodos] - lines to remove for "delete"; defaults
- *   to rolledTodos (can also include empty todos that were not rolled)
- * @param {number[]} [args.skippedLineIndices] - indices of lines removed along
- *   with their rolled parent for "delete" (see skipCompletedChildren)
+ * @param {number[]} args.rolledLineIndices - lines that were rolled over
+ * @param {number[]} [args.deletedLineIndices] - lines to remove for "delete";
+ *   defaults to rolledLineIndices (can also include empty todos that were not
+ *   rolled)
+ * @param {number[]} [args.skippedLineIndices] - lines removed along with their
+ *   rolled parent for "delete" (see skipCompletedChildren)
  * @param {string} [args.marker] - checkbox character for "mark"
  * @param {string} [args.doneStatusMarkers] - which checkbox characters count as
  *   done; "mark" only rewrites todos that are not done
@@ -69,36 +74,31 @@ export function effectiveDoneStatusMarkers(settings) {
 export function applySourceAction({
   content,
   action,
-  rolledTodos = [],
-  deletedTodos = rolledTodos,
+  rolledLineIndices = [],
+  deletedLineIndices = rolledLineIndices,
   skippedLineIndices = [],
   marker = DEFAULT_MARKER,
   doneStatusMarkers = null,
   ignoreBlockquotes = false,
 }) {
   if (action === "delete") {
-    const toDelete = new Set(deletedTodos);
-    const skipped = new Set(skippedLineIndices);
-    const lines = content.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      // compare without a trailing \r so CRLF files match too
-      if (skipped.has(i) || toDelete.has(lines[i].replace(/\r$/, ""))) {
-        lines.splice(i, 1);
-      }
-    }
+    const toDelete = new Set([...deletedLineIndices, ...skippedLineIndices]);
+    const lines = content
+      .split("\n")
+      .filter((_, index) => !toDelete.has(index));
     const newContent = removeEmptyHeadings(lines).join("\n");
     return { content: newContent, changed: newContent !== content };
   }
 
   if (action === "mark") {
-    const rolled = new Set(rolledTodos);
+    const rolled = new Set(rolledLineIndices);
     const newContent = content
       .split("\n")
-      .map((line) => {
-        // Compare without a trailing \r so CRLF files match too
+      .map((line, index) => {
+        if (!rolled.has(index)) return line;
+        // Rolled completed children keep their checkbox; only open todos move.
+        // Checked without a trailing \r so CRLF files work too.
         const text = line.replace(/\r$/, "");
-        if (!rolled.has(text)) return line;
-        // Rolled completed children keep their checkbox; only open todos move
         if (
           getTodos({ lines: [text], doneStatusMarkers, ignoreBlockquotes })
             .length === 0
