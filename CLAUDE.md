@@ -25,23 +25,30 @@ This is an [Obsidian](https://obsidian.md) plugin. Obsidian plugins must ship as
 **Core files:**
 
 - `src/index.js` — `RolloverTodosPlugin` class (extends `Plugin`). Handles plugin lifecycle (`onload`), vault event registration, commands ("Rollover Todos Now", "Undo last rollover"), and the top-level `rollover()` orchestration logic.
-- `src/get-todos.js` — `TodoParser` class + `getTodos()` export. Pure logic: given an array of markdown lines, returns unfinished todo lines. Uses `Intl.Segmenter` for correct Unicode grapheme cluster handling (emoji, combining characters in checkbox content).
+- `src/get-todos.js` — `TodoParser` class + `getTodos()` / `getTodosAndSkipped()` exports, plus the section helpers `getSections()` (todos grouped by full heading ancestry), `removeEmptyHeadings()`, `hasHeading()` and `insertUnderHeading()`. Pure logic on arrays of markdown lines. Uses `Intl.Segmenter` for correct Unicode grapheme cluster handling (emoji, combining characters in checkbox content).
+- `src/source-action.js` — pure `applySourceAction()` for what happens to the previous day's note after rollover (`none` / `delete` / `mark`), plus settings helpers (`resolveSourceAction`, `migrateSourceActionSettings`, `normalizeMarker`, `effectiveDoneStatusMarkers`).
+- `src/insert-todos.js` — pure `dedupeAgainstExisting()` (skip todos already in today's note) and `verifyTodosPresent()` (Templater safeguard).
+- `src/template-headings.js` — pure helpers for the template heading setting (`extractHeadings`, `headingOptions`).
 - `src/ui/RolloverSettingTab.js` — Obsidian `PluginSettingTab` for the settings panel.
 - `src/ui/UndoModal.js` — Obsidian `Modal` for the undo confirmation dialog.
 
 **Plugin settings** (defaults in `loadSettings`):
 
 - `templateHeading` — heading to insert todos under (or `"none"` for end of file)
-- `deleteOnComplete` — remove rolled-over todos from the previous day's note
+- `onRolloverSourceAction` — `"none"` (default), `"delete"` or `"mark"`: what to do with rolled todos on the previous day's note (replaces the old `deleteOnComplete` boolean, which is migrated to `"delete"`)
+- `rolloverSourceMarker` — checkbox character used by `"mark"` (default `">"`); counts as a done marker while marking, without changing `doneStatusMarkers`
+- `skipExistingTodos` — don't roll over todos (with their children) that today's note already has
+- `ignoreBlockquotes` — don't roll over todos inside blockquotes/callouts
+- `skipCompletedChildren` — with `rolloverChildren`, leave completed child todos out (removed with their parent when deleting)
 - `removeEmptyTodos` — skip empty `- [ ]` items
 - `rolloverChildren` — include indented child items under a todo
 - `rolloverOnFileCreate` — auto-trigger on vault `create` event
 - `doneStatusMarkers` — string of characters treated as "done" (default `"xX-"`)
 - `leadingNewLine` — add a newline before todos when inserting under a heading
 
-**Rollover flow:** On daily note creation (or manual command), `rollover()` validates the file is today's daily note (created within 5 seconds), finds the previous daily note via `getLastDailyNote()`, extracts unfinished todos via `getAllUnfinishedTodos()`, then appends them to today's note (optionally under a template heading). Undo history is kept for 2 minutes.
+**Rollover flow:** On daily note creation (or manual command), `rollover()` validates the file is today's daily note (created within 5 seconds), finds the previous daily note via `getLastDailyNote()`, and groups its unfinished todos by heading with `getSections()`. It inserts them into today's note (under the template heading, creating sub-headings as needed), optionally skipping todos today's note already has. It then applies the configured source action (`delete` / `mark`) to the previous day's note. If Templater is enabled and the action is destructive, it first waits 3 seconds and checks that the inserted todos survived. Undo history is kept for 2 minutes; with Templater enabled only the previous day's note is snapshotted.
 
-**Testing:** Tests live in `src/get-todos.test.js` and cover only the pure `getTodos()` function (no Obsidian API involved). The plugin's vault/UI logic has no tests.
+**Testing:** Tests (`pnpm test`) cover the pure modules: `src/get-todos.test.js`, `src/source-action.test.js`, `src/insert-todos.test.js` and `src/template-headings.test.js`. The vault/UI logic in `index.js` and `src/ui/` needs Obsidian and has no tests, so keep logic in the pure modules where it can be tested.
 
 ## Fork and upstream relationship
 

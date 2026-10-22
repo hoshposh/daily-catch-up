@@ -11,41 +11,77 @@ const indentationOf = (line) => line.search(/\S/);
  *
  * - Only checkbox lines are compared (trimmed, exact incl. the checkbox), never
  *   plain text.
- * - Todos are handled as groups: a duplicate parent takes its indented
- *   children with it, while a duplicate child under a kept parent is kept.
+ * - With `withChildren`, todos are handled as groups: a duplicate parent takes
+ *   its indented children with it, while a duplicate child under a kept parent
+ *   is kept. Without it, indented todos are independent items.
  *
  * @param {string[]} todos - the rolled lines, children included
  * @param {string} existingContent - today's note before anything is inserted
- * @returns {{ todos: string[], skipped: number }} skipped counts dropped lines
+ * @param {boolean} [withChildren=true] - whether indented lines belong to the
+ *   todo above them (the "roll over children" setting)
+ * @returns {{ todos: string[], skipped: number, duplicates: string[] }}
+ *   `duplicates` are the dropped lines, `skipped` their count
  */
-export function dedupeAgainstExisting(todos, existingContent) {
+export function dedupeAgainstExisting(todos, existingContent, withChildren = true) {
   const existing = new Set(existingContent.split("\n").map((l) => l.trim()));
   const kept = [];
+  const duplicates = [];
   let headIndentation = null;
   let headDropped = false;
 
   for (const line of todos) {
     const indentation = indentationOf(line);
-    const isChild = headIndentation !== null && indentation > headIndentation;
+    const isChild =
+      withChildren && headIndentation !== null && indentation > headIndentation;
     if (isChild) {
-      if (!headDropped) kept.push(line);
+      (headDropped ? duplicates : kept).push(line);
       continue;
     }
     headIndentation = indentation;
     headDropped = CHECKBOX_LINE.test(line) && existing.has(line.trim());
-    if (!headDropped) kept.push(line);
+    (headDropped ? duplicates : kept).push(line);
   }
 
-  return { todos: kept, skipped: todos.length - kept.length };
+  return { todos: kept, skipped: duplicates.length, duplicates };
+}
+
+// Number of times each (trimmed) line occurs in `lines`
+function countLines(lines) {
+  const counts = new Map();
+  for (const line of lines) {
+    const key = line.trim();
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return counts;
 }
 
 /**
- * True when every line in `todos` is a full line of `content`. Used to confirm
- * that rolled todos survived in today's note (another plugin, such as
- * Templater, may rewrite a new note right after we wrote to it).
+ * True when today's note still holds what the rollover put there. Another
+ * plugin (Templater) may rewrite a new note right after we wrote to it, and a
+ * rolled line can also be a line the template already had, so a line only
+ * counts when it occurs as often as in the original note plus once per copy we
+ * inserted.
+ *
+ * @param {string} content - today's note after things settled
+ * @param {string[]} todos - lines that were inserted
+ * @param {string} [baseContent] - today's note before the insertion
+ * @param {string[]} [alreadyPresent] - rolled lines that were skipped because
+ *   the note already had them; these must still be there
  */
-export function verifyTodosPresent(content, todos) {
-  if (todos.length === 0) return true;
-  const lines = new Set(content.split(/\r?\n/));
-  return todos.every((todo) => lines.has(todo));
+export function verifyTodosPresent(
+  content,
+  todos,
+  baseContent = "",
+  alreadyPresent = []
+) {
+  const actual = countLines(content.split(/\r?\n/));
+  const base = countLines(baseContent.split(/\r?\n/));
+  const inserted = countLines(todos);
+  const lines = new Set([...inserted.keys(), ...alreadyPresent.map((l) => l.trim())]);
+
+  for (const line of lines) {
+    const expected = (base.get(line) || 0) + (inserted.get(line) || 0);
+    if ((actual.get(line) || 0) < expected) return false;
+  }
+  return true;
 }

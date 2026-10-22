@@ -68,6 +68,16 @@ describe("effectiveDoneStatusMarkers", () => {
     expect(effectiveDoneStatusMarkers({ ...base, onRolloverSourceAction: "delete" })).toBe("xX-");
   });
 
+  test("an empty done-markers field keeps the parser defaults and adds the marker", () => {
+    expect(
+      effectiveDoneStatusMarkers({
+        doneStatusMarkers: "",
+        rolloverSourceMarker: ">",
+        onRolloverSourceAction: "mark",
+      })
+    ).toBe("xX->");
+  });
+
   test("does not duplicate a marker that is already a done marker", () => {
     expect(
       effectiveDoneStatusMarkers({
@@ -126,6 +136,17 @@ describe("applySourceAction: delete", () => {
       skippedLineIndices: [2, 3],
     });
     expect(result.content).toBe("## Work\n- [x] done child");
+  });
+
+  test("deletes on CRLF files, including the rolled lines themselves", () => {
+    const content = "## Work\r\n- [ ] parent\r\n    - [x] done child\r\n- [x] kept\r\n";
+    const result = applySourceAction({
+      content,
+      action: "delete",
+      rolledTodos: ["- [ ] parent"],
+      skippedLineIndices: [2],
+    });
+    expect(result.content).toBe("## Work\r\n- [x] kept\r\n");
   });
 
   test("drops headings left with no content", () => {

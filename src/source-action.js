@@ -9,6 +9,7 @@ import { getTodos, removeEmptyHeadings } from "./get-todos";
 
 const ACTIONS = ["none", "delete", "mark"];
 const DEFAULT_MARKER = ">";
+const DEFAULT_DONE_MARKERS = "xX-"; // same as the parser's default
 
 // Captures the text around the checkbox content so it can be swapped out
 const CHECKBOX_RE = /^(\s*(?:>\s*)*[*+-] \[).+?(\])/;
@@ -43,8 +44,11 @@ export function normalizeMarker(marker) {
 // While marking, the marker counts as "done" for the parser, so a rolled and
 // marked todo is not rolled a second time. The saved setting is not changed.
 export function effectiveDoneStatusMarkers(settings) {
-  const doneStatusMarkers = settings.doneStatusMarkers || "";
-  if (resolveSourceAction(settings) !== "mark") return doneStatusMarkers;
+  if (resolveSourceAction(settings) !== "mark") {
+    return settings.doneStatusMarkers || "";
+  }
+  // An empty setting means the parser's default markers, which must be kept
+  const doneStatusMarkers = settings.doneStatusMarkers || DEFAULT_DONE_MARKERS;
   const marker = normalizeMarker(settings.rolloverSourceMarker);
   return doneStatusMarkers.includes(marker)
     ? doneStatusMarkers
@@ -79,7 +83,8 @@ export function applySourceAction({
     const skipped = new Set(skippedLineIndices);
     const lines = content.split("\n");
     for (let i = lines.length - 1; i >= 0; i--) {
-      if (skipped.has(i) || toDelete.has(lines[i])) {
+      // compare without a trailing \r so CRLF files match too
+      if (skipped.has(i) || toDelete.has(lines[i].replace(/\r$/, ""))) {
         lines.splice(i, 1);
       }
     }

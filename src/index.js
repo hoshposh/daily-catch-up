@@ -267,7 +267,8 @@ export default class RolloverTodosPlugin extends Plugin {
 
       // get unfinished todos from yesterday grouped by their parent heading
       const lastDailyNoteContent = await this.app.vault.read(lastDailyNote);
-      const lastDailyNoteLines = lastDailyNoteContent.split(/\r?\n|\r|\n/g);
+      // \n-based like the delete step, so line positions agree
+      const lastDailyNoteLines = lastDailyNoteContent.split(/\r?\n/);
 
       const sections_yesterday = getSections({
         lines: lastDailyNoteLines,
@@ -330,6 +331,8 @@ export default class RolloverTodosPlugin extends Plugin {
       const templateHeadingSelected = templateHeading !== "none";
 
       let todosAlreadyPresent = 0;
+      const duplicateTodos = [];
+      let insertedTodos = [];
 
       if (sections_today.length > 0) {
         let dailyNoteContent = await this.app.vault.read(file);
@@ -342,11 +345,13 @@ export default class RolloverTodosPlugin extends Plugin {
         if (skipExistingTodos) {
           sections_to_insert = sections_today
             .map((section) => {
-              const { todos, skipped } = dedupeAgainstExisting(
+              const { todos, skipped, duplicates } = dedupeAgainstExisting(
                 section.incompleteTodos,
-                originalDailyNoteContent
+                originalDailyNoteContent,
+                this.settings.rolloverChildren
               );
               todosAlreadyPresent += skipped;
+              duplicateTodos.push(...duplicates);
               return { ...section, incompleteTodos: todos };
             })
             .filter((section) => section.incompleteTodos.length > 0);
@@ -424,25 +429,9 @@ export default class RolloverTodosPlugin extends Plugin {
 
           await this.app.vault.modify(file, dailyNoteContent);
 
-          // Before touching the previous day's note, make sure another plugin
-          // did not overwrite what we just inserted. If it did, the todos would
-          // otherwise be lost from both notes.
-          if (sourceAction !== "none" && this.isTemplaterEnabled()) {
-            await this.waitForSettle(TEMPLATER_SETTLE_MS);
-            const settledContent = await this.app.vault.read(file);
-            const insertedTodos = sections_to_insert.flatMap(
-              (section) => section.incompleteTodos
-            );
-            if (!verifyTodosPresent(settledContent, insertedTodos)) {
-              // No undo is recorded: it would restore today's note to its
-              // state before Templater rendered it.
-              new Notice(
-                "Rollover left the previous day's note unchanged: today's note was modified by another plugin (likely Templater) after the todos were added, and they may be missing. Run 'Rollover Todos Now' to try again.",
-                15000
-              );
-              return;
-            }
-          }
+          insertedTodos = sections_to_insert.flatMap(
+            (section) => section.incompleteTodos
+          );
 
           // With Templater, the note we read was still the unrendered template,
           // so undoing today's note would replace Templater's output with it.
@@ -452,6 +441,35 @@ export default class RolloverTodosPlugin extends Plugin {
               file: file,
               oldContent: originalDailyNoteContent,
             };
+          }
+        }
+
+        // Before touching the previous day's note, make sure another plugin
+        // did not overwrite what we just inserted. If it did, the todos would
+        // otherwise be lost from both notes. Todos skipped because today's note
+        // already had them must still be there too.
+        if (
+          sourceAction !== "none" &&
+          this.isTemplaterEnabled() &&
+          (insertedTodos.length > 0 || duplicateTodos.length > 0)
+        ) {
+          await this.waitForSettle(TEMPLATER_SETTLE_MS);
+          const settledContent = await this.app.vault.read(file);
+          if (
+            !verifyTodosPresent(
+              settledContent,
+              insertedTodos,
+              originalDailyNoteContent,
+              duplicateTodos
+            )
+          ) {
+            // No undo is recorded: it would restore today's note to its
+            // state before Templater rendered it.
+            new Notice(
+              "Rollover left the previous day's note unchanged: today's note was modified by another plugin (likely Templater) after the todos were added, and they may be missing. Run 'Rollover Todos Now' to try again.",
+              15000
+            );
+            return;
           }
         }
       }
@@ -521,11 +539,13 @@ export default class RolloverTodosPlugin extends Plugin {
       if (message.length > 0) {
         new Notice(message, 4000 + message.length * 3);
       }
-      // nothing was modified that undo can restore
+      // nothing was modified that undo can restore; an earlier rollover must
+      // not stay undoable as if it were the latest one
       if (
         undoHistoryInstance.today.file == undefined &&
         undoHistoryInstance.previousDay.file == undefined
       ) {
+        this.undoHistory = [];
         return;
       }
       this.undoHistoryTime = new Date();

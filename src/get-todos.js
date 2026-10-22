@@ -346,7 +346,8 @@ export const insertUnderHeading = (
     return noteContent + prefix + textToInsert + "\n";
   }
 
-  const level = getHeadingLevel(targetHeading);
+  // a target that is not a Markdown heading ends at the next heading of any level
+  const level = getHeadingLevel(targetHeading) ?? 6;
   const searchStart = headingMatch.index + headingMatch[0].length;
 
   const nextHeadingRegex = new RegExp(`\\n#{1,${level}} `, "g");

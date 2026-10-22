@@ -66,7 +66,7 @@ export default class RolloverSettingTab extends PluginSettingTab {
       new Setting(this.containerEl)
         .setName("Template heading")
         .setDesc(
-          `No headings could be read from your daily note template (it may be missing, unreadable or have no headings). Type the exact heading that today's note will contain, including the leading '#' characters, e.g. '## Tasks'. Use 'none' to add todos to the end of the note.`
+          `No headings could be read from your daily note template (it may be missing, unreadable or have no headings). Type the exact heading that today's note will contain, starting with '#' characters, e.g. '## Tasks'. Use 'none' to add todos to the end of the note.`
         )
         .addText((text) =>
           text
@@ -158,7 +158,7 @@ export default class RolloverSettingTab extends PluginSettingTab {
     new Setting(this.containerEl)
       .setName("Skip completed children")
       .setDesc(
-        `Only applies when "Roll over children of todos" is on. Completed nested todos, and everything nested under them, are not rolled over. If "Delete todos from previous day" is on, they are removed from the previous note together with their parent.`
+        `Only applies when "Roll over children of todos" is on. Completed nested todos, and everything nested under them, are not rolled over. If the previous day's note is set to "Delete them", they are removed from the previous note together with their parent.`
       )
       .addToggle((toggle) =>
         toggle

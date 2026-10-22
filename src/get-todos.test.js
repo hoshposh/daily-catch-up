@@ -976,3 +976,9 @@ test("hasHeading treats regex characters in the heading literally", () => {
   expect(hasHeading("## Tasks (today)\n", "## Tasks (today)")).toBe(true);
   expect(hasHeading("## Tasks today\n", "## Tasks (today)")).toBe(false);
 });
+
+test("insertUnderHeading with a target that is not a Markdown heading inserts at the end of its section", () => {
+  const content = "Tasks\n- [ ] a\n\n## Notes\ntext\n";
+  const result = insertUnderHeading(content, "Tasks", "- [ ] x", false);
+  expect(result).toBe("Tasks\n- [ ] a\n- [ ] x\n\n## Notes\ntext\n");
+});
