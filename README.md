@@ -55,6 +55,8 @@ If you chose a template file to use for new daily notes in `Daily notes > Settin
 
 If you leave this field as blank, or select `None`, then incomplete todos will be rolled onto the end of today's note (for new notes with no template, the end is the beginning of the note).
 
+If the plugin cannot read headings from your template (the template is missing or unreadable, or has no headings), the dropdown is replaced by a text field where you can type the exact heading, e.g. `## Tasks`, or `none`.
+
 ### 4. After rollover, on the previous day's note
 
 By default, this plugin makes a copy of incomplete todos. So if you forgot to wash your dog yesterday, and didn't check it off, then you will have an incomplete checkmark on yesterday's daily note, and a new incomplete checkmark will be rolled into today's daily note. You can choose what happens to the rolled todos on yesterday's note once today's note has a copy of them:

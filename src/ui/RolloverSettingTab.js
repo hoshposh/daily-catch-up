@@ -1,5 +1,6 @@
 import { Setting, PluginSettingTab } from "obsidian";
 import { resolveSourceAction } from "../source-action";
+import { extractHeadings, headingOptions } from "../template-headings";
 import { getDailyNoteSettings } from "obsidian-daily-notes-interface";
 
 export default class RolloverSettingTab extends PluginSettingTab {
@@ -8,50 +9,75 @@ export default class RolloverSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  // Never throws: a broken template path or an unreadable daily-notes config
+  // must not leave the whole settings page blank. Returns [] instead, and the
+  // heading setting falls back to a text field.
   async getTemplateHeadings() {
-    const { template } = getDailyNoteSettings();
-    if (!template) return [];
+    try {
+      // the library returns undefined when it cannot read the configuration
+      const { template } = getDailyNoteSettings() ?? {};
+      if (!template) return [];
 
-    let file = this.app.vault.getAbstractFileByPath(template);
+      let file = this.app.vault.getAbstractFileByPath(template);
 
-    if (file === null) {
-      file = this.app.vault.getAbstractFileByPath(template + ".md");
-    }
+      if (file === null) {
+        file = this.app.vault.getAbstractFileByPath(template + ".md");
+      }
 
-    if (file === null) {
-      // file not available, no template-heading can be returned
+      if (file === null) {
+        // file not available, no template-heading can be returned
+        return [];
+      }
+
+      return extractHeadings(await this.app.vault.read(file));
+    } catch (err) {
+      console.warn(
+        "rollover-daily-todos: failed to read template headings",
+        err
+      );
       return [];
     }
-
-    const templateContents = await this.app.vault.read(file);
-    const allHeadings = Array.from(templateContents.matchAll(/#{1,} .*/g)).map(
-      ([heading]) => heading
-    );
-    return allHeadings;
   }
 
   async display() {
     const templateHeadings = await this.getTemplateHeadings();
 
     this.containerEl.empty();
-    new Setting(this.containerEl)
-      .setName("Template heading")
-      .setDesc("Which heading from your template should the todos go under")
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions({
-            ...templateHeadings.reduce((acc, heading) => {
-              acc[heading] = heading;
-              return acc;
-            }, {}),
-            none: "None",
-          })
-          .setValue(this.plugin?.settings.templateHeading)
-          .onChange((value) => {
-            this.plugin.settings.templateHeading = value;
-            this.plugin.saveSettings();
-          })
-      );
+
+    if (templateHeadings.length > 0) {
+      new Setting(this.containerEl)
+        .setName("Template heading")
+        .setDesc("Which heading from your template should the todos go under")
+        .addDropdown((dropdown) =>
+          dropdown
+            .addOptions(
+              headingOptions(
+                templateHeadings,
+                this.plugin?.settings.templateHeading
+              )
+            )
+            .setValue(this.plugin?.settings.templateHeading)
+            .onChange((value) => {
+              this.plugin.settings.templateHeading = value;
+              this.plugin.saveSettings();
+            })
+        );
+    } else {
+      new Setting(this.containerEl)
+        .setName("Template heading")
+        .setDesc(
+          `No headings could be read from your daily note template (it may be missing, unreadable or have no headings). Type the exact heading that today's note will contain, including the leading '#' characters, e.g. '## Tasks'. Use 'none' to add todos to the end of the note.`
+        )
+        .addText((text) =>
+          text
+            .setPlaceholder("## Tasks")
+            .setValue(this.plugin?.settings.templateHeading || "none")
+            .onChange((value) => {
+              this.plugin.settings.templateHeading = value.trim() || "none";
+              this.plugin.saveSettings();
+            })
+        );
+    }
 
     new Setting(this.containerEl)
       .setName("After rollover, on the previous day's note")

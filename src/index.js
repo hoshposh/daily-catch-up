@@ -92,7 +92,9 @@ export default class RolloverTodosPlugin extends Plugin {
 
   getLastDailyNote() {
     const { moment } = window;
-    let { folder, format } = getDailyNoteSettings();
+    const dailyNoteSettings = getDailyNoteSettings();
+    if (!dailyNoteSettings) return null;
+    let { folder, format } = dailyNoteSettings;
 
     folder = this.getCleanFolder(folder);
     folder = folder.length === 0 ? folder : folder + "/";
@@ -193,7 +195,23 @@ export default class RolloverTodosPlugin extends Plugin {
 
   async rollover(file = undefined) {
     /*** First we check if the file created is actually a valid daily note ***/
-    let { folder, format } = getDailyNoteSettings();
+    // the library returns undefined when it cannot read the configuration
+    const dailyNoteSettings = getDailyNoteSettings();
+    if (!dailyNoteSettings) {
+      // Automatic runs fire for every created file, so only warn in the console;
+      // tell the user when they ran the command themselves.
+      console.warn(
+        "rollover-daily-todos: could not read the daily notes settings"
+      );
+      if (file == undefined) {
+        new Notice(
+          "Rollover couldn't read your daily note settings. Check that Daily Notes (or Periodic Notes) is enabled and configured.",
+          10000
+        );
+      }
+      return;
+    }
+    let { folder, format } = dailyNoteSettings;
     let ignoreCreationTime = false;
 
     // Rollover can be called, but we need to get the daily file
