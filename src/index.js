@@ -10,8 +10,13 @@ import {
   getSections,
   hasHeading,
   insertUnderHeading,
+  splitLines,
 } from "./get-todos";
-import { dedupeAgainstExisting, verifyTodosPresent } from "./insert-todos";
+import {
+  dedupeAgainstExisting,
+  dropEmptyTodos,
+  verifyTodosPresent,
+} from "./insert-todos";
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
@@ -210,8 +215,7 @@ export default class RolloverTodosPlugin extends Plugin {
 
       // get unfinished todos from yesterday grouped by their parent heading
       const lastDailyNoteContent = await this.app.vault.read(lastDailyNote);
-      // \n-based like the delete step, so line positions agree
-      const lastDailyNoteLines = lastDailyNoteContent.split(/\r?\n/);
+      const lastDailyNoteLines = splitLines(lastDailyNoteContent);
 
       const sections_yesterday = getSections({
         lines: lastDailyNoteLines,
@@ -257,26 +261,15 @@ export default class RolloverTodosPlugin extends Plugin {
       let todosAdded = 0;
       let emptiesToNotAddToTomorrow = 0;
 
-      const sections_today = sections_yesterday.map((section) => {
-        if (!removeEmptyTodos) {
-          todosAdded += section.incompleteTodos.length;
-          return section;
-        }
-        // keep the line positions in step with the lines that stay
-        const incompleteTodos = [];
-        const incompleteLineIndices = [];
-        section.incompleteTodos.forEach((line, i) => {
-          const trimmed = (line || "").trim();
-          if (trimmed === "- [ ]" || trimmed === "- [  ]") {
-            emptiesToNotAddToTomorrow++;
-          } else {
-            incompleteTodos.push(line);
-            incompleteLineIndices.push(section.incompleteLineIndices[i]);
-          }
-        });
-        todosAdded += incompleteTodos.length;
-        return { ...section, incompleteTodos, incompleteLineIndices };
-      }).filter((s) => s.incompleteTodos.length > 0);
+      let sections_today = sections_yesterday;
+      if (removeEmptyTodos) {
+        const result = dropEmptyTodos(sections_yesterday);
+        sections_today = result.sections;
+        emptiesToNotAddToTomorrow = result.removed;
+        todosAdded = result.kept;
+      } else {
+        todosAdded = todos_yesterday.length;
+      }
 
       // get today's content and modify it
       let templateHeadingNotFoundMessage = "";
@@ -304,7 +297,9 @@ export default class RolloverTodosPlugin extends Plugin {
               );
               todosAlreadyPresent += skipped;
               duplicateTodos.push(...duplicates);
-              return { ...section, incompleteTodos: todos };
+              // the line positions no longer match the filtered todos
+              const { incompleteLineIndices, ...rest } = section;
+              return { ...rest, incompleteTodos: todos };
             })
             .filter((section) => section.incompleteTodos.length > 0);
           todosAdded -= todosAlreadyPresent;

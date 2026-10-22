@@ -97,3 +97,38 @@ export function verifyTodosPresent(
   }
   return true;
 }
+
+const EMPTY_TODO = /^- \[ {1,2}\]$/;
+
+/**
+ * Removes empty todos (`- [ ]`) from the sections that will be rolled over,
+ * keeping each section's line positions in step with its todos, and drops
+ * sections left without todos.
+ *
+ * @param {{ incompleteTodos: string[], incompleteLineIndices: number[] }[]} sections
+ * @returns {{ sections: object[], kept: number, removed: number }}
+ */
+export function dropEmptyTodos(sections) {
+  let kept = 0;
+  let removed = 0;
+  const result = [];
+
+  for (const section of sections) {
+    const incompleteTodos = [];
+    const incompleteLineIndices = [];
+    section.incompleteTodos.forEach((line, i) => {
+      if (EMPTY_TODO.test((line || "").trim())) {
+        removed++;
+      } else {
+        incompleteTodos.push(line);
+        incompleteLineIndices.push(section.incompleteLineIndices[i]);
+      }
+    });
+    kept += incompleteTodos.length;
+    if (incompleteTodos.length > 0) {
+      result.push({ ...section, incompleteTodos, incompleteLineIndices });
+    }
+  }
+
+  return { sections: result, kept, removed };
+}

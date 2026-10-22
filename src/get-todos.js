@@ -4,6 +4,11 @@ const graphemeSegmenter =
     ? new Intl.Segmenter("en", { granularity: "grapheme" })
     : null;
 
+// Splits a note into lines (\n or \r\n). The line positions reported by
+// getSections() refer to these lines, and they are the same lines as
+// content.split("\n") yields, which is what the source action uses.
+export const splitLines = (content) => content.split(/\r?\n/);
+
 // Splits text into grapheme clusters (emoji, combining characters). Falls back
 // to code points where Intl.Segmenter is not available.
 export const splitGraphemes = (text) =>
@@ -200,6 +205,8 @@ class TodoParser {
   // Returns a list of strings that represents all the todos along with there potential children
   getTodos() {
     let todos = [];
+    this.#todoIndices = [];
+    this.#skippedIndices = [];
     for (let l = 0; l < this.#lines.length; l++) {
       const line = this.#lines[l];
       if (this.#isTodo(line)) {

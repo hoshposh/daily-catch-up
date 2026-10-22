@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { dedupeAgainstExisting, verifyTodosPresent } from "./insert-todos";
+import { dedupeAgainstExisting, dropEmptyTodos, verifyTodosPresent } from "./insert-todos";
 
 describe("dedupeAgainstExisting", () => {
   test("drops a todo that already exists in the note", () => {
@@ -171,5 +171,43 @@ describe("verifyTodosPresent with a base note", () => {
   test("the same todo rolled twice must be present twice", () => {
     expect(verifyTodosPresent("- [ ] a\n", ["- [ ] a", "- [ ] a"])).toBe(false);
     expect(verifyTodosPresent("- [ ] a\n- [ ] a\n", ["- [ ] a", "- [ ] a"])).toBe(true);
+  });
+});
+
+describe("dropEmptyTodos", () => {
+  const section = (todos, indices) => ({
+    headingPath: ["## A"],
+    incompleteTodos: todos,
+    incompleteLineIndices: indices,
+  });
+
+  test("removes empty todos and keeps the line positions in step", () => {
+    const result = dropEmptyTodos([section(["- [ ] a", "- [ ]", "- [ ] b"], [1, 2, 3])]);
+    expect(result).toStrictEqual({
+      sections: [section(["- [ ] a", "- [ ] b"], [1, 3])],
+      kept: 2,
+      removed: 1,
+    });
+  });
+
+  test("also treats a checkbox with two spaces as empty", () => {
+    const result = dropEmptyTodos([section(["  - [  ]"], [4])]);
+    expect(result).toStrictEqual({ sections: [], kept: 0, removed: 1 });
+  });
+
+  test("drops sections that end up without todos", () => {
+    const result = dropEmptyTodos([
+      section(["- [ ]"], [1]),
+      { ...section(["- [ ] b"], [5]), headingPath: ["## B"] },
+    ]);
+    expect(result.sections).toStrictEqual([
+      { ...section(["- [ ] b"], [5]), headingPath: ["## B"] },
+    ]);
+    expect(result.removed).toBe(1);
+  });
+
+  test("keeps everything when there are no empty todos", () => {
+    const sections = [section(["- [ ] a", "    - [ ] b"], [0, 1])];
+    expect(dropEmptyTodos(sections)).toStrictEqual({ sections, kept: 2, removed: 0 });
   });
 });

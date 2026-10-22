@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
+import { splitLines } from "./get-todos";
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
@@ -186,6 +187,15 @@ describe("applySourceAction: delete", () => {
       skippedLineIndices: [2],
     });
     expect(result.content).toBe("## Work\r\n- [x] kept\r\n");
+  });
+
+  test("positions found with splitLines agree with the note's lines, whatever the line endings", () => {
+    const content = "a\r\n- [ ] x\n- [ ] y\r\n";
+    const lines = splitLines(content);
+    const rolled = [lines.indexOf("- [ ] x"), lines.indexOf("- [ ] y")];
+    expect(rolled).toStrictEqual([1, 2]);
+    const result = applySourceAction({ content, action: "delete", rolledLineIndices: rolled });
+    expect(result.content).toBe("a\r\n");
   });
 
   test("ignores positions beyond the end of the note", () => {
