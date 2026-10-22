@@ -31,7 +31,10 @@ export default class UndoModal extends Modal {
   }
 
   async confirmUndo(undoHistoryInstance) {
-    await this.plugin.app.vault.modify(undoHistoryInstance.today.file, undoHistoryInstance.today.oldContent);
+    // today's note is not snapshotted when Templater is enabled
+    if (undoHistoryInstance.today.file != undefined) {
+      await this.plugin.app.vault.modify(undoHistoryInstance.today.file, undoHistoryInstance.today.oldContent);
+    }
     if (undoHistoryInstance.previousDay.file != undefined) {
       await this.plugin.app.vault.modify(undoHistoryInstance.previousDay.file, undoHistoryInstance.previousDay.oldContent);
     }
@@ -46,7 +49,12 @@ export default class UndoModal extends Modal {
     contentEl.createEl('h4', { text: 'Changes made with undo:' })
 
     const undoHistoryInstance = plugin.undoHistory[0]
-    let modTextArray = [await this.parseDay(undoHistoryInstance.today)]
+    let modTextArray = []
+    if (undoHistoryInstance.today.file != undefined) {
+      modTextArray.push(await this.parseDay(undoHistoryInstance.today))
+    } else {
+      modTextArray.push("- Today's note will not be changed. Remove the rolled over todos from it yourself if you want them gone.")
+    }
     if (undoHistoryInstance.previousDay.file != undefined) {
       modTextArray.push(await this.parseDay(undoHistoryInstance.previousDay))
     }

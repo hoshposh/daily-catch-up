@@ -444,10 +444,15 @@ export default class RolloverTodosPlugin extends Plugin {
             }
           }
 
-          undoHistoryInstance.today = {
-            file: file,
-            oldContent: originalDailyNoteContent,
-          };
+          // With Templater, the note we read was still the unrendered template,
+          // so undoing today's note would replace Templater's output with it.
+          // Only the previous day's note is undoable in that case.
+          if (!this.isTemplaterEnabled()) {
+            undoHistoryInstance.today = {
+              file: file,
+              oldContent: originalDailyNoteContent,
+            };
+          }
         }
       }
 
@@ -515,6 +520,13 @@ export default class RolloverTodosPlugin extends Plugin {
       const message = nonBlankLines.join("\n");
       if (message.length > 0) {
         new Notice(message, 4000 + message.length * 3);
+      }
+      // nothing was modified that undo can restore
+      if (
+        undoHistoryInstance.today.file == undefined &&
+        undoHistoryInstance.previousDay.file == undefined
+      ) {
+        return;
       }
       this.undoHistoryTime = new Date();
       this.undoHistory = [undoHistoryInstance];
