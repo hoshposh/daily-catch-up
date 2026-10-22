@@ -5,6 +5,7 @@ import {
   getSections,
   removeEmptyHeadings,
   insertUnderHeading,
+  hasHeading,
 } from "./get-todos";
 
 test("single todo element should return itself", () => {
@@ -960,4 +961,18 @@ test("insertUnderHeading fallback separates text from a last line without a newl
 test("insertUnderHeading fallback on an empty note adds no leading blank line", () => {
   const result = insertUnderHeading("", "## Tasks", "- [ ] x", false);
   expect(result).toBe("- [ ] x\n");
+});
+
+test("hasHeading finds a heading line case-insensitively", () => {
+  expect(hasHeading("## Notes\n\n## Tasks\n", "## tasks")).toBe(true);
+});
+
+test("hasHeading is false when the heading is missing or only part of a line", () => {
+  expect(hasHeading("## Notes\n", "## Tasks")).toBe(false);
+  expect(hasHeading("see ## Tasks here\n", "## Tasks")).toBe(false);
+});
+
+test("hasHeading treats regex characters in the heading literally", () => {
+  expect(hasHeading("## Tasks (today)\n", "## Tasks (today)")).toBe(true);
+  expect(hasHeading("## Tasks today\n", "## Tasks (today)")).toBe(false);
 });

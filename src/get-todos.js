@@ -321,15 +321,21 @@ function processSection(lines, startIdx, parentLevel) {
 // or higher level as targetHeading (fewer or equal # signs). Falls back to appending
 // at end of file if targetHeading is not found. leadingNewLine adds a blank line before
 // the inserted text.
+// Matches the whole heading line, case-insensitively
+const headingLineRegex = (heading) =>
+  new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "mi");
+
+// Returns true if `noteContent` has a line that is exactly `heading`
+export const hasHeading = (noteContent, heading) =>
+  headingLineRegex(heading).test(noteContent);
+
 export const insertUnderHeading = (
   noteContent,
   targetHeading,
   textToInsert,
   leadingNewLine = false
 ) => {
-  const escapedHeading = targetHeading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const headingLineRegex = new RegExp(`^${escapedHeading}$`, "mi");
-  const headingMatch = headingLineRegex.exec(noteContent);
+  const headingMatch = headingLineRegex(targetHeading).exec(noteContent);
 
   // Text added after a line that has no newline of its own would be glued to
   // that line, so a separator is needed (this also covers leadingNewLine)

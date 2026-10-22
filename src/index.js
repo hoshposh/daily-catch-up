@@ -6,7 +6,12 @@ import {
 } from "obsidian-daily-notes-interface";
 import UndoModal from "./ui/UndoModal";
 import RolloverSettingTab from "./ui/RolloverSettingTab";
-import { getTodos, getSections, insertUnderHeading } from "./get-todos";
+import {
+  getTodos,
+  getSections,
+  hasHeading,
+  insertUnderHeading,
+} from "./get-todos";
 import { dedupeAgainstExisting, verifyTodosPresent } from "./insert-todos";
 import {
   applySourceAction,
@@ -370,18 +375,17 @@ export default class RolloverTodosPlugin extends Plugin {
 
             if (relativePath.length === 0) {
               // Todos sit directly under the template heading
-              const updated = insertUnderHeading(
+              // insertUnderHeading appends to the end of the note when the
+              // heading is missing, so only the user needs to be told
+              if (!hasHeading(dailyNoteContent, templateHeading)) {
+                templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
+              }
+              dailyNoteContent = insertUnderHeading(
                 dailyNoteContent,
                 templateHeading,
                 todosString,
                 leadingNewLine
               );
-              if (updated === dailyNoteContent) {
-                templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
-                dailyNoteContent += `\n${todosString}`;
-              } else {
-                dailyNoteContent = updated;
-              }
             } else {
               // Walk the relative path to find the deepest heading that already
               // exists in today's note — that becomes the insertion parent.
@@ -401,18 +405,15 @@ export default class RolloverTodosPlugin extends Plugin {
               const missingHeadings = relativePath.slice(firstMissingIdx);
               const block = [...missingHeadings, todosString].join("\n");
 
-              const updated = insertUnderHeading(
+              if (!hasHeading(dailyNoteContent, insertUnder)) {
+                templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
+              }
+              dailyNoteContent = insertUnderHeading(
                 dailyNoteContent,
                 insertUnder,
                 block,
                 leadingNewLine
               );
-              if (updated === dailyNoteContent) {
-                templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
-                dailyNoteContent += `\n${block}`;
-              } else {
-                dailyNoteContent = updated;
-              }
             }
           }
 
