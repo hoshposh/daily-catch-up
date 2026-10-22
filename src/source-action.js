@@ -67,6 +67,7 @@ export function effectiveDoneStatusMarkers(settings) {
  * @param {string} [args.marker] - checkbox character for "mark"
  * @param {string} [args.doneStatusMarkers] - which checkbox characters count as
  *   done; "mark" only rewrites todos that are not done
+ * @param {boolean} [args.ignoreBlockquotes] - "mark" leaves blockquoted lines alone
  * @returns {{ content: string, changed: boolean }}
  */
 export function applySourceAction({
@@ -77,6 +78,7 @@ export function applySourceAction({
   skippedLineIndices = [],
   marker = DEFAULT_MARKER,
   doneStatusMarkers = null,
+  ignoreBlockquotes = false,
 }) {
   if (action === "delete") {
     const toDelete = new Set(deletedTodos);
@@ -101,7 +103,10 @@ export function applySourceAction({
         const text = line.replace(/\r$/, "");
         if (!rolled.has(text)) return line;
         // Rolled completed children keep their checkbox; only open todos move
-        if (getTodos({ lines: [text], doneStatusMarkers }).length === 0) {
+        if (
+          getTodos({ lines: [text], doneStatusMarkers, ignoreBlockquotes })
+            .length === 0
+        ) {
           return line;
         }
         return line.replace(CHECKBOX_RE, (_, open, close) => `${open}${marker}${close}`);

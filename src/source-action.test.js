@@ -219,6 +219,26 @@ describe("applySourceAction: mark", () => {
     expect(result.content).toBe("- [>] a\r\n- [x] b\r\n");
   });
 
+  test("leaves blockquote children alone when ignoreBlockquotes is on", () => {
+    const rolled = ["- [ ] parent", "    > - [ ] habit in callout"];
+    const result = applySourceAction({
+      ...base,
+      content: rolled.join("\n"),
+      rolledTodos: rolled,
+      ignoreBlockquotes: true,
+    });
+    expect(result.content).toBe("- [>] parent\n    > - [ ] habit in callout");
+  });
+
+  test("marks blockquote todos when ignoreBlockquotes is off", () => {
+    const result = applySourceAction({
+      ...base,
+      content: "> - [ ] quoted",
+      rolledTodos: ["> - [ ] quoted"],
+    });
+    expect(result.content).toBe("> - [>] quoted");
+  });
+
   test("supports multi-codepoint markers and $ in the marker", () => {
     expect(
       applySourceAction({ ...base, marker: "➡️", content: "- [ ] a", rolledTodos: ["- [ ] a"] })

@@ -16,9 +16,9 @@ export default class UndoModal extends Modal {
 
     let s = ''
     if (oldContentLineCount > currentContentLineCount) {
-      s = `- ${file.basename}.${file.extension}: add ${diff} line${diff.length > 1 ? 's':''}.`
+      s = `- ${file.basename}.${file.extension}: add ${diff} line${diff > 1 ? 's':''}.`
     } else if (oldContentLineCount < currentContentLineCount) {
-      s = `- ${file.basename}.${file.extension}: remove ${diff} line${diff.length > 1 ? 's':''}.`
+      s = `- ${file.basename}.${file.extension}: remove ${diff} line${diff > 1 ? 's':''}.`
     } else {
       if (oldContent == currentContent) {
         s = `- ${file.basename}.${file.extension}: will not be modified.`
@@ -44,7 +44,7 @@ export default class UndoModal extends Modal {
   async onOpen() {
     let { contentEl, plugin } = this
     contentEl.createEl('h3', { text: 'Undo last rollover' });
-    contentEl.createEl('div', { text: 'A single rollover command can be undone, which will load the state of the two files modified (or 1 if the delete option is toggled off) before the rollover first occurred. Any text you may have added from those file(s) during that time may be deleted.' });
+    contentEl.createEl('div', { text: "A single rollover command can be undone, which will load the state of the files the rollover modified before it occurred: today's note, and the previous day's note if its todos were marked or deleted. With Templater enabled, only the previous day's note is restored. Any text you may have added to those file(s) during that time may be deleted." });
     contentEl.createEl('div', { text: 'Note that rollover actions can only be undone for up to 2 minutes after the command occurred, and will be removed from history if the app closes.' })
     contentEl.createEl('h4', { text: 'Changes made with undo:' })
 

@@ -875,16 +875,38 @@ test("skipCompletedChildren respects custom doneStatusMarkers", () => {
 });
 
 test("skipCompletedChildren does not re-read skipped lines as top-level todos", () => {
-  // the skipped subtree contains an open todo; it must stay with its done parent
+  // the skipped subtree has only non-todo content; none of it may roll on its own
   const lines = [
     "- [ ] parent",
     "    - [x] done child",
-    "        - [ ] open grandchild",
+    "        - plain note",
+    "        - [x] done grandchild",
     "- [ ] next",
   ];
   expect(
     getTodos({ lines, withChildren: true, skipCompletedChildren: true })
   ).toStrictEqual(["- [ ] parent", "- [ ] next"]);
+});
+
+test("skipCompletedChildren keeps a completed child that still has open todos under it", () => {
+  const lines = [
+    "- [ ] parent",
+    "    - [x] done child",
+    "        - [ ] open grandchild",
+    "        - [x] done grandchild",
+    "- [ ] next",
+  ];
+  expect(
+    getTodosAndSkipped({ lines, withChildren: true, skipCompletedChildren: true })
+  ).toStrictEqual({
+    todos: [
+      "- [ ] parent",
+      "    - [x] done child",
+      "        - [ ] open grandchild",
+      "- [ ] next",
+    ],
+    skippedIndices: [3],
+  });
 });
 
 test("skipCompletedChildren has no effect without withChildren", () => {

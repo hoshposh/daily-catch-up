@@ -11,9 +11,11 @@ const indentationOf = (line) => line.search(/\S/);
  *
  * - Only checkbox lines are compared (trimmed, exact incl. the checkbox), never
  *   plain text.
- * - With `withChildren`, todos are handled as groups: a duplicate parent takes
- *   its indented children with it, while a duplicate child under a kept parent
- *   is kept. Without it, indented todos are independent items.
+ * - With `withChildren`, todos are handled as groups. A duplicate parent is
+ *   dropped with its children only when every child is also already in the
+ *   note; otherwise the group is kept, so nothing that is not in today's note
+ *   is lost. A duplicate child under a kept parent is kept. Without
+ *   `withChildren`, indented todos are independent items.
  *
  * @param {string[]} todos - the rolled lines, children included
  * @param {string} existingContent - today's note before anything is inserted
@@ -26,20 +28,30 @@ export function dedupeAgainstExisting(todos, existingContent, withChildren = tru
   const existing = new Set(existingContent.split("\n").map((l) => l.trim()));
   const kept = [];
   const duplicates = [];
-  let headIndentation = null;
-  let headDropped = false;
 
-  for (const line of todos) {
-    const indentation = indentationOf(line);
-    const isChild =
-      withChildren && headIndentation !== null && indentation > headIndentation;
-    if (isChild) {
-      (headDropped ? duplicates : kept).push(line);
-      continue;
+  let i = 0;
+  while (i < todos.length) {
+    const head = todos[i];
+    const headIndentation = indentationOf(head);
+    let end = i + 1;
+    if (withChildren) {
+      while (end < todos.length && indentationOf(todos[end]) > headIndentation) {
+        end++;
+      }
     }
-    headIndentation = indentation;
-    headDropped = CHECKBOX_LINE.test(line) && existing.has(line.trim());
-    (headDropped ? duplicates : kept).push(line);
+    const group = todos.slice(i, end);
+    const children = group.slice(1);
+    const isDuplicate =
+      CHECKBOX_LINE.test(head) &&
+      existing.has(head.trim()) &&
+      children.every((child) => existing.has(child.trim()));
+
+    if (isDuplicate) {
+      duplicates.push(...group);
+    } else {
+      kept.push(...group);
+    }
+    i = end;
   }
 
   return { todos: kept, skipped: duplicates.length, duplicates };

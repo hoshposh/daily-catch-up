@@ -1,3 +1,9 @@
+// One segmenter for all parsing; null where Intl.Segmenter is not available
+const graphemeSegmenter =
+  typeof Intl !== "undefined" && Intl.Segmenter
+    ? new Intl.Segmenter("en", { granularity: "grapheme" })
+    : null;
+
 class TodoParser {
   // Support all unordered list bullet symbols as per spec (https://daringfireball.net/projects/markdown/syntax#list)
   bulletSymbols = ["-", "*", "+"];
@@ -28,9 +34,8 @@ class TodoParser {
     // Use Intl.Segmenter to properly split grapheme clusters if available,
     // otherwise fall back to Array.from. The fallback should not trigger in
     // Obsidian since it uses Electron which supports Intl.Segmenter.
-    if (typeof Intl !== "undefined" && Intl.Segmenter) {
-      const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
-      return Array.from(segmenter.segment(content), (s) => s.segment);
+    if (graphemeSegmenter) {
+      return Array.from(graphemeSegmenter.segment(content), (s) => s.segment);
     } else {
       // Array.from() splits surrogate pairs correctly but not complex grapheme clusters
       // (e.g., 👨‍👩‍👧‍👦 would be split incorrectly) and fail to match.
@@ -125,6 +130,17 @@ class TodoParser {
     return false;
   }
 
+  // Returns true if an open todo is nested anywhere under line `linum`. A
+  // completed item like that is kept, so skipping it cannot drop open work.
+  #hasOpenTodoBelow(linum) {
+    const indentation = this.#getIndentation(linum);
+    for (let l = linum + 1; l < this.#lines.length; l++) {
+      if (this.#getIndentation(l) <= indentation) return false;
+      if (this.#isTodo(this.#lines[l])) return true;
+    }
+    return false;
+  }
+
   // Returns the nested items to include after line `parentLinum`, plus the
   // number of source lines walked (more than children.length when completed
   // children are skipped)
@@ -134,7 +150,8 @@ class TodoParser {
     while (this.#isChildOf(parentLinum, nextLinum)) {
       if (
         this.#skipCompletedChildren &&
-        this.#isDoneTodo(this.#lines[nextLinum])
+        this.#isDoneTodo(this.#lines[nextLinum]) &&
+        !this.#hasOpenTodoBelow(nextLinum)
       ) {
         // Drop the completed child together with everything nested under it
         const childIndentation = this.#getIndentation(nextLinum);

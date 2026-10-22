@@ -40,16 +40,22 @@ describe("dedupeAgainstExisting", () => {
     });
   });
 
-  test("drops the children of a duplicate parent along with it", () => {
+  test("drops a duplicate parent together with children that are also already in the note", () => {
     const result = dedupeAgainstExisting(
       ["- [ ] Standup", "    - [ ] prep notes", "    - remember agenda", "- [ ] Email Sam"],
-      "- [ ] Standup\n"
+      "- [ ] Standup\n    - [ ] prep notes\n    - remember agenda\n"
     );
     expect(result).toStrictEqual({
       todos: ["- [ ] Email Sam"],
       skipped: 3,
       duplicates: ["- [ ] Standup", "    - [ ] prep notes", "    - remember agenda"],
     });
+  });
+
+  test("keeps a duplicate parent whose children are not all in the note, so nothing is lost", () => {
+    const todos = ["- [ ] Standup", "    - [ ] ask Bob about the deploy"];
+    const result = dedupeAgainstExisting(todos, "- [ ] Standup\n");
+    expect(result).toStrictEqual({ todos, skipped: 0, duplicates: [] });
   });
 
   test("keeps a duplicate child under a parent that is not a duplicate", () => {

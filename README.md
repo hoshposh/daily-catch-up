@@ -85,7 +85,7 @@ The plugin supports Unicode characters, including complex emoji and grapheme clu
 
 ### 8. Skip completed children
 
-Only applies when **#6** is on. Completed nested todos (using the done status markers from **#7**), and everything nested beneath them, are not rolled over. If **#4** is set to delete, they are removed from the previous note together with their rolled parent, so no orphaned child lines are left behind. Use `Undo last rollover` to bring them back.
+Only applies when **#6** is on. Completed nested todos (using the done status markers from **#7**), and everything nested beneath them, are not rolled over. A completed item that still has an open todo somewhere beneath it is rolled over with it, so open work is never left behind. If **#4** is set to delete, they are removed from the previous note together with their rolled parent, so no orphaned child lines are left behind. Use `Undo last rollover` to bring them back.
 
 ### 9. Ignore todos in callouts and blockquotes
 
@@ -93,7 +93,7 @@ Todos inside Markdown blockquotes (lines starting with `>`), such as habit lists
 
 ### 10. Skip todos already in today's note
 
-Off by default. When on, a todo is not rolled over if today's note already contains the same line (compared ignoring surrounding whitespace, checkbox included). This is useful when your daily template already contains recurring tasks such as `- [ ] Standup`. If the skipped todo has nested items, they are skipped with it; a nested item that matches while its parent does not is still rolled over. Skipped todos still count as handled for **#4**: they are marked or deleted on the previous day's note, so they don't pile up there.
+Off by default. When on, a todo is not rolled over if today's note already contains the same line (compared ignoring surrounding whitespace, checkbox included). This is useful when your daily template already contains recurring tasks such as `- [ ] Standup`. With **#6** on, a duplicate is skipped together with its nested items only if all of them are already in today's note too; otherwise the whole group is rolled over so that nothing is lost. A nested item that matches while its parent does not is still rolled over. Skipped todos still count as handled for **#4**: they are marked or deleted on the previous day's note, so they don't pile up there.
 
 ## Bugs/Issues
 

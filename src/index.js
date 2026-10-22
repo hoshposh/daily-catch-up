@@ -7,7 +7,6 @@ import {
 import UndoModal from "./ui/UndoModal";
 import RolloverSettingTab from "./ui/RolloverSettingTab";
 import {
-  getTodos,
   getSections,
   hasHeading,
   insertUnderHeading,
@@ -27,34 +26,6 @@ const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
 // which can overwrite what we just inserted. Slow templates take longer, so
 // this is how long we wait before trusting that the insertion survived.
 const TEMPLATER_SETTLE_MS = 3000;
-
-/* Just some boilerplate code for recursively going through subheadings for later
-function createRepresentationFromHeadings(headings) {
-  let i = 0;
-  const tags = [];
-
-  (function recurse(depth) {
-    let unclosedLi = false;
-    while (i < headings.length) {
-      const [hashes, data] = headings[i].split("# ");
-      if (hashes.length < depth) {
-        break;
-      } else if (hashes.length === depth) {
-        if (unclosedLi) tags.push('</li>');
-        unclosedLi = true;
-        tags.push('<li>', data);
-        i++;
-      } else {
-        tags.push('<ul>');
-        recurse(depth + 1);
-        tags.push('</ul>');
-      }
-    }
-    if (unclosedLi) tags.push('</li>');
-  })(-1);
-  return tags.join('\n');
-}
-*/
 
 export default class RolloverTodosPlugin extends Plugin {
   async loadSettings() {
@@ -151,31 +122,6 @@ export default class RolloverTodosPlugin extends Plugin {
     return moment(path, format);
   }
 
-  async getAllUnfinishedTodos(file) {
-    const dn = await this.app.vault.read(file);
-    const dnLines = dn.split(/\r?\n|\r|\n/g);
-
-    return getTodos({
-      lines: dnLines,
-      withChildren: this.settings.rolloverChildren,
-      doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
-      ignoreBlockquotes: this.settings.ignoreBlockquotes,
-      skipCompletedChildren: this.settings.skipCompletedChildren,
-    });
-  }
-
-  async sortHeadersIntoHierarchy(file) {
-    ///console.log('testing')
-    const templateContents = await this.app.vault.read(file);
-    const allHeadings = Array.from(templateContents.matchAll(/#{1,} .*/g)).map(
-      ([heading]) => heading
-    );
-
-    if (allHeadings.length > 0) {
-      console.log(createRepresentationFromHeadings(allHeadings));
-    }
-  }
-
   isTemplaterEnabled() {
     return !!this.app.plugins?.getPlugin("templater-obsidian");
   }
@@ -261,9 +207,6 @@ export default class RolloverTodosPlugin extends Plugin {
       // check if there is a daily note from yesterday
       const lastDailyNote = this.getLastDailyNote();
       if (!lastDailyNote) return;
-
-      // TODO: Rollover to subheadings (optional)
-      //this.sortHeadersIntoHierarchy(lastDailyNote)
 
       // get unfinished todos from yesterday grouped by their parent heading
       const lastDailyNoteContent = await this.app.vault.read(lastDailyNote);
@@ -464,7 +407,9 @@ export default class RolloverTodosPlugin extends Plugin {
             )
           ) {
             // No undo is recorded: it would restore today's note to its
-            // state before Templater rendered it.
+            // state before Templater rendered it. An earlier rollover must not
+            // stay undoable as if it were the latest one.
+            this.undoHistory = [];
             new Notice(
               "Rollover left the previous day's note unchanged: today's note was modified by another plugin (likely Templater) after the todos were added, and they may be missing. Run 'Rollover Todos Now' to try again.",
               15000
@@ -476,22 +421,36 @@ export default class RolloverTodosPlugin extends Plugin {
 
       // apply the configured action ("delete" | "mark") to yesterday's note
       if (sourceAction !== "none") {
-        const { content: modifiedContent, changed } = applySourceAction({
-          content: lastDailyNoteContent,
-          action: sourceAction,
-          rolledTodos: sections_today.flatMap((s) => s.incompleteTodos),
-          // delete also removes empty todos that were not rolled over
-          deletedTodos: todos_yesterday,
-          skippedLineIndices: [...skippedLineIndices],
-          marker: normalizeMarker(this.settings.rolloverSourceMarker),
-          doneStatusMarkers: this.settings.doneStatusMarkers,
-        });
-        if (changed) {
-          undoHistoryInstance.previousDay = {
-            file: lastDailyNote,
-            oldContent: `${lastDailyNoteContent}`,
-          };
-          await this.app.vault.modify(lastDailyNote, modifiedContent);
+        // The note may have been edited while we waited (Templater check), and
+        // the positions of skipped lines refer to the content we parsed. Only
+        // change it when it is still exactly what we read.
+        const currentLastDailyNoteContent = await this.app.vault.read(
+          lastDailyNote
+        );
+        if (currentLastDailyNoteContent !== lastDailyNoteContent) {
+          new Notice(
+            "Rollover left the previous day's note unchanged: it was edited while the rollover was running.",
+            10000
+          );
+        } else {
+          const { content: modifiedContent, changed } = applySourceAction({
+            content: lastDailyNoteContent,
+            action: sourceAction,
+            rolledTodos: sections_today.flatMap((s) => s.incompleteTodos),
+            // delete also removes empty todos that were not rolled over
+            deletedTodos: todos_yesterday,
+            skippedLineIndices: [...skippedLineIndices],
+            marker: normalizeMarker(this.settings.rolloverSourceMarker),
+            doneStatusMarkers: this.settings.doneStatusMarkers,
+            ignoreBlockquotes: this.settings.ignoreBlockquotes,
+          });
+          if (changed) {
+            undoHistoryInstance.previousDay = {
+              file: lastDailyNote,
+              oldContent: `${lastDailyNoteContent}`,
+            };
+            await this.app.vault.modify(lastDailyNote, modifiedContent);
+          }
         }
       }
 
