@@ -145,10 +145,10 @@ This plugin can be installed within the `Third-party Plugins` tab within Obsidia
    pnpm build
    ```
 
-3. **Commit** the version bump and the updated `main.js`:
+3. **Commit** the version bump (`main.js` is git-ignored; it is attached to the release in the next step):
 
    ```bash
-   git add manifest.json package.json main.js
+   git add manifest.json package.json
    git commit -m "Release 1.3.0"
    git push
    ```
