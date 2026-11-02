@@ -96,6 +96,12 @@ Todos inside Markdown blockquotes (lines starting with `>`), such as habit lists
 
 Off by default. When on, a todo is not rolled over if today's note already contains the same line (compared ignoring surrounding whitespace, checkbox included). This is useful when your daily template already contains recurring tasks such as `- [ ] Standup`. With **#6** on, a duplicate is skipped together with its nested items only if all of them are already in today's note too; otherwise the whole group is rolled over so that nothing is lost. Completed nested todos do not count: they are skipped with the parent (and removed with it when **#4** is set to delete), unless an open todo is nested under them, which then has to be in today's note. A nested item that matches while its parent does not is still rolled over. Skipped todos still count as handled for **#4**: they are marked or deleted on the previous day's note, so they don't pile up there.
 
+### 11. Move nested items when marking
+
+Off by default. Only applies when **#4** is set to mark and **#6** is on. The marked todo stays in the previous day's note as a single line, while everything that was rolled over beneath it (plain bullets, notes and nested todos) moves to today's note and is removed from the previous one. This keeps the hierarchy from being shown in both notes.
+
+Whether completed nested todos move is decided by **#8**. With **#8** on they are not rolled over, so they stay in the previous day's note under the marked todo. With it off they are rolled over with the hierarchy and move with it. Nested items that were not moved, for example under a todo that was skipped by **#10**, stay where they are.
+
 **Which lines count as todos:** a todo is a list item (`-`, `*` or `+`) with a checkbox at the start of the line, optionally indented or inside a blockquote. Lines where something else comes before the bullet, such as `1. - [ ] task` or text inside a code block, are not treated as todos.
 
 ## Bugs/Issues

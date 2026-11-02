@@ -11,19 +11,26 @@ function rollover({
   templateHeading = "none",
   action = "delete",
   skipExisting = false,
+  skipCompleted = false,
+  moveNested = false,
 }) {
   const sections = getSections({
     lines: splitLines(yesterday),
     withChildren: true,
     doneStatusMarkers: "xX-",
+    skipCompletedChildren: skipCompleted,
   });
+  const retainLineIndices = [];
   // todos that today's note already has are not inserted, but still count as rolled
   const toInsert = skipExisting
     ? sections
-        .map((s) => ({
-          ...s,
-          incompleteTodos: dedupeAgainstExisting(s.incompleteTodos, today, true, "xX-").todos,
-        }))
+        .map((s) => {
+          const deduped = dedupeAgainstExisting(s.incompleteTodos, today, true, "xX-");
+          retainLineIndices.push(
+            ...deduped.droppedIndices.map((i) => s.incompleteLineIndices[i])
+          );
+          return { ...s, incompleteTodos: deduped.todos };
+        })
         .filter((s) => s.incompleteTodos.length > 0)
     : sections;
   const inserted = insertSections({
@@ -37,6 +44,8 @@ function rollover({
     action,
     rolledLineIndices: sections.flatMap((s) => s.incompleteLineIndices),
     doneStatusMarkers: "xX-",
+    moveNested,
+    retainLineIndices,
   });
   return { today: inserted.content, yesterday: source.content };
 }
@@ -217,5 +226,84 @@ describe("rollover under a template heading into a template with recurring tasks
     );
     // every open todo is marked; the completed ones are left as they were
     expect(result.yesterday).toBe(yesterday.replaceAll("- [ ]", "- [>]"));
+  });
+});
+
+describe("mark with nested items moved to today's note", () => {
+  const yesterday = [
+    "# Work",
+    "",
+    "- [ ] Ship release",
+    "  - [x] Write changelog",
+    "  - [ ] Tag version",
+    "  - remember to bump manifest",
+    "- [x] Fix flaky test",
+    "- [ ]",
+    "",
+    "## Home",
+    "",
+    "- [ ] Laundry",
+  ].join("\n");
+
+  test("the marked todo stays as one line; completed children move with the hierarchy", () => {
+    const result = rollover({ yesterday, action: "mark", moveNested: true });
+    expect(result.yesterday).toBe(
+      [
+        "# Work",
+        "",
+        "- [>] Ship release",
+        "- [x] Fix flaky test",
+        "- [>]",
+        "",
+        "## Home",
+        "",
+        "- [>] Laundry",
+      ].join("\n")
+    );
+    // today's note gets the whole hierarchy
+    expect(result.today).toContain("  - [x] Write changelog");
+    expect(result.today).toContain("  - remember to bump manifest");
+  });
+
+  test("with skip completed children, completed children stay in yesterday's note", () => {
+    const result = rollover({
+      yesterday,
+      action: "mark",
+      moveNested: true,
+      skipCompleted: true,
+    });
+    expect(result.yesterday).toBe(
+      [
+        "# Work",
+        "",
+        "- [>] Ship release",
+        "  - [x] Write changelog",
+        "- [x] Fix flaky test",
+        "- [>]",
+        "",
+        "## Home",
+        "",
+        "- [>] Laundry",
+      ].join("\n")
+    );
+    expect(result.today).not.toContain("Write changelog");
+    expect(result.today).toContain("  - [ ] Tag version");
+  });
+
+  test("a duplicate dropped by skip-existing does not move its children", () => {
+    const template = "# Work\n\n- [ ] Standup\n";
+    const note = "# Work\n\n- [ ] Standup\n  - [x] ask Bob\n- [ ] Ship\n  - plan\n";
+    const result = rollover({
+      yesterday: note,
+      today: template,
+      action: "mark",
+      moveNested: true,
+      skipExisting: true,
+    });
+    // Standup was already in today's note, so ask Bob stays; Ship's note moved
+    expect(result.yesterday).toBe(
+      "# Work\n\n- [>] Standup\n  - [x] ask Bob\n- [>] Ship\n"
+    );
+    expect(result.today).toBe("# Work\n\n- [ ] Standup\n- [ ] Ship\n  - plan\n");
   });
 });

@@ -1,13 +1,16 @@
 import { describe, expect, test } from "vitest";
 import { dedupeAgainstExisting, dropEmptyTodos, verifyTodosPresent } from "./insert-todos";
 
+// the fields the older tests check; droppedIndices has its own test
+const summary = ({ todos, skipped, duplicates }) => ({ todos, skipped, duplicates });
+
 describe("dedupeAgainstExisting", () => {
   test("drops a todo that already exists in the note", () => {
     const result = dedupeAgainstExisting(
       ["- [ ] Standup", "- [ ] Email Sam"],
       "## Tasks\n- [ ] Standup\n"
     );
-    expect(result).toStrictEqual({
+    expect(summary(result)).toStrictEqual({
       todos: ["- [ ] Email Sam"],
       skipped: 1,
       duplicates: ["- [ ] Standup"],
@@ -19,7 +22,7 @@ describe("dedupeAgainstExisting", () => {
       ["    - [ ] Standup  "],
       "- [ ] Standup\n"
     );
-    expect(result).toStrictEqual({
+    expect(summary(result)).toStrictEqual({
       todos: [],
       skipped: 1,
       duplicates: ["    - [ ] Standup  "],
@@ -33,7 +36,7 @@ describe("dedupeAgainstExisting", () => {
 
   test("the checkbox state is part of the comparison", () => {
     const result = dedupeAgainstExisting(["- [ ] Standup"], "- [x] Standup\n");
-    expect(result).toStrictEqual({
+    expect(summary(result)).toStrictEqual({
       todos: ["- [ ] Standup"],
       skipped: 0,
       duplicates: [],
@@ -45,7 +48,7 @@ describe("dedupeAgainstExisting", () => {
       ["- [ ] Standup", "    - [ ] prep notes", "    - remember agenda", "- [ ] Email Sam"],
       "- [ ] Standup\n    - [ ] prep notes\n    - remember agenda\n"
     );
-    expect(result).toStrictEqual({
+    expect(summary(result)).toStrictEqual({
       todos: ["- [ ] Email Sam"],
       skipped: 3,
       duplicates: ["- [ ] Standup", "    - [ ] prep notes", "    - remember agenda"],
@@ -55,7 +58,7 @@ describe("dedupeAgainstExisting", () => {
   test("keeps a duplicate parent whose children are not all in the note, so nothing is lost", () => {
     const todos = ["- [ ] Standup", "    - [ ] ask Bob about the deploy"];
     const result = dedupeAgainstExisting(todos, "- [ ] Standup\n");
-    expect(result).toStrictEqual({ todos, skipped: 0, duplicates: [] });
+    expect(summary(result)).toStrictEqual({ todos, skipped: 0, duplicates: [] });
   });
 
   test("a completed child does not stop a duplicate parent from being skipped", () => {
@@ -63,7 +66,7 @@ describe("dedupeAgainstExisting", () => {
       ["- [ ] Standup", "  - [x] ask Bob about the deploy"],
       "- [ ] Standup\n"
     );
-    expect(result).toStrictEqual({
+    expect(summary(result)).toStrictEqual({
       todos: [],
       skipped: 2,
       duplicates: ["- [ ] Standup"],
@@ -103,7 +106,7 @@ describe("dedupeAgainstExisting", () => {
       ["- [ ] Ship release", "    - [ ] Standup"],
       "- [ ] Standup\n"
     );
-    expect(result).toStrictEqual({
+    expect(summary(result)).toStrictEqual({
       todos: ["- [ ] Ship release", "    - [ ] Standup"],
       skipped: 0,
       duplicates: [],
@@ -123,7 +126,7 @@ describe("dedupeAgainstExisting", () => {
       ["    - [ ] nested a", "    - [ ] nested b"],
       "- [ ] nested a\n"
     );
-    expect(result).toStrictEqual({
+    expect(summary(result)).toStrictEqual({
       todos: ["    - [ ] nested b"],
       skipped: 1,
       duplicates: ["    - [ ] nested a"],
@@ -132,7 +135,7 @@ describe("dedupeAgainstExisting", () => {
 
   test("an empty todo is absorbed by an empty placeholder in the note", () => {
     const result = dedupeAgainstExisting(["- [ ]"], "## Tasks\n- [ ]\n");
-    expect(result).toStrictEqual({ todos: [], skipped: 1, duplicates: ["- [ ]"] });
+    expect(summary(result)).toStrictEqual({ todos: [], skipped: 1, duplicates: ["- [ ]"] });
   });
 
   test("without children, an indented todo is its own item and is not dropped with its predecessor", () => {
@@ -141,7 +144,7 @@ describe("dedupeAgainstExisting", () => {
       "- [ ] A\n",
       false
     );
-    expect(result).toStrictEqual({
+    expect(summary(result)).toStrictEqual({
       todos: ["    - [ ] B"],
       skipped: 1,
       duplicates: ["- [ ] A"],
@@ -150,11 +153,19 @@ describe("dedupeAgainstExisting", () => {
 
   test("returns the todos untouched when nothing matches", () => {
     const todos = ["- [ ] a", "    - [ ] b"];
-    expect(dedupeAgainstExisting(todos, "nothing here")).toStrictEqual({
+    expect(summary(dedupeAgainstExisting(todos, "nothing here"))).toStrictEqual({
       todos,
       skipped: 0,
       duplicates: [],
     });
+  });
+
+  test("reports the positions of the dropped lines", () => {
+    const result = dedupeAgainstExisting(
+      ["- [ ] Ship", "- [ ] Standup", "  - [x] ask Bob", "- [ ] Email"],
+      "- [ ] Standup\n"
+    );
+    expect(result.droppedIndices).toStrictEqual([1, 2]);
   });
 });
 

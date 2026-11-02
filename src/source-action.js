@@ -51,6 +51,33 @@ export function effectiveDoneStatusMarkers(settings) {
     : `${doneStatusMarkers}${marker}`;
 }
 
+const indentationOf = (line) => line.search(/\S/);
+
+// Positions of the rolled lines that sit under another rolled line, i.e. the
+// hierarchy that moved along with a marked todo, except those in `retain`
+function nestedLineIndices(lines, rolledLineIndices, retain) {
+  const sorted = [...new Set(rolledLineIndices)]
+    .filter((i) => i >= 0 && i < lines.length)
+    .sort((a, b) => a - b);
+  const nested = new Set();
+  let head = null; // { index, indentation } of the last top-level rolled line
+
+  for (const index of sorted) {
+    const indentation = indentationOf(lines[index]);
+    let underHead = head !== null && indentation > head.indentation;
+    // every line between the head and this one has to be nested under it too
+    for (let k = head ? head.index + 1 : 0; underHead && k < index; k++) {
+      if (indentationOf(lines[k]) <= head.indentation) underHead = false;
+    }
+    if (underHead) {
+      if (!retain.has(index)) nested.add(index);
+    } else {
+      head = { index, indentation };
+    }
+  }
+  return nested;
+}
+
 /**
  * Lines are addressed by position, never by text, so identical lines that were
  * not rolled (under another parent, in a code block) are left alone.
@@ -69,6 +96,11 @@ export function effectiveDoneStatusMarkers(settings) {
  * @param {string} [args.doneStatusMarkers] - which checkbox characters count as
  *   done; "mark" only rewrites todos that are not done
  * @param {boolean} [args.ignoreBlockquotes] - "mark" leaves blockquoted lines alone
+ * @param {boolean} [args.moveNested] - "mark" keeps only the marked todo and
+ *   removes the rolled lines nested under it, since they moved to today's note.
+ *   Nested lines that were not rolled (skipped completed children) stay.
+ * @param {number[]} [args.retainLineIndices] - nested lines that "moveNested"
+ *   must not remove, because they did not move
  * @returns {{ content: string, changed: boolean }}
  */
 export function applySourceAction({
@@ -80,6 +112,8 @@ export function applySourceAction({
   marker = DEFAULT_MARKER,
   doneStatusMarkers = null,
   ignoreBlockquotes = false,
+  moveNested = false,
+  retainLineIndices = [],
 }) {
   if (action === "delete") {
     const toDelete = new Set([...deletedLineIndices, ...skippedLineIndices]);
@@ -94,8 +128,11 @@ export function applySourceAction({
 
   if (action === "mark") {
     const rolled = new Set(rolledLineIndices);
-    const newContent = content
-      .split("\n")
+    const allLines = content.split("\n");
+    const removed = moveNested
+      ? nestedLineIndices(allLines, rolledLineIndices, new Set(retainLineIndices))
+      : new Set();
+    const newContent = allLines
       .map((line, index) => {
         if (!rolled.has(index)) return line;
         // Rolled completed children keep their checkbox; only open todos move.
@@ -109,6 +146,7 @@ export function applySourceAction({
         }
         return line.replace(CHECKBOX_RE, (_, open, close) => `${open}${marker}${close}`);
       })
+      .filter((_, index) => !removed.has(index))
       .join("\n");
     return { content: newContent, changed: newContent !== content };
   }

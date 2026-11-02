@@ -38,6 +38,7 @@ This is an [Obsidian](https://obsidian.md) plugin. Obsidian plugins must ship as
 - `templateHeading` — heading to insert todos under (or `"none"` for end of file)
 - `onRolloverSourceAction` — `"none"` (default), `"delete"` or `"mark"`: what to do with rolled todos on the previous day's note (replaces the old `deleteOnComplete` boolean, which is migrated to `"delete"`)
 - `rolloverSourceMarker` — checkbox character used by `"mark"` (default `">"`); counts as a done marker while marking, without changing `doneStatusMarkers`
+- `moveNestedItemsOnMark` — with `"mark"` and `rolloverChildren`, keep only the marked todo in the previous day's note and remove the rolled items nested under it (they moved to today's note); completed children stay when `skipCompletedChildren` is on
 - `skipExistingTodos` — don't roll over todos (with their children) that today's note already has
 - `ignoreBlockquotes` — don't roll over todos inside blockquotes/callouts
 - `skipCompletedChildren` — with `rolloverChildren`, leave completed child todos out (removed with their parent when deleting)

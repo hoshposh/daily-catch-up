@@ -36,6 +36,8 @@ export default class RolloverTodosPlugin extends Plugin {
       // "none" | "delete" | "mark" (replaces the old deleteOnComplete toggle)
       onRolloverSourceAction: "none",
       rolloverSourceMarker: ">",
+      // with "mark": keep only the marked todo and remove what moved under it
+      moveNestedItemsOnMark: false,
       removeEmptyTodos: false,
       rolloverChildren: false,
       rolloverOnFileCreate: true,
@@ -272,6 +274,8 @@ export default class RolloverTodosPlugin extends Plugin {
 
       let todosAlreadyPresent = 0;
       const duplicateTodos = [];
+      // lines of duplicates dropped by skip-existing: they did not move
+      const retainedLineIndices = [];
       let insertedTodos = [];
 
       if (sections_today.length > 0) {
@@ -285,7 +289,7 @@ export default class RolloverTodosPlugin extends Plugin {
         if (skipExistingTodos) {
           sections_to_insert = sections_today
             .map((section) => {
-              const { todos, skipped, duplicates } = dedupeAgainstExisting(
+              const { todos, skipped, duplicates, droppedIndices } = dedupeAgainstExisting(
                 section.incompleteTodos,
                 originalDailyNoteContent,
                 this.settings.rolloverChildren,
@@ -293,6 +297,9 @@ export default class RolloverTodosPlugin extends Plugin {
               );
               todosAlreadyPresent += skipped;
               duplicateTodos.push(...duplicates);
+              retainedLineIndices.push(
+                ...droppedIndices.map((i) => section.incompleteLineIndices[i])
+              );
               // the line positions no longer match the filtered todos
               const { incompleteLineIndices, ...rest } = section;
               return { ...rest, incompleteTodos: todos };
@@ -386,6 +393,11 @@ export default class RolloverTodosPlugin extends Plugin {
             marker: normalizeMarker(this.settings.rolloverSourceMarker),
             doneStatusMarkers: this.settings.doneStatusMarkers,
             ignoreBlockquotes: this.settings.ignoreBlockquotes,
+            // nested items only moved when children were rolled over
+            moveNested:
+              this.settings.moveNestedItemsOnMark &&
+              this.settings.rolloverChildren,
+            retainLineIndices: retainedLineIndices,
           });
           changed = result.changed;
           return result.content;

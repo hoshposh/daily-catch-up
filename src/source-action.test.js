@@ -332,3 +332,94 @@ describe("applySourceAction: mark", () => {
     expect(result.content).toBe("## Work\n- [>] a");
   });
 });
+
+describe("applySourceAction: mark with moveNested", () => {
+  const base = { action: "mark", marker: ">", doneStatusMarkers: "xX-", moveNested: true };
+
+  test("keeps the marked todo as a stub and removes everything rolled under it", () => {
+    const content = [
+      "- [ ] Ship release",
+      "  - [x] Write changelog",
+      "  - [ ] Tag version",
+      "  - remember to bump manifest",
+      "- [x] Fix flaky test",
+      "- [ ]",
+    ].join("\n");
+    const result = applySourceAction({
+      ...base,
+      content,
+      rolledLineIndices: [0, 1, 2, 3, 5],
+    });
+    expect(result).toStrictEqual({
+      content: ["- [>] Ship release", "- [x] Fix flaky test", "- [>]"].join("\n"),
+      changed: true,
+    });
+  });
+
+  test("removes deeper levels too", () => {
+    const result = applySourceAction({
+      ...base,
+      content: "- [ ] a\n  - b\n    - c\n- [ ] d\n  - e",
+      rolledLineIndices: [0, 1, 2, 3, 4],
+    });
+    expect(result.content).toBe("- [>] a\n- [>] d");
+  });
+
+  test("leaves nested lines that were not rolled, such as skipped completed children", () => {
+    const result = applySourceAction({
+      ...base,
+      content: "- [ ] parent\n  - [x] done child\n  - plain note",
+      rolledLineIndices: [0, 2],
+    });
+    expect(result.content).toBe("- [>] parent\n  - [x] done child");
+  });
+
+  test("keeps the nested lines listed in retainLineIndices", () => {
+    const result = applySourceAction({
+      ...base,
+      content: "- [ ] Standup\n  - [x] ask Bob\n  - [ ] prepare",
+      rolledLineIndices: [0, 1, 2],
+      retainLineIndices: [1],
+    });
+    expect(result.content).toBe("- [>] Standup\n  - [x] ask Bob");
+  });
+
+  test("a retained open child is still marked", () => {
+    const result = applySourceAction({
+      ...base,
+      content: "- [ ] Standup\n  - [ ] prepare",
+      rolledLineIndices: [0, 1],
+      retainLineIndices: [1],
+    });
+    expect(result.content).toBe("- [>] Standup\n  - [>] prepare");
+  });
+
+  test("does not remove an unrelated line that follows", () => {
+    const result = applySourceAction({
+      ...base,
+      content: "- [ ] a\n  - b\n\n  - not rolled\n- [ ] c",
+      rolledLineIndices: [0, 1, 4],
+    });
+    expect(result.content).toBe("- [>] a\n\n  - not rolled\n- [>] c");
+  });
+
+  test("works on CRLF files", () => {
+    const result = applySourceAction({
+      ...base,
+      content: "- [ ] a\r\n  - b\r\n- [x] c\r\n",
+      rolledLineIndices: [0, 1],
+    });
+    expect(result.content).toBe("- [>] a\r\n- [x] c\r\n");
+  });
+
+  test("without moveNested the nested lines stay", () => {
+    const result = applySourceAction({
+      ...base,
+      moveNested: false,
+      content: "- [ ] a\n  - b",
+      rolledLineIndices: [0, 1],
+    });
+    expect(result.content).toBe("- [>] a\n  - b");
+  });
+});
+

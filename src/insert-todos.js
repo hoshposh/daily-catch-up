@@ -54,9 +54,10 @@ function childrenAllowSkip(children, existing, doneStatusMarkers) {
  *   todo above them (the "roll over children" setting)
  * @param {string|null} [doneStatusMarkers] - which checkbox characters count as
  *   done; null for the parser's defaults
- * @returns {{ todos: string[], skipped: number, duplicates: string[] }}
+ * @returns {{ todos: string[], skipped: number, duplicates: string[], droppedIndices: number[] }}
  *   `skipped` counts every dropped line; `duplicates` are the dropped lines
- *   that really are in the note (dropped completed children are not)
+ *   that really are in the note (dropped completed children are not);
+ *   `droppedIndices` are the positions of the dropped lines in `todos`
  */
 export function dedupeAgainstExisting(
   todos,
@@ -67,6 +68,7 @@ export function dedupeAgainstExisting(
   const existing = new Set(existingContent.split("\n").map((l) => l.trim()));
   const kept = [];
   const dropped = [];
+  const droppedIndices = [];
 
   let i = 0;
   while (i < todos.length) {
@@ -85,6 +87,9 @@ export function dedupeAgainstExisting(
       childrenAllowSkip(group.slice(1), existing, doneStatusMarkers);
 
     (isDuplicate ? dropped : kept).push(...group);
+    if (isDuplicate) {
+      for (let k = i; k < end; k++) droppedIndices.push(k);
+    }
     i = end;
   }
 
@@ -92,6 +97,7 @@ export function dedupeAgainstExisting(
     todos: kept,
     skipped: dropped.length,
     duplicates: dropped.filter((line) => existing.has(line.trim())),
+    droppedIndices,
   };
 }
 

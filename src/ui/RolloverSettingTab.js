@@ -114,6 +114,20 @@ export default class RolloverSettingTab extends PluginSettingTab {
       );
 
     new Setting(this.containerEl)
+      .setName("Move nested items when marking")
+      .setDesc(
+        `Only applies with "Mark them" and "Roll over children of todos". The marked todo stays in the previous day's note as a single line, and the plain bullets and todos nested under it move to today's note and are removed from the previous one. Completed nested todos move as well, unless "Skip completed children" is on: then they are not rolled over and stay in the previous day's note.`
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.moveNestedItemsOnMark || false)
+          .onChange((value) => {
+            this.plugin.settings.moveNestedItemsOnMark = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl)
       .setName("Skip todos already in today's note")
       .setDesc(
         `Don't roll over a todo if today's note already has the same line (ignoring surrounding whitespace), e.g. a recurring task from your daily template. Its nested items are skipped with it. The skipped todos are still marked or deleted on the previous day's note, according to the setting above.`
