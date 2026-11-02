@@ -68,7 +68,8 @@ export function insertSections({
         result,
         templateHeading,
         todosString,
-        leadingNewLine
+        leadingNewLine,
+        { beforeSubHeadings: true }
       );
       continue;
     }
@@ -86,17 +87,17 @@ export function insertSections({
       }
     });
 
-    const block = buildBlock(
-      relativePath.slice(firstMissingIdx),
-      todosString,
-      leadingNewLine
-    );
+    const missingHeadings = relativePath.slice(firstMissingIdx);
+    const block = buildBlock(missingHeadings, todosString, leadingNewLine);
 
     if (insertUnder === null) {
       result = appendToEnd(result, block);
     } else {
       if (!hasHeading(result, insertUnder)) templateHeadingNotFound = true;
-      result = insertUnderHeading(result, insertUnder, block, leadingNewLine);
+      // plain todos go before existing sub-headings; new sub-headings after them
+      result = insertUnderHeading(result, insertUnder, block, leadingNewLine, {
+        beforeSubHeadings: missingHeadings.length === 0,
+      });
     }
   }
 

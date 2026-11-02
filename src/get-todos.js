@@ -376,7 +376,9 @@ function processSection(lines, startIdx, parentLevel) {
 // Inserts textToInsert into noteContent right before the next heading at the same
 // or higher level as targetHeading (fewer or equal # signs). Falls back to appending
 // at end of file if targetHeading is not found. leadingNewLine adds a blank line before
-// the inserted text.
+// the inserted text. With `beforeSubHeadings` the text goes before the first sub-heading
+// instead, at the end of the heading's own content: use it for todos that belong directly
+// under the heading, not for new sub-headings.
 // Matches the whole heading line, case-insensitively
 const headingLineRegex = (heading) =>
   new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "mi");
@@ -389,7 +391,8 @@ export const insertUnderHeading = (
   noteContent,
   targetHeading,
   textToInsert,
-  leadingNewLine = false
+  leadingNewLine = false,
+  { beforeSubHeadings = false } = {}
 ) => {
   const headingMatch = headingLineRegex(targetHeading).exec(noteContent);
 
@@ -406,7 +409,7 @@ export const insertUnderHeading = (
   }
 
   // a target that is not a Markdown heading ends at the next heading of any level
-  const level = getHeadingLevel(targetHeading) ?? 6;
+  const level = beforeSubHeadings ? 6 : getHeadingLevel(targetHeading) ?? 6;
   const searchStart = headingMatch.index + headingMatch[0].length;
 
   const nextHeadingRegex = new RegExp(`\\n#{1,${level}} `, "g");

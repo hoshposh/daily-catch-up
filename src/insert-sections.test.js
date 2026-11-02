@@ -62,6 +62,16 @@ describe("insertSections without a template heading", () => {
     expect(result.content).toBe("# Plan\n\n## Home\n\n- [ ] a\n\n## End\n");
   });
 
+  test("puts todos for a parent heading above its existing sub-headings", () => {
+    const result = insertSections({
+      content: "# Work\n\n## Home\n\n- [ ] Laundry\n",
+      sections: [section(["# Work"], ["- [ ] Ship release"])],
+    });
+    expect(result.content).toBe(
+      "# Work\n\n- [ ] Ship release\n\n## Home\n\n- [ ] Laundry\n"
+    );
+  });
+
   test("appends todos that sit before any heading without creating a heading", () => {
     const result = insertSections({
       content: "# Daily\n",
@@ -105,6 +115,15 @@ describe("insertSections with a template heading", () => {
       content: "## Tasks\n\n- [ ] a\n\n## Notes\n",
       templateHeadingNotFound: false,
     });
+  });
+
+  test("puts todos directly under the template heading above its sub-headings", () => {
+    const result = insertSections({
+      ...base,
+      content: "## Tasks\n\n### Sub\n",
+      sections: [section(["## Tasks"], ["- [ ] a"])],
+    });
+    expect(result.content).toBe("## Tasks\n\n- [ ] a\n\n### Sub\n");
   });
 
   test("creates sub-headings below the template heading", () => {

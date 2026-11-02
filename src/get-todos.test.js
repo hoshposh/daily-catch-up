@@ -1011,6 +1011,21 @@ test("insertUnderHeading with a target that is not a Markdown heading inserts at
   expect(result).toBe("Tasks\n- [ ] a\n- [ ] x\n\n## Notes\ntext\n");
 });
 
+test("insertUnderHeading with beforeSubHeadings inserts before the first sub-heading", () => {
+  const content = "# Work\n- [ ] a\n\n## Home\n- [ ] b\n";
+  const result = insertUnderHeading(content, "# Work", "- [ ] x", false, {
+    beforeSubHeadings: true,
+  });
+  expect(result).toBe("# Work\n- [ ] a\n- [ ] x\n\n## Home\n- [ ] b\n");
+});
+
+test("insertUnderHeading with beforeSubHeadings still goes to the end when there are none", () => {
+  const result = insertUnderHeading("# Work\n- [ ] a\n", "# Work", "- [ ] x", false, {
+    beforeSubHeadings: true,
+  });
+  expect(result).toBe("# Work\n- [ ] a\n- [ ] x\n");
+});
+
 test("insertUnderHeading adds the blank line for leadingNewLine whatever the section ends with", () => {
   // the next heading follows directly, so the section has no trailing newline
   const result = insertUnderHeading("## Tasks\n- [ ] a\n## Next", "## Tasks", "- [ ] x", true);

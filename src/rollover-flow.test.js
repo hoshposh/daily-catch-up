@@ -1,18 +1,34 @@
 import { describe, expect, test } from "vitest";
 import { getSections, splitLines } from "./get-todos";
 import { insertSections } from "./insert-sections";
+import { dedupeAgainstExisting } from "./insert-todos";
 import { applySourceAction } from "./source-action";
 
 // The parts of rollover() that do not need Obsidian, run end to end
-function rollover({ yesterday, today = "", templateHeading = "none", action = "delete" }) {
+function rollover({
+  yesterday,
+  today = "",
+  templateHeading = "none",
+  action = "delete",
+  skipExisting = false,
+}) {
   const sections = getSections({
     lines: splitLines(yesterday),
     withChildren: true,
     doneStatusMarkers: "xX-",
   });
+  // todos that today's note already has are not inserted, but still count as rolled
+  const toInsert = skipExisting
+    ? sections
+        .map((s) => ({
+          ...s,
+          incompleteTodos: dedupeAgainstExisting(s.incompleteTodos, today, true).todos,
+        }))
+        .filter((s) => s.incompleteTodos.length > 0)
+    : sections;
   const inserted = insertSections({
     content: today,
-    sections,
+    sections: toInsert,
     templateHeading,
     leadingNewLine: true,
   });
@@ -72,5 +88,63 @@ describe("rollover without a template heading", () => {
         .replace("- [ ]\n", "- [>]\n")
         .replace("- [ ] Laundry", "- [>] Laundry")
     );
+  });
+});
+
+describe("rollover into a daily template that already has recurring tasks", () => {
+  const template = [
+    "# Work",
+    "",
+    "- [ ] Standup",
+    "- [ ] Review inbox",
+    "  - [ ] triage",
+    "",
+    "## Home",
+    "",
+    "- [ ] Laundry",
+    "",
+  ].join("\n");
+  const yesterday = [
+    "# Work",
+    "",
+    "- [ ] Ship release",
+    "  - [ ] Tag version",
+    "- [ ] Standup",
+    "  - [ ] ask Bob about the deploy",
+    "- [ ] Review inbox",
+    "  - [ ] triage",
+    "",
+    "## Home",
+    "",
+    "- [ ] Laundry",
+    "- [ ] Water plants",
+    "",
+  ].join("\n");
+
+  test("skips duplicates, keeps a duplicate parent whose children are new, and keeps todos above sub-headings", () => {
+    const result = rollover({ yesterday, today: template, skipExisting: true, action: "mark" });
+    expect(result.today).toBe(
+      [
+        "# Work",
+        "",
+        "- [ ] Standup",
+        "- [ ] Review inbox",
+        "  - [ ] triage",
+        "",
+        "- [ ] Ship release",
+        "  - [ ] Tag version",
+        "- [ ] Standup",
+        "  - [ ] ask Bob about the deploy",
+        "",
+        "## Home",
+        "",
+        "- [ ] Laundry",
+        "",
+        "- [ ] Water plants",
+        "",
+      ].join("\n")
+    );
+    // skipped duplicates count as handled, so every open todo is marked
+    expect(result.yesterday).toBe(yesterday.replaceAll("- [ ]", "- [>]"));
   });
 });
