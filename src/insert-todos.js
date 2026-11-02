@@ -10,18 +10,18 @@ const indentationOf = (line) => line.search(/\S/);
 const isOpenTodo = (line, doneStatusMarkers) =>
   getTodos({ lines: [line], doneStatusMarkers }).length > 0;
 
-// Whether the children of a duplicate parent allow it to be skipped. Every child
-// has to be in the note already, except completed todos: they have no work left
-// to carry (they are skipped along with the parent), unless an open todo sits
-// under them, which then has to be in the note.
+// Whether the children of a duplicate parent allow it to be skipped. Only open
+// todos can stop it: they are work that would otherwise be lost, so each has to
+// be in the note already. Everything else, completed todos and plain notes,
+// carries no work and is skipped along with the parent, unless an open todo
+// sits under it, which then has to be in the note.
 function childrenAllowSkip(children, existing, doneStatusMarkers) {
   for (let c = 0; c < children.length; c++) {
     const child = children[c];
     if (existing.has(child.trim())) continue;
-    if (!CHECKBOX_LINE.test(child) || isOpenTodo(child, doneStatusMarkers)) {
-      return false;
-    }
-    // a completed child: ignore its whole subtree when that has no open todo
+    if (isOpenTodo(child, doneStatusMarkers)) return false;
+    // a completed todo or a note: ignore its whole subtree when that has no
+    // open todo
     const indentation = indentationOf(child);
     let end = c + 1;
     while (end < children.length && indentationOf(children[end]) > indentation) {
@@ -42,10 +42,9 @@ function childrenAllowSkip(children, existing, doneStatusMarkers) {
  * - Only checkbox lines are compared (trimmed, exact incl. the checkbox), never
  *   plain text.
  * - With `withChildren`, todos are handled as groups. A duplicate parent is
- *   dropped with its children only when every child is also already in the
- *   note, apart from completed todos, which do not stop it (see
- *   childrenAllowSkip). Otherwise the group is kept, so nothing that is not in
- *   today's note is lost. A duplicate child under a kept parent is kept.
+ *   dropped with its children only when every open todo among them is also
+ *   already in the note; completed todos and plain notes do not stop it (see
+ *   childrenAllowSkip). Otherwise the group is kept, so no open work is lost. A duplicate child under a kept parent is kept.
  *   Without `withChildren`, indented todos are independent items.
  *
  * @param {string[]} todos - the rolled lines, children included
@@ -56,7 +55,7 @@ function childrenAllowSkip(children, existing, doneStatusMarkers) {
  *   done; null for the parser's defaults
  * @returns {{ todos: string[], skipped: number, duplicates: string[], droppedIndices: number[] }}
  *   `skipped` counts every dropped line; `duplicates` are the dropped lines
- *   that really are in the note (dropped completed children are not);
+ *   that really are in the note (dropped completed children and notes are not);
  *   `droppedIndices` are the positions of the dropped lines in `todos`
  */
 export function dedupeAgainstExisting(

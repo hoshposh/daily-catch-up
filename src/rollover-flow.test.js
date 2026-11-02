@@ -307,3 +307,100 @@ describe("mark with nested items moved to today's note", () => {
     expect(result.today).toBe("# Work\n\n- [ ] Standup\n- [ ] Ship\n  - plan\n");
   });
 });
+
+describe("a recurring task with notes and a completed sub-task under it", () => {
+  const template = [
+    "# Work",
+    "",
+    "## Tasks",
+    "",
+    "### Project",
+    "",
+    "- [ ] Standup",
+    "- [ ] Review inbox",
+    "  - [ ] triage",
+    "",
+    "### Home",
+    "",
+    "- [ ] Laundry",
+    "",
+  ].join("\n");
+  const yesterday = [
+    "# Work",
+    "",
+    "Blah blah ",
+    "",
+    "## Tasks",
+    "",
+    "### Project",
+    "",
+    "- [ ] Ship release",
+    "  - [ ] Tag version",
+    "- [ ] Standup",
+    "\t- Meeting delayed 10 minutes",
+    "\t  - [x] ask Bob about the deploy",
+    "- [ ] Review inbox",
+    "  - [ ] triage",
+    "",
+    "### Home",
+    "",
+    "- [ ] Laundry",
+    "- [x] Water plants",
+    "",
+  ].join("\n");
+
+  test("Standup is not rolled over again, and its notes stay in yesterday's note", () => {
+    const result = rollover({
+      yesterday,
+      today: template,
+      templateHeading: "## Tasks",
+      skipExisting: true,
+      action: "mark",
+      moveNested: true,
+    });
+    expect(result.today).toBe(
+      [
+        "# Work",
+        "",
+        "## Tasks",
+        "",
+        "### Project",
+        "",
+        "- [ ] Standup",
+        "- [ ] Review inbox",
+        "  - [ ] triage",
+        "- [ ] Ship release",
+        "  - [ ] Tag version",
+        "",
+        "### Home",
+        "",
+        "- [ ] Laundry",
+        "",
+      ].join("\n")
+    );
+    expect(result.yesterday).toBe(
+      [
+        "# Work",
+        "",
+        "Blah blah ",
+        "",
+        "## Tasks",
+        "",
+        "### Project",
+        "",
+        "- [>] Ship release",
+        "- [>] Standup",
+        "\t- Meeting delayed 10 minutes",
+        "\t  - [x] ask Bob about the deploy",
+        "- [>] Review inbox",
+        "  - [>] triage",
+        "",
+        "### Home",
+        "",
+        "- [>] Laundry",
+        "- [x] Water plants",
+        "",
+      ].join("\n")
+    );
+  });
+});

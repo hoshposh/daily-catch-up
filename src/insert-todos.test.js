@@ -90,6 +90,26 @@ describe("dedupeAgainstExisting", () => {
     ).toStrictEqual([]);
   });
 
+  test("a plain-text child does not stop a duplicate parent from being skipped", () => {
+    const result = dedupeAgainstExisting(
+      ["- [ ] Standup", "\t- Meeting delayed 10 minutes", "\t  - [x] ask Bob"],
+      "- [ ] Standup\n"
+    );
+    expect(summary(result)).toStrictEqual({
+      todos: [],
+      skipped: 3,
+      duplicates: ["- [ ] Standup"],
+    });
+  });
+
+  test("an open todo under a plain-text child still has to be in the note", () => {
+    const todos = ["- [ ] Standup", "  - notes", "    - [ ] follow up"];
+    expect(dedupeAgainstExisting(todos, "- [ ] Standup\n").todos).toStrictEqual(todos);
+    expect(
+      dedupeAgainstExisting(todos, "- [ ] Standup\n    - [ ] follow up\n").todos
+    ).toStrictEqual([]);
+  });
+
   test("an open child that is not in the note still keeps the group", () => {
     const todos = ["- [ ] Standup", "  - [x] ask Bob", "  - [ ] prepare notes"];
     expect(dedupeAgainstExisting(todos, "- [ ] Standup\n").todos).toStrictEqual(todos);
