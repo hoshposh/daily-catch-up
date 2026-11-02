@@ -1056,3 +1056,13 @@ test("insertUnderHeading puts a blank line before a new sub-heading when leading
 test("insertUnderHeading fallback adds the blank line for leadingNewLine after a last line without newline", () => {
   expect(insertUnderHeading("hello", "## Tasks", "- [ ] x", true)).toBe("hello\n\n- [ ] x\n");
 });
+
+test("insertUnderHeading with headingLineIndex uses that line when the heading occurs twice", () => {
+  const content = "## A\n\n## A\n- [ ] b\n";
+  const result = insertUnderHeading(content, "## A", "- [ ] x", false, { headingLineIndex: 2 });
+  expect(result).toBe("## A\n\n## A\n- [ ] b\n- [ ] x\n");
+  // without it the first one is used
+  expect(insertUnderHeading(content, "## A", "- [ ] x", false)).toBe(
+    "## A\n- [ ] x\n\n## A\n- [ ] b\n"
+  );
+});

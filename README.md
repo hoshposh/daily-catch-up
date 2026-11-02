@@ -54,9 +54,9 @@ If you prefer to trigger the rollover of your todos manually, you can use this s
 
 ### 2. Template Heading
 
-If you chose a template file to use for new daily notes in `Daily notes > Settings` or `Periodic Notes > Settings`, you will be able to choose a heading for incomplete notes to roll into. Incomplete todos are taken from the entire file. They are rolled into today's daily note under the heading of choice, and the headings they were under in the previous note are recreated beneath it (a heading that today's note already has is reused).
+If you chose a template file to use for new daily notes in `Daily notes > Settings` or `Periodic Notes > Settings`, you will be able to choose a heading for incomplete notes to roll into. Incomplete todos are taken from the entire file. They are rolled into today's daily note under the heading of choice, and the headings they were under in the previous note are recreated beneath it. A heading that today's note already has is reused only when it sits inside its parent heading's section, so a heading of the same name under another parent is not mistaken for it.
 
-If you leave this field as blank, or select `None`, then incomplete todos will be rolled onto the end of today's note (for new notes with no template, the end is the beginning of the note). Each todo is placed under the same heading it had in the previous note, nested the same way. A heading that today's note already has is reused (ignoring case); missing headings are created at the end of the note. Todos that were not under any heading are added without one.
+If you leave this field as blank, or select `None`, then incomplete todos will be rolled onto the end of today's note (for new notes with no template, the end is the beginning of the note). Each todo is placed under the same heading it had in the previous note, nested the same way. A heading that today's note already has is reused (ignoring case and surrounding spaces) when it sits inside its parent heading's section; missing headings are created at the end of the note. Todos that were not under any heading are added without one.
 
 If the plugin cannot read headings from your template (the template is missing or unreadable, or has no headings), the dropdown is replaced by a text field where you can type the exact heading, e.g. `## Tasks`, or `none`.
 

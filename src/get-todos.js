@@ -378,7 +378,18 @@ function processSection(lines, startIdx, parentLevel) {
 // at end of file if targetHeading is not found. leadingNewLine adds a blank line before
 // the inserted text. With `beforeSubHeadings` the text goes before the first sub-heading
 // instead, at the end of the heading's own content: use it for todos that belong directly
-// under the heading, not for new sub-headings.
+// under the heading, not for new sub-headings. With `headingLineIndex` the heading on that
+// line (split on "\n") is used instead of the first line with that text.
+
+// The heading on line `lineIndex`, shaped like a regex match: its offset in the
+// note and its text without a trailing "\r"
+function headingAtLine(noteContent, lineIndex) {
+  const lines = noteContent.split("\n");
+  let index = 0;
+  for (let i = 0; i < lineIndex; i++) index += lines[i].length + 1;
+  return { index, 0: lines[lineIndex].replace(/\r$/, "") };
+}
+
 // Matches the whole heading line, case-insensitively
 const headingLineRegex = (heading) =>
   new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "mi");
@@ -392,9 +403,14 @@ export const insertUnderHeading = (
   targetHeading,
   textToInsert,
   leadingNewLine = false,
-  { beforeSubHeadings = false } = {}
+  { beforeSubHeadings = false, headingLineIndex } = {}
 ) => {
-  const headingMatch = headingLineRegex(targetHeading).exec(noteContent);
+  // Without headingLineIndex the first line that is the heading is used. With
+  // it, that exact line is (for a heading that occurs more than once).
+  const headingMatch =
+    headingLineIndex === undefined
+      ? headingLineRegex(targetHeading).exec(noteContent)
+      : headingAtLine(noteContent, headingLineIndex);
 
   // Text added after a line that has no newline of its own would be glued to
   // that line, so it needs a newline first; leadingNewLine adds a blank line

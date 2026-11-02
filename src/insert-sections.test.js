@@ -56,10 +56,37 @@ describe("insertSections without a template heading", () => {
 
   test("uses the deepest heading that exists and only creates the missing ones", () => {
     const result = insertSections({
+      content: "# Work\n\n## Notes\n",
+      sections: [section(["# Work", "## Home"], ["- [ ] a"])],
+    });
+    expect(result.content).toBe("# Work\n\n## Notes\n\n## Home\n\n- [ ] a\n");
+  });
+
+  test("does not use a heading of the same name that sits under another parent", () => {
+    const result = insertSections({
       content: "# Plan\n\n## Home\n\n## End\n",
       sections: [section(["# Work", "## Home"], ["- [ ] a"])],
     });
-    expect(result.content).toBe("# Plan\n\n## Home\n\n- [ ] a\n\n## End\n");
+    // "# Work" is missing, so the whole path is created instead of reusing "## Home"
+    expect(result.content).toBe(
+      "# Plan\n\n## Home\n\n## End\n\n# Work\n## Home\n\n- [ ] a\n"
+    );
+  });
+
+  test("a heading with the same name under two parents is found under the right one", () => {
+    const result = insertSections({
+      content: "# A\n\n### Notes\n\n# B\n\n### Notes\n",
+      sections: [section(["# B", "### Notes"], ["- [ ] x"])],
+    });
+    expect(result.content).toBe("# A\n\n### Notes\n\n# B\n\n### Notes\n\n- [ ] x\n");
+  });
+
+  test("ignores case and surrounding spaces when matching a heading", () => {
+    const result = insertSections({
+      content: "## work  \n\n## Other\n",
+      sections: [section(["## Work"], ["- [ ] a"])],
+    });
+    expect(result.content).toBe("## work  \n\n- [ ] a\n\n## Other\n");
   });
 
   test("puts todos for a parent heading above its existing sub-headings", () => {
@@ -124,6 +151,29 @@ describe("insertSections with a template heading", () => {
       sections: [section(["## Tasks"], ["- [ ] a"])],
     });
     expect(result.content).toBe("## Tasks\n\n- [ ] a\n\n### Sub\n");
+  });
+
+  test("looks for a sub-heading inside the template heading's section only", () => {
+    const result = insertSections({
+      ...base,
+      content: "## Tasks\n\n## Notes\n\n### Sub\n",
+      sections: [section(["## Tasks", "### Sub"], ["- [ ] a"])],
+    });
+    // the "### Sub" under "## Notes" is not used
+    expect(result.content).toBe(
+      "## Tasks\n\n### Sub\n\n- [ ] a\n\n## Notes\n\n### Sub\n"
+    );
+  });
+
+  test("a sub-heading missing from its parent is created there, not taken from elsewhere", () => {
+    const result = insertSections({
+      ...base,
+      content: "## Tasks\n\n### Project\n\n### Home\n\n## Notes\n\n#### Deep\n",
+      sections: [section(["## Tasks", "### Project", "#### Deep"], ["- [ ] a"])],
+    });
+    expect(result.content).toBe(
+      "## Tasks\n\n### Project\n\n#### Deep\n\n- [ ] a\n\n### Home\n\n## Notes\n\n#### Deep\n"
+    );
   });
 
   test("creates sub-headings below the template heading", () => {
