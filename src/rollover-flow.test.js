@@ -404,3 +404,17 @@ describe("a recurring task with notes and a completed sub-task under it", () => 
     );
   });
 });
+
+describe("rollover between notes with CRLF line endings", () => {
+  const crlf = (lines) => lines.join("\r\n");
+
+  test("both notes keep CRLF endings", () => {
+    const yesterday = crlf(["## Tasks", "", "- [ ] Ship release", "  - note", "- [x] Done", ""]);
+    const today = crlf(["## Tasks", "", "- [ ] Standup", "", "## Home", ""]);
+    const result = rollover({ yesterday, today, templateHeading: "## Tasks", action: "delete" });
+    expect(result.today).toBe(
+      crlf(["## Tasks", "", "- [ ] Standup", "- [ ] Ship release", "  - note", "", "## Home", ""])
+    );
+    expect(result.yesterday).toBe(crlf(["## Tasks", "", "- [x] Done", ""]));
+  });
+});

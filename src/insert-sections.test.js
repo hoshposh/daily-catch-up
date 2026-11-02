@@ -206,3 +206,46 @@ describe("insertSections with a template heading", () => {
     expect(result.content).toBe("## Tasks\n\n# Work\n## Home\n\n- [ ] a\n");
   });
 });
+
+describe("insertSections in a note with CRLF line endings", () => {
+  test("inserted lines use CRLF too", () => {
+    const result = insertSections({
+      templateHeading: "## Tasks",
+      content: "## Tasks\r\n\r\n## Notes\r\n",
+      sections: [section(["## Tasks"], ["- [ ] a", "  - [ ] b"])],
+    });
+    expect(result).toStrictEqual({
+      content: "## Tasks\r\n\r\n- [ ] a\r\n  - [ ] b\r\n\r\n## Notes\r\n",
+      templateHeadingNotFound: false,
+    });
+  });
+
+  test("appending to an existing list and creating headings keep CRLF", () => {
+    const result = insertSections({
+      content: "# Daily\r\n\r\n- [ ] first\r\n",
+      sections: [section(["# Daily"], ["- [ ] a"]), section(["# Daily", "## Work"], ["- [ ] b"])],
+    });
+    expect(result.content).toBe(
+      "# Daily\r\n\r\n- [ ] first\r\n- [ ] a\r\n\r\n## Work\r\n\r\n- [ ] b\r\n"
+    );
+  });
+
+  test("the line ending that most lines have decides", () => {
+    const result = insertSections({
+      templateHeading: "## T",
+      content: "## T\r\n- [ ] a\r\n\r\n## N\n",
+      sections: [section(["## T"], ["- [ ] x"])],
+    });
+    expect(result.content).toBe("## T\r\n- [ ] a\r\n- [ ] x\r\n\r\n## N\r\n");
+  });
+
+  test("a note with LF endings gets none added", () => {
+    const result = insertSections({
+      templateHeading: "## T",
+      content: "## T\n- [ ] a\n",
+      sections: [section(["## T"], ["- [ ] x"])],
+    });
+    expect(result.content).toBe("## T\n- [ ] a\n- [ ] x\n");
+  });
+});
+

@@ -101,6 +101,25 @@ export function insertSections({
   templateHeading = "none",
   leadingNewLine = true,
 }) {
+  // Work on "\n" and give the note its own line endings back at the end, so
+  // inserted lines match a CRLF note instead of mixing endings.
+  const crlfCount = (content.match(/\r\n/g) || []).length;
+  const lfCount = (content.match(/\n/g) || []).length - crlfCount;
+  const crlf = crlfCount > lfCount;
+  const normalized = crlf ? content.replace(/\r\n/g, "\n") : content;
+
+  const inserted = insertSectionsLf({
+    content: normalized,
+    sections,
+    templateHeading,
+    leadingNewLine,
+  });
+  return crlf
+    ? { ...inserted, content: inserted.content.replace(/\n/g, "\r\n") }
+    : inserted;
+}
+
+function insertSectionsLf({ content, sections, templateHeading, leadingNewLine }) {
   const templateSelected = templateHeading !== "none";
   let result = content;
   let templateHeadingNotFound = false;
