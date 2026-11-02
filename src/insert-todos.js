@@ -1,9 +1,39 @@
 // Pure helpers for choosing which rolled todos get inserted into today's note.
 
+import { getTodos } from "./get-todos";
+
 // An open or closed checkbox list item, e.g. "- [ ] text" or "> * [/] text"
 const CHECKBOX_LINE = /^\s*(?:>\s*)*[*+-] \[.+?\]/;
 
 const indentationOf = (line) => line.search(/\S/);
+
+const isOpenTodo = (line, doneStatusMarkers) =>
+  getTodos({ lines: [line], doneStatusMarkers }).length > 0;
+
+// Whether the children of a duplicate parent allow it to be skipped. Every child
+// has to be in the note already, except completed todos: they have no work left
+// to carry (they are skipped along with the parent), unless an open todo sits
+// under them, which then has to be in the note.
+function childrenAllowSkip(children, existing, doneStatusMarkers) {
+  for (let c = 0; c < children.length; c++) {
+    const child = children[c];
+    if (existing.has(child.trim())) continue;
+    if (!CHECKBOX_LINE.test(child) || isOpenTodo(child, doneStatusMarkers)) {
+      return false;
+    }
+    // a completed child: ignore its whole subtree when that has no open todo
+    const indentation = indentationOf(child);
+    let end = c + 1;
+    while (end < children.length && indentationOf(children[end]) > indentation) {
+      end++;
+    }
+    const subtree = children.slice(c + 1, end);
+    if (!subtree.some((line) => isOpenTodo(line, doneStatusMarkers))) {
+      c = end - 1;
+    }
+  }
+  return true;
+}
 
 /**
  * Drops rolled todos that already exist in `existingContent`, so recurring
@@ -13,21 +43,30 @@ const indentationOf = (line) => line.search(/\S/);
  *   plain text.
  * - With `withChildren`, todos are handled as groups. A duplicate parent is
  *   dropped with its children only when every child is also already in the
- *   note; otherwise the group is kept, so nothing that is not in today's note
- *   is lost. A duplicate child under a kept parent is kept. Without
- *   `withChildren`, indented todos are independent items.
+ *   note, apart from completed todos, which do not stop it (see
+ *   childrenAllowSkip). Otherwise the group is kept, so nothing that is not in
+ *   today's note is lost. A duplicate child under a kept parent is kept.
+ *   Without `withChildren`, indented todos are independent items.
  *
  * @param {string[]} todos - the rolled lines, children included
  * @param {string} existingContent - today's note before anything is inserted
  * @param {boolean} [withChildren=true] - whether indented lines belong to the
  *   todo above them (the "roll over children" setting)
+ * @param {string|null} [doneStatusMarkers] - which checkbox characters count as
+ *   done; null for the parser's defaults
  * @returns {{ todos: string[], skipped: number, duplicates: string[] }}
- *   `duplicates` are the dropped lines, `skipped` their count
+ *   `skipped` counts every dropped line; `duplicates` are the dropped lines
+ *   that really are in the note (dropped completed children are not)
  */
-export function dedupeAgainstExisting(todos, existingContent, withChildren = true) {
+export function dedupeAgainstExisting(
+  todos,
+  existingContent,
+  withChildren = true,
+  doneStatusMarkers = null
+) {
   const existing = new Set(existingContent.split("\n").map((l) => l.trim()));
   const kept = [];
-  const duplicates = [];
+  const dropped = [];
 
   let i = 0;
   while (i < todos.length) {
@@ -40,21 +79,20 @@ export function dedupeAgainstExisting(todos, existingContent, withChildren = tru
       }
     }
     const group = todos.slice(i, end);
-    const children = group.slice(1);
     const isDuplicate =
       CHECKBOX_LINE.test(head) &&
       existing.has(head.trim()) &&
-      children.every((child) => existing.has(child.trim()));
+      childrenAllowSkip(group.slice(1), existing, doneStatusMarkers);
 
-    if (isDuplicate) {
-      duplicates.push(...group);
-    } else {
-      kept.push(...group);
-    }
+    (isDuplicate ? dropped : kept).push(...group);
     i = end;
   }
 
-  return { todos: kept, skipped: duplicates.length, duplicates };
+  return {
+    todos: kept,
+    skipped: dropped.length,
+    duplicates: dropped.filter((line) => existing.has(line.trim())),
+  };
 }
 
 // Number of times each (trimmed) line occurs in `lines`

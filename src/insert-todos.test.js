@@ -58,6 +58,46 @@ describe("dedupeAgainstExisting", () => {
     expect(result).toStrictEqual({ todos, skipped: 0, duplicates: [] });
   });
 
+  test("a completed child does not stop a duplicate parent from being skipped", () => {
+    const result = dedupeAgainstExisting(
+      ["- [ ] Standup", "  - [x] ask Bob about the deploy"],
+      "- [ ] Standup\n"
+    );
+    expect(result).toStrictEqual({
+      todos: [],
+      skipped: 2,
+      duplicates: ["- [ ] Standup"],
+    });
+  });
+
+  test("a completed child's own notes are skipped with it", () => {
+    const result = dedupeAgainstExisting(
+      ["- [ ] Standup", "  - [x] ask Bob", "    - he said yes"],
+      "- [ ] Standup\n"
+    );
+    expect(result.todos).toStrictEqual([]);
+    expect(result.skipped).toBe(3);
+  });
+
+  test("an open todo under a completed child still has to be in the note", () => {
+    const todos = ["- [ ] Standup", "  - [x] ask Bob", "    - [ ] follow up"];
+    expect(dedupeAgainstExisting(todos, "- [ ] Standup\n").todos).toStrictEqual(todos);
+    expect(
+      dedupeAgainstExisting(todos, "- [ ] Standup\n    - [ ] follow up\n").todos
+    ).toStrictEqual([]);
+  });
+
+  test("an open child that is not in the note still keeps the group", () => {
+    const todos = ["- [ ] Standup", "  - [x] ask Bob", "  - [ ] prepare notes"];
+    expect(dedupeAgainstExisting(todos, "- [ ] Standup\n").todos).toStrictEqual(todos);
+  });
+
+  test("done markers decide which children are completed", () => {
+    const todos = ["- [ ] Standup", "  - [?] ask Bob"];
+    expect(dedupeAgainstExisting(todos, "- [ ] Standup\n", true, "xX-").todos).toStrictEqual(todos);
+    expect(dedupeAgainstExisting(todos, "- [ ] Standup\n", true, "xX-?").todos).toStrictEqual([]);
+  });
+
   test("keeps a duplicate child under a parent that is not a duplicate", () => {
     const result = dedupeAgainstExisting(
       ["- [ ] Ship release", "    - [ ] Standup"],

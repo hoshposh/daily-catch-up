@@ -288,7 +288,8 @@ export default class RolloverTodosPlugin extends Plugin {
               const { todos, skipped, duplicates } = dedupeAgainstExisting(
                 section.incompleteTodos,
                 originalDailyNoteContent,
-                this.settings.rolloverChildren
+                this.settings.rolloverChildren,
+                effectiveDoneStatusMarkers(this.settings)
               );
               todosAlreadyPresent += skipped;
               duplicateTodos.push(...duplicates);
@@ -420,7 +421,7 @@ export default class RolloverTodosPlugin extends Plugin {
           ? ""
           : `- ${todosAlreadyPresent} line${
               todosAlreadyPresent > 1 ? "s" : ""
-            } already in today's note, skipped.`;
+            } skipped (already in today's note).`;
       const part1 =
         templateHeadingNotFoundMessage.length > 0
           ? `${templateHeadingNotFoundMessage}`

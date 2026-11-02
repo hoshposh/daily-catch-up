@@ -22,7 +22,7 @@ function rollover({
     ? sections
         .map((s) => ({
           ...s,
-          incompleteTodos: dedupeAgainstExisting(s.incompleteTodos, today, true).todos,
+          incompleteTodos: dedupeAgainstExisting(s.incompleteTodos, today, true, "xX-").todos,
         }))
         .filter((s) => s.incompleteTodos.length > 0)
     : sections;
@@ -145,6 +145,80 @@ describe("rollover into a daily template that already has recurring tasks", () =
       ].join("\n")
     );
     // skipped duplicates count as handled, so every open todo is marked
+    expect(result.yesterday).toBe(yesterday.replaceAll("- [ ]", "- [>]"));
+  });
+});
+
+describe("rollover under a template heading into a template with recurring tasks", () => {
+  const template = [
+    "# Work",
+    "",
+    "## Tasks",
+    "",
+    "### Project",
+    "",
+    "- [ ] Standup",
+    "- [ ] Review inbox",
+    "  - [ ] triage",
+    "",
+    "### Home",
+    "",
+    "- [ ] Laundry",
+    "",
+  ].join("\n");
+  const yesterday = [
+    "# Work",
+    "",
+    "Blah blah",
+    "",
+    "## Tasks",
+    "",
+    "### Project",
+    "",
+    "- [ ] Ship release",
+    "  - [ ] Tag version",
+    "- [ ] Standup",
+    "  - [x] ask Bob about the deploy",
+    "- [ ] Review inbox",
+    "  - [ ] triage",
+    "",
+    "### Home",
+    "",
+    "- [ ] Laundry",
+    "- [x] Water plants",
+    "",
+  ].join("\n");
+
+  test("a completed child does not make Standup roll over again", () => {
+    const result = rollover({
+      yesterday,
+      today: template,
+      templateHeading: "## Tasks",
+      skipExisting: true,
+      action: "mark",
+    });
+    expect(result.today).toBe(
+      [
+        "# Work",
+        "",
+        "## Tasks",
+        "",
+        "### Project",
+        "",
+        "- [ ] Standup",
+        "- [ ] Review inbox",
+        "  - [ ] triage",
+        "",
+        "- [ ] Ship release",
+        "  - [ ] Tag version",
+        "",
+        "### Home",
+        "",
+        "- [ ] Laundry",
+        "",
+      ].join("\n")
+    );
+    // every open todo is marked; the completed ones are left as they were
     expect(result.yesterday).toBe(yesterday.replaceAll("- [ ]", "- [>]"));
   });
 });
