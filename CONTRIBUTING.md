@@ -91,17 +91,17 @@ Let Obsidian create today's note (the **Open today's daily note** command), so t
 
 ### 4. What to check
 
-| Setting                                      | What to look for                                                                                                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Source action: Leave them alone              | Today's note gets the todos under their headings; yesterday's note is unchanged.                                                                        |
-| Source action: Mark them (`>`)               | Rolled todos on yesterday's note become `[>]`. Completed children and plain text stay as they are. Running the rollover again does not roll them twice. |
-| Source action: Delete them                   | Rolled lines disappear from yesterday's note, and headings left empty go too. An identical `- notes` line under a different parent stays.               |
-| Undo last rollover                           | Within 2 minutes it restores yesterday's note, and today's note too unless Templater is enabled.                                                        |
-| Roll over children + Skip completed children | `Write changelog` is not rolled. With Delete it is removed from yesterday together with its parent.                                                     |
-| Skip todos already in today's note           | Put `- [ ] Laundry` in the daily template. It is not inserted twice and the notice mentions the skip.                                                   |
-| Ignore todos in callouts                     | The `> - [ ] habit` line stays where it is.                                                                                                             |
-| Template heading                             | Set one in the daily template. Try a heading that is not in today's note and expect the "couldn't find" notice.                                         |
-| Broken template path                         | Point the Daily notes template at a file that does not exist. The settings page must still open, with a text field for the heading.                     |
+| Setting                                      | What to look for                                                                                                                                                                        |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source action: Leave them alone              | Today's note gets the todos under their headings; yesterday's note is unchanged.                                                                                                        |
+| Source action: Mark them (`>`)               | Rolled todos on yesterday's note become `[>]`. Completed children and plain text stay as they are. Running the rollover again does not roll them twice.                                 |
+| Source action: Delete them                   | Rolled lines disappear from yesterday's note, and headings that this empties go too (but not ones that were already empty). An identical `- notes` line under a different parent stays. |
+| Undo last rollover                           | Within 2 minutes it restores yesterday's note, and today's note too unless Templater is enabled.                                                                                        |
+| Roll over children + Skip completed children | `Write changelog` is not rolled. With Delete it is removed from yesterday together with its parent.                                                                                     |
+| Skip todos already in today's note           | Put `- [ ] Laundry` in the daily template. It is not inserted twice and the notice mentions the skip.                                                                                   |
+| Ignore todos in callouts                     | The `> - [ ] habit` line stays where it is.                                                                                                                                             |
+| Template heading                             | Set one in the daily template. Try a heading that is not in today's note and expect the "couldn't find" notice.                                                                         |
+| Broken template path                         | Point the Daily notes template at a file that does not exist. The settings page must still open, with a text field for the heading.                                                     |
 
 If you use Templater, also try a daily template with Templater syntax together with Delete or Mark. After about 3 seconds either yesterday's note changes, or you see the "modified by another plugin" notice.
 

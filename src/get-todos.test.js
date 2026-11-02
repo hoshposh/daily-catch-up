@@ -3,7 +3,7 @@ import {
   getTodos,
   getTodosAndSkipped,
   getSections,
-  removeEmptyHeadings,
+  removeEmptiedHeadings,
   insertUnderHeading,
   hasHeading,
 } from "./get-todos";
@@ -700,70 +700,90 @@ test("getSections resets ancestry correctly when sibling headings are encountere
   ]);
 });
 
-// ─── removeEmptyHeadings ────────────────────────────────────────────────────
+// ─── removeEmptiedHeadings ──────────────────────────────────────────────────
 
-test("removeEmptyHeadings returns lines unchanged when no headings present", () => {
-  const lines = ["- [x] done", "some text"];
-  expect(removeEmptyHeadings(lines)).toStrictEqual(lines);
+test("removeEmptiedHeadings returns the lines minus the removed ones when no heading is involved", () => {
+  const lines = ["- [x] done", "- [ ] a", "some text"];
+  expect(removeEmptiedHeadings(lines, new Set([1]))).toStrictEqual(["- [x] done", "some text"]);
 });
 
-test("removeEmptyHeadings removes heading whose section is only blank lines", () => {
-  const lines = [
-    "### Empty section",
-    "",
-    "",
-    "### Non-empty section",
-    "- [x] done",
-  ];
-  expect(removeEmptyHeadings(lines)).toStrictEqual([
-    "### Non-empty section",
+test("removeEmptiedHeadings removes a heading whose content was all removed, with its blank lines", () => {
+  const lines = ["### Section", "", "- [ ] a", "", "### Other", "- [x] done"];
+  expect(removeEmptiedHeadings(lines, new Set([2]))).toStrictEqual([
+    "### Other",
     "- [x] done",
   ]);
 });
 
-test("removeEmptyHeadings keeps heading that has content directly under it", () => {
-  const lines = ["### Section", "- [x] done"];
-  expect(removeEmptyHeadings(lines)).toStrictEqual(["### Section", "- [x] done"]);
+test("removeEmptiedHeadings keeps a heading that has content left", () => {
+  const lines = ["### Section", "- [x] done", "- [ ] a"];
+  expect(removeEmptiedHeadings(lines, new Set([2]))).toStrictEqual([
+    "### Section",
+    "- [x] done",
+  ]);
 });
 
-test("removeEmptyHeadings removes parent heading when all sub-sections are empty", () => {
-  const lines = [
-    "### Parent",
-    "#### Child 1",
+test("removeEmptiedHeadings keeps a heading that was already empty", () => {
+  const lines = ["## Notes", "", "## Tasks", "- [ ] a", "- [x] done"];
+  expect(removeEmptiedHeadings(lines, new Set([3]))).toStrictEqual([
+    "## Notes",
     "",
-    "#### Child 2",
-    "",
+    "## Tasks",
+    "- [x] done",
+  ]);
+});
+
+test("removeEmptiedHeadings removes a parent heading when all its sub-sections were emptied", () => {
+  const lines = ["## Unrelated", "- [x] content", "### Parent", "#### Child", "- [ ] a", "#### Other", "- [ ] b"];
+  expect(removeEmptiedHeadings(lines, new Set([4, 6]))).toStrictEqual([
     "## Unrelated",
     "- [x] content",
-  ];
-  expect(removeEmptyHeadings(lines)).toStrictEqual(["## Unrelated", "- [x] content"]);
-});
-
-test("removeEmptyHeadings keeps parent heading when a sub-section has content", () => {
-  const lines = [
-    "### Parent",
-    "#### Child 1",
-    "- [x] done",
-    "#### Child 2",
-    "",
-  ];
-  expect(removeEmptyHeadings(lines)).toStrictEqual([
-    "### Parent",
-    "#### Child 1",
-    "- [x] done",
   ]);
 });
 
-test("removeEmptyHeadings keeps parent heading when it has direct non-todo content", () => {
-  const lines = [
+test("removeEmptiedHeadings keeps a parent heading when a sub-section has content left", () => {
+  const lines = ["### Parent", "#### Child A", "- [ ] a", "#### Child B", "- [x] kept"];
+  expect(removeEmptiedHeadings(lines, new Set([2]))).toStrictEqual([
+    "### Parent",
+    "#### Child B",
+    "- [x] kept",
+  ]);
+});
+
+test("removeEmptiedHeadings keeps a parent that still has an empty sub-heading of its own", () => {
+  const lines = ["### Parent", "- [ ] a", "#### Empty from the start"];
+  expect(removeEmptiedHeadings(lines, new Set([1]))).toStrictEqual([
+    "### Parent",
+    "#### Empty from the start",
+  ]);
+});
+
+test("removeEmptiedHeadings keeps a parent heading that has text of its own", () => {
+  const lines = ["### Parent", "some paragraph text", "#### Child", "- [ ] a"];
+  expect(removeEmptiedHeadings(lines, new Set([3]))).toStrictEqual([
     "### Parent",
     "some paragraph text",
-    "#### Child",
-    "",
-  ];
-  expect(removeEmptyHeadings(lines)).toStrictEqual([
-    "### Parent",
-    "some paragraph text",
+  ]);
+});
+
+test("removeEmptiedHeadings does not treat # lines in a code fence as headings", () => {
+  const lines = ["## Script", "```bash", "# install", "run.sh", "```", "- [ ] a"];
+  expect(removeEmptiedHeadings(lines, new Set([5]))).toStrictEqual([
+    "## Script",
+    "```bash",
+    "# install",
+    "run.sh",
+    "```",
+  ]);
+});
+
+test("removeEmptiedHeadings counts a code fence as content, also with ~~~", () => {
+  const lines = ["## A", "~~~", "# not a heading", "~~~", "## B", "- [ ] x"];
+  expect(removeEmptiedHeadings(lines, new Set([5]))).toStrictEqual([
+    "## A",
+    "~~~",
+    "# not a heading",
+    "~~~",
   ]);
 });
 

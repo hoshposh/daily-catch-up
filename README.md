@@ -66,7 +66,7 @@ By default, this plugin makes a copy of incomplete todos. So if you forgot to wa
 
 - **Leave them alone** (default): yesterday's note is unchanged.
 - **Mark them**: the rolled todos get a different checkbox character, so `- [ ] wash the dog` becomes `- [>] wash the dog`. The character is configurable (default `>`, the bullet-journal "forwarded" symbol). Only open todos are marked, including open children; completed children and plain text are left as they are. While this option is selected the marker also counts as a done marker (without changing your **#7** setting), so marked todos are not rolled over again.
-- **Delete them**: the rolled todos are removed from yesterday's note. This is destructive. Headings left empty by this are removed too, since they now live in today's note.
+- **Delete them**: the rolled todos are removed from yesterday's note. This is destructive. Headings whose todos all moved over are removed too, since they now live in today's note. Headings that were already empty, and lines starting with `#` inside code blocks, are left alone.
 
 If you use the `Undo last rollover` command, marked or deleted todos will be restored (remember, the time limit on this is 2 minutes). If you previously had **Delete todos from previous day** turned on, your setting is carried over as **Delete them**.
 

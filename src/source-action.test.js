@@ -207,6 +207,26 @@ describe("applySourceAction: delete", () => {
     expect(result.content).toBe("");
   });
 
+  test("keeps a heading that was already empty", () => {
+    const content = "## Notes\n\n## Tasks\n- [ ] a\n- [x] b";
+    const result = applySourceAction({
+      content,
+      action: "delete",
+      rolledLineIndices: [3],
+    });
+    expect(result.content).toBe("## Notes\n\n## Tasks\n- [x] b");
+  });
+
+  test("does not treat # lines in a code block as headings", () => {
+    const content = "## Script\n```\n# install\n```\n- [ ] a";
+    const result = applySourceAction({
+      content,
+      action: "delete",
+      rolledLineIndices: [4],
+    });
+    expect(result.content).toBe("## Script\n```\n# install\n```");
+  });
+
   test("drops headings left with no content", () => {
     const content = "## Work\n- [ ] a\n## Home\n- [x] b";
     const result = applySourceAction({

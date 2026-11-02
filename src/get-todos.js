@@ -336,42 +336,46 @@ export const getSections = ({
   return sections;
 };
 
-// Removes heading lines whose entire section (direct content + sub-sections recursively)
-// contains no non-blank content after incomplete todos have been removed.
-export const removeEmptyHeadings = (lines) => {
-  const [result] = processSection(lines, 0, 0);
-  return result;
-};
-
-// Returns [filteredLines, nextIndex]. Processes lines starting at startIdx,
-// stopping when a heading at level <= parentLevel is encountered.
-function processSection(lines, startIdx, parentLevel) {
-  const result = [];
-  let i = startIdx;
-
-  while (i < lines.length) {
-    const line = lines[i];
-    const level = getHeadingLevel(line);
-
-    if (level !== null && level <= parentLevel) {
-      break;
+// Returns `lines` without the lines at the positions in `removed`, and without
+// the headings that were emptied by that: a heading goes (with the blank lines
+// of its section) when something in its section, sub-sections included, was
+// removed and nothing but blank lines is left. Headings that were already empty
+// are kept. Lines in fenced code blocks are content, never headings.
+export const removeEmptiedHeadings = (lines, removed) => {
+  const headings = [];
+  let fence = null; // the fence character while inside a code block
+  lines.forEach((line, index) => {
+    const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (fenceMatch) {
+      if (fence === null) fence = fenceMatch[1][0];
+      else if (fence === fenceMatch[1][0]) fence = null;
+      return;
     }
+    if (fence !== null) return;
+    const level = getHeadingLevel(line);
+    if (level !== null) headings.push({ index, level });
+  });
 
-    if (level !== null) {
-      const [sectionContent, nextI] = processSection(lines, i + 1, level);
-      if (sectionContent.some((l) => l.trim() !== "")) {
-        result.push(line);
-        result.push(...sectionContent);
-      }
-      i = nextI;
-    } else {
-      result.push(line);
-      i++;
+  const gone = new Set(removed);
+  // later headings first, so sub-headings are settled before their parents
+  for (let h = headings.length - 1; h >= 0; h--) {
+    const { index, level } = headings[h];
+    const next = headings.slice(h + 1).find((other) => other.level <= level);
+    const end = next ? next.index : lines.length;
+
+    let hadRemoval = false;
+    let hasContent = false;
+    for (let i = index + 1; i < end && !hasContent; i++) {
+      if (gone.has(i)) hadRemoval = true;
+      else if (lines[i].trim() !== "") hasContent = true;
+    }
+    if (hadRemoval && !hasContent) {
+      for (let i = index; i < end; i++) gone.add(i);
     }
   }
 
-  return [result, i];
-}
+  return lines.filter((_, index) => !gone.has(index));
+};
 
 // Inserts textToInsert into noteContent right before the next heading at the same
 // or higher level as targetHeading (fewer or equal # signs). Falls back to appending

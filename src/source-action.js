@@ -5,7 +5,7 @@
 //   "mark"   - rewrite the checkbox of each rolled open todo to a marker, e.g.
 //              `- [ ] x` -> `- [>] x` (bullet-journal "forwarded")
 
-import { getTodos, removeEmptyHeadings, splitGraphemes } from "./get-todos";
+import { getTodos, removeEmptiedHeadings, splitGraphemes } from "./get-todos";
 
 const ACTIONS = ["none", "delete", "mark"];
 const DEFAULT_MARKER = ">";
@@ -117,12 +117,9 @@ export function applySourceAction({
 }) {
   if (action === "delete") {
     const toDelete = new Set([...deletedLineIndices, ...skippedLineIndices]);
-    const lines = content
-      .split("\n")
-      .filter((_, index) => !toDelete.has(index));
     // headings whose todos all moved over are removed, since they now live in
-    // today's note
-    const newContent = removeEmptyHeadings(lines).join("\n");
+    // today's note; headings that were already empty stay
+    const newContent = removeEmptiedHeadings(content.split("\n"), toDelete).join("\n");
     return { content: newContent, changed: newContent !== content };
   }
 
