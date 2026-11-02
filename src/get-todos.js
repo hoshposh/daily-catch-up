@@ -417,6 +417,30 @@ export const insertUnderHeading = (
   const nextMatch = nextHeadingRegex.exec(noteContent);
 
   const insertionPoint = nextMatch !== null ? nextMatch.index : noteContent.length;
+
+  // Where the section's own content ends: directly after its last non-blank
+  // character, so blank lines before the next heading stay where they are
+  const sectionContent = noteContent.slice(searchStart, insertionPoint);
+  const contentLength = sectionContent.trimEnd().length;
+
+  if (contentLength > 0) {
+    // The section already has content, so the text continues it directly. A
+    // blank line is only added before a new sub-heading.
+    const point = searchStart + contentLength;
+    const rest = noteContent.slice(point);
+    const startsWithHeading = getHeadingLevel(textToInsert) !== null;
+    const prefix = leadingNewLine && startsWithHeading ? "\n\n" : "\n";
+    return (
+      noteContent.slice(0, point) +
+      prefix +
+      textToInsert +
+      (rest === "" ? "\n" : "") +
+      rest
+    );
+  }
+
+  // The heading has nothing under it yet: leadingNewLine puts a blank line
+  // between the heading and the text.
   const before = noteContent.slice(0, insertionPoint);
   const prefix = linePrefix(before, leadingNewLine);
 

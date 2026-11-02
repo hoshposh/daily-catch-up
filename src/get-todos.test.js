@@ -1026,10 +1026,31 @@ test("insertUnderHeading with beforeSubHeadings still goes to the end when there
   expect(result).toBe("# Work\n- [ ] a\n- [ ] x\n");
 });
 
-test("insertUnderHeading adds the blank line for leadingNewLine whatever the section ends with", () => {
+test("insertUnderHeading adds the blank line after an empty heading whatever the section ends with", () => {
   // the next heading follows directly, so the section has no trailing newline
-  const result = insertUnderHeading("## Tasks\n- [ ] a\n## Next", "## Tasks", "- [ ] x", true);
-  expect(result).toBe("## Tasks\n- [ ] a\n\n- [ ] x\n\n## Next");
+  const result = insertUnderHeading("## Tasks\n## Next", "## Tasks", "- [ ] x", true);
+  expect(result).toBe("## Tasks\n\n- [ ] x\n\n## Next");
+});
+
+test("insertUnderHeading appends directly after existing todos, without a blank line", () => {
+  const content = "## Tasks\n\n- [ ] a\n  - [ ] b\n\n## Next\n";
+  const result = insertUnderHeading(content, "## Tasks", "- [ ] x", true);
+  expect(result).toBe("## Tasks\n\n- [ ] a\n  - [ ] b\n- [ ] x\n\n## Next\n");
+});
+
+test("insertUnderHeading appends after existing todos at the end of a note without a final newline", () => {
+  const result = insertUnderHeading("## Tasks\n- [ ] a", "## Tasks", "- [ ] x", true);
+  expect(result).toBe("## Tasks\n- [ ] a\n- [ ] x\n");
+});
+
+test("insertUnderHeading puts a blank line before a new sub-heading when leadingNewLine is on", () => {
+  const content = "## Tasks\n\n- [ ] a\n\n## Next\n";
+  expect(insertUnderHeading(content, "## Tasks", "### Sub\n- [ ] x", true)).toBe(
+    "## Tasks\n\n- [ ] a\n\n### Sub\n- [ ] x\n\n## Next\n"
+  );
+  expect(insertUnderHeading(content, "## Tasks", "### Sub\n- [ ] x", false)).toBe(
+    "## Tasks\n\n- [ ] a\n### Sub\n- [ ] x\n\n## Next\n"
+  );
 });
 
 test("insertUnderHeading fallback adds the blank line for leadingNewLine after a last line without newline", () => {

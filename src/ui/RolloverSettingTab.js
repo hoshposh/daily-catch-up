@@ -220,7 +220,7 @@ export default class RolloverSettingTab extends PluginSettingTab {
       );
     new Setting(this.containerEl)
       .setName("Add extra blank line between Heading and Todos")
-      .setDesc(`Whether to add an extra blank line between the selected Heading and the rolled over todos. This will only work in combination with a configured Template Heading.`)
+      .setDesc(`Whether to add a blank line between a heading and the rolled over todos placed directly under it, and before a heading that the rollover adds. Todos added to a list that is already under a heading continue that list, without a blank line.`)
       .addToggle((toggle) => 
         toggle
           .setValue(

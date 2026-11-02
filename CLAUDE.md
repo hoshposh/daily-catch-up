@@ -45,7 +45,7 @@ This is an [Obsidian](https://obsidian.md) plugin. Obsidian plugins must ship as
 - `rolloverChildren` — include indented child items under a todo
 - `rolloverOnFileCreate` — auto-trigger on vault `create` event
 - `doneStatusMarkers` — string of characters treated as "done" (default `"xX-"`)
-- `leadingNewLine` — add a newline before todos when inserting under a heading
+- `leadingNewLine` — blank line between a heading and the first todos inserted under it, and before a heading the rollover adds; todos added to an existing list continue it without one
 
 **Rollover flow:** On daily note creation (or manual command), `rollover()` validates the file is today's daily note (created within 5 seconds), finds the previous daily note via `getLastDailyNote()`, and groups its unfinished todos by heading with `getSections()`. It inserts them into today's note with `insertSections()` (under the template heading, or under their own recreated headings when there is none), optionally skipping todos today's note already has. It then applies the configured source action (`delete` / `mark`) to the previous day's note. If Templater is enabled and the action is destructive, it first waits 3 seconds and checks that the inserted todos survived. Undo history is kept for 2 minutes; with Templater enabled only the previous day's note is snapshotted.
 

@@ -130,7 +130,6 @@ describe("rollover into a daily template that already has recurring tasks", () =
         "- [ ] Standup",
         "- [ ] Review inbox",
         "  - [ ] triage",
-        "",
         "- [ ] Ship release",
         "  - [ ] Tag version",
         "- [ ] Standup",
@@ -139,7 +138,6 @@ describe("rollover into a daily template that already has recurring tasks", () =
         "## Home",
         "",
         "- [ ] Laundry",
-        "",
         "- [ ] Water plants",
         "",
       ].join("\n")
@@ -208,7 +206,6 @@ describe("rollover under a template heading into a template with recurring tasks
         "- [ ] Standup",
         "- [ ] Review inbox",
         "  - [ ] triage",
-        "",
         "- [ ] Ship release",
         "  - [ ] Tag version",
         "",
