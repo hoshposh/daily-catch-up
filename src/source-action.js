@@ -86,6 +86,8 @@ export function applySourceAction({
     const lines = content
       .split("\n")
       .filter((_, index) => !toDelete.has(index));
+    // headings whose todos all moved over are removed, since they now live in
+    // today's note
     const newContent = removeEmptyHeadings(lines).join("\n");
     return { content: newContent, changed: newContent !== content };
   }

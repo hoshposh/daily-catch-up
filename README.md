@@ -54,9 +54,9 @@ If you prefer to trigger the rollover of your todos manually, you can use this s
 
 ### 2. Template Heading
 
-If you chose a template file to use for new daily notes in `Daily notes > Settings` or `Periodic Notes > Settings`, you will be able to choose a heading for incomplete notes to roll into. Note that incomplete todos are taken from the entire file, regardless of what heading they are under. And they are all rolled into today's daily note, right under the heading of choice.
+If you chose a template file to use for new daily notes in `Daily notes > Settings` or `Periodic Notes > Settings`, you will be able to choose a heading for incomplete notes to roll into. Incomplete todos are taken from the entire file. They are rolled into today's daily note under the heading of choice, and the headings they were under in the previous note are recreated beneath it (a heading that today's note already has is reused).
 
-If you leave this field as blank, or select `None`, then incomplete todos will be rolled onto the end of today's note (for new notes with no template, the end is the beginning of the note).
+If you leave this field as blank, or select `None`, then incomplete todos will be rolled onto the end of today's note (for new notes with no template, the end is the beginning of the note). Each todo is placed under the same heading it had in the previous note, nested the same way. A heading that today's note already has is reused (ignoring case); missing headings are created at the end of the note. Todos that were not under any heading are added without one.
 
 If the plugin cannot read headings from your template (the template is missing or unreadable, or has no headings), the dropdown is replaced by a text field where you can type the exact heading, e.g. `## Tasks`, or `none`.
 
@@ -66,7 +66,7 @@ By default, this plugin makes a copy of incomplete todos. So if you forgot to wa
 
 - **Leave them alone** (default): yesterday's note is unchanged.
 - **Mark them**: the rolled todos get a different checkbox character, so `- [ ] wash the dog` becomes `- [>] wash the dog`. The character is configurable (default `>`, the bullet-journal "forwarded" symbol). Only open todos are marked, including open children; completed children and plain text are left as they are. While this option is selected the marker also counts as a done marker (without changing your **#7** setting), so marked todos are not rolled over again.
-- **Delete them**: the rolled todos are removed from yesterday's note. This is destructive. Headings left empty by this are removed too.
+- **Delete them**: the rolled todos are removed from yesterday's note. This is destructive. Headings left empty by this are removed too, since they now live in today's note.
 
 If you use the `Undo last rollover` command, marked or deleted todos will be restored (remember, the time limit on this is 2 minutes). If you previously had **Delete todos from previous day** turned on, your setting is carried over as **Delete them**.
 

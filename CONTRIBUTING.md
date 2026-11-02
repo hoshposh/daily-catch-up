@@ -24,6 +24,7 @@ Keep logic in the pure modules, which have unit tests and no dependency on Obsid
 | -------------------------- | --------------------------------------------------------------------- |
 | `src/get-todos.js`         | Todo parser, `getSections()`, heading helpers, `insertUnderHeading()` |
 | `src/source-action.js`     | What happens to the previous day's note: `none` / `delete` / `mark`   |
+| `src/insert-sections.js`   | Placing yesterday's sections of todos into today's note               |
 | `src/insert-todos.js`      | Skip-existing and the Templater safeguard checks                      |
 | `src/template-headings.js` | Template heading setting helpers                                      |
 | `src/index.js`             | Plugin lifecycle and the `rollover()` flow                            |

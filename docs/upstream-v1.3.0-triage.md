@@ -23,6 +23,10 @@ Adopted over five steps plus follow-ups, as a stack of branches (`main` → `fea
 | follow-up | `de4d7b4` | Missing-heading notice now appears | The existing check could never be true. |
 | follow-up | `5119ce4` | With Templater enabled, undo restores only the previous day's note | Today's snapshot would have been the unrendered template. `UndoModal` handles a missing snapshot. |
 
+### After the first test in a vault
+
+Trying the build in a test vault showed a problem the unit tests had not caught: with no template heading, rolled todos were appended without their headings, so a heading such as `Home` was in neither note (delete removes it from the previous note once it is empty). `insertSections()` now recreates the headings in today's note, nested as in the previous note, and reuses headings that today's note already has. The insertion logic moved out of `rollover()` into this tested module, and `leadingNewLine` now always adds its blank line, whatever the section ends with.
+
 ### Not adopted
 
 | Change | Reason |

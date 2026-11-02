@@ -1010,3 +1010,13 @@ test("insertUnderHeading with a target that is not a Markdown heading inserts at
   const result = insertUnderHeading(content, "Tasks", "- [ ] x", false);
   expect(result).toBe("Tasks\n- [ ] a\n- [ ] x\n\n## Notes\ntext\n");
 });
+
+test("insertUnderHeading adds the blank line for leadingNewLine whatever the section ends with", () => {
+  // the next heading follows directly, so the section has no trailing newline
+  const result = insertUnderHeading("## Tasks\n- [ ] a\n## Next", "## Tasks", "- [ ] x", true);
+  expect(result).toBe("## Tasks\n- [ ] a\n\n- [ ] x\n\n## Next");
+});
+
+test("insertUnderHeading fallback adds the blank line for leadingNewLine after a last line without newline", () => {
+  expect(insertUnderHeading("hello", "## Tasks", "- [ ] x", true)).toBe("hello\n\n- [ ] x\n");
+});

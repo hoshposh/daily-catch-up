@@ -6,12 +6,8 @@ import {
 } from "obsidian-daily-notes-interface";
 import UndoModal from "./ui/UndoModal";
 import RolloverSettingTab from "./ui/RolloverSettingTab";
-import {
-  getSections,
-  hasHeading,
-  insertUnderHeading,
-  splitLines,
-} from "./get-todos";
+import { getSections, splitLines } from "./get-todos";
+import { insertSections } from "./insert-sections";
 import {
   dedupeAgainstExisting,
   dropEmptyTodos,
@@ -273,7 +269,6 @@ export default class RolloverTodosPlugin extends Plugin {
 
       // get today's content and modify it
       let templateHeadingNotFoundMessage = "";
-      const templateHeadingSelected = templateHeading !== "none";
 
       let todosAlreadyPresent = 0;
       const duplicateTodos = [];
@@ -305,73 +300,15 @@ export default class RolloverTodosPlugin extends Plugin {
           todosAdded -= todosAlreadyPresent;
         }
         if (sections_to_insert.length > 0) {
-          for (const section of sections_to_insert) {
-            const todosString = section.incompleteTodos.join("\n");
-
-            if (!templateHeadingSelected) {
-              // No template heading: append flat todos at end of file
-              dailyNoteContent += `\n${todosString}`;
-              continue;
-            }
-
-            // Build the path of sub-headings relative to the template heading.
-            // Strip everything up to and including the template heading itself so
-            // we only deal with the headings that need to be created/found inside it.
-            const templateIdx = section.headingPath.findIndex(
-              (h) => h.toLowerCase() === templateHeading.toLowerCase()
-            );
-            const relativePath =
-              templateIdx >= 0
-                ? section.headingPath.slice(templateIdx + 1)
-                : section.headingPath;
-
-            if (relativePath.length === 0) {
-              // Todos sit directly under the template heading
-              // insertUnderHeading appends to the end of the note when the
-              // heading is missing, so only the user needs to be told
-              if (!hasHeading(dailyNoteContent, templateHeading)) {
-                templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
-              }
-              dailyNoteContent = insertUnderHeading(
-                dailyNoteContent,
-                templateHeading,
-                todosString,
-                leadingNewLine
-              );
-            } else {
-              // Walk the relative path to find the deepest heading that already
-              // exists in today's note — that becomes the insertion parent.
-              // Everything from there downward is created as a block.
-              const todayLines = dailyNoteContent.split(/\r?\n|\r|\n/g);
-              let insertUnder = templateHeading;
-              let firstMissingIdx = 0;
-
-              for (let i = 0; i < relativePath.length; i++) {
-                const h = relativePath[i];
-                if (todayLines.some((l) => l.toLowerCase() === h.toLowerCase())) {
-                  insertUnder = h;
-                  firstMissingIdx = i + 1;
-                }
-              }
-
-              const missingHeadings = relativePath.slice(firstMissingIdx);
-              const block = [...missingHeadings, todosString].join("\n");
-
-              if (!hasHeading(dailyNoteContent, insertUnder)) {
-                templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
-              }
-              dailyNoteContent = insertUnderHeading(
-                dailyNoteContent,
-                insertUnder,
-                block,
-                leadingNewLine
-              );
-            }
-          }
-
-          // keep the last appended todo on its own line
-          if (!templateHeadingSelected && !dailyNoteContent.endsWith("\n")) {
-            dailyNoteContent += "\n";
+          const inserted = insertSections({
+            content: dailyNoteContent,
+            sections: sections_to_insert,
+            templateHeading,
+            leadingNewLine,
+          });
+          dailyNoteContent = inserted.content;
+          if (inserted.templateHeadingNotFound) {
+            templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
           }
 
           await this.app.vault.modify(file, dailyNoteContent);

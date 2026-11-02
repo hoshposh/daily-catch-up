@@ -394,11 +394,14 @@ export const insertUnderHeading = (
   const headingMatch = headingLineRegex(targetHeading).exec(noteContent);
 
   // Text added after a line that has no newline of its own would be glued to
-  // that line, so a separator is needed (this also covers leadingNewLine)
-  const needsSeparator = (before) => before !== "" && !before.endsWith("\n");
+  // that line, so it needs a newline first; leadingNewLine adds a blank line
+  // on top of that, so the result does not depend on how the note ends
+  const linePrefix = (before, blankLine) =>
+    (before !== "" && !before.endsWith("\n") ? "\n" : "") +
+    (blankLine ? "\n" : "");
 
   if (!headingMatch) {
-    const prefix = leadingNewLine || needsSeparator(noteContent) ? "\n" : "";
+    const prefix = linePrefix(noteContent, leadingNewLine);
     return noteContent + prefix + textToInsert + "\n";
   }
 
@@ -412,7 +415,7 @@ export const insertUnderHeading = (
 
   const insertionPoint = nextMatch !== null ? nextMatch.index : noteContent.length;
   const before = noteContent.slice(0, insertionPoint);
-  const prefix = leadingNewLine || needsSeparator(before) ? "\n" : "";
+  const prefix = linePrefix(before, leadingNewLine);
 
   return (
     before +
