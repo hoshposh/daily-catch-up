@@ -820,7 +820,7 @@ test("getSections: an unclosed fence runs to the end of the note", () => {
   const lines = ["## A", "- [ ] t", "```", "## B", "- [ ] u"];
   const sections = getSections({ lines });
   expect(sections.map((s) => s.headingPath)).toStrictEqual([["## A"]]);
-  expect(sections[0].incompleteLineIndices).toStrictEqual([1, 4]);
+  expect(sections[0].incompleteLineIndices).toStrictEqual([1]);
 });
 
 test("getSections still reads headings after a closed fence", () => {
@@ -845,6 +845,66 @@ test("removeEmptiedHeadings: a shorter fence inside a longer one does not close 
     "```",
     "````",
   ]);
+});
+
+test("getTodos skips todo-looking lines inside a code fence", () => {
+  const lines = ["- [ ] before", "```md", "- [ ] sample", "- [x] sample", "```", "- [ ] after"];
+  expect(getTodos({ lines })).toStrictEqual(["- [ ] before", "- [ ] after"]);
+});
+
+test("getTodos skips todos in a ~~~ fence and in a longer fence with a shorter fence inside", () => {
+  expect(getTodos({ lines: ["~~~", "- [ ] a", "~~~", "- [ ] b"] })).toStrictEqual(["- [ ] b"]);
+  const lines = ["````md", "```", "- [ ] a", "```", "````", "- [ ] b"];
+  expect(getTodos({ lines })).toStrictEqual(["- [ ] b"]);
+});
+
+test("getTodos skips todos in an unclosed fence", () => {
+  expect(getTodos({ lines: ["- [ ] a", "```", "- [ ] b"] })).toStrictEqual(["- [ ] a"]);
+});
+
+test("getTodosAndSkipped reports the line positions around a code fence", () => {
+  const lines = ["```", "- [ ] sample", "```", "- [ ] real"];
+  expect(getTodosAndSkipped({ lines }).todoIndices).toStrictEqual([3]);
+});
+
+test("getSections leaves out todos inside a code fence", () => {
+  const lines = ["## A", "```md", "- [ ] sample", "```", "- [ ] real"];
+  expect(getSections({ lines })).toStrictEqual([
+    { headingPath: ["## A"], incompleteTodos: ["- [ ] real"], incompleteLineIndices: [4] },
+  ]);
+});
+
+test("getSections gives no section for a heading whose only todos are in a code fence", () => {
+  expect(getSections({ lines: ["## A", "```", "- [ ] sample", "```"] })).toStrictEqual([]);
+});
+
+test("a code fence nested under a rolled todo goes along with its children", () => {
+  const lines = ["- [ ] parent", "  ```", "  - [ ] sample", "  ```"];
+  const result = getTodosAndSkipped({ lines, withChildren: true });
+  expect(result.todos).toStrictEqual(lines);
+  expect(result.todoIndices).toStrictEqual([0, 1, 2, 3]);
+});
+
+test("skipCompletedChildren: a fenced todo does not count as open work", () => {
+  const lines = ["- [ ] parent", " - [x] done", "  ```", "  - [ ] sample", "  ```"];
+  const result = getTodosAndSkipped({
+    lines,
+    withChildren: true,
+    skipCompletedChildren: true,
+  });
+  expect(result.todos).toStrictEqual(["- [ ] parent"]);
+  expect(result.skippedIndices).toStrictEqual([1, 2, 3, 4]);
+});
+
+test("skipCompletedChildren: a fenced done checkbox is not taken for a completed child", () => {
+  const lines = ["- [ ] parent", " ```", " - [x] sample", " ```"];
+  const result = getTodosAndSkipped({
+    lines,
+    withChildren: true,
+    skipCompletedChildren: true,
+  });
+  expect(result.todos).toStrictEqual(lines);
+  expect(result.skippedIndices).toStrictEqual([]);
 });
 
 // ─── insertUnderHeading ─────────────────────────────────────────────────────

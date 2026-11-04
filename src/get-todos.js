@@ -26,6 +26,10 @@ class TodoParser {
   // List of strings that include the Markdown content
   #lines;
 
+  // Parallel to #lines: true for lines inside a fenced code block. Whatever
+  // looks like a todo there is sample text, not a todo.
+  #fenced;
+
   // Boolean that encodes whether nested items should be rolled over
   #withChildren;
 
@@ -69,6 +73,7 @@ class TodoParser {
     skipCompletedChildren
   ) {
     this.#lines = lines;
+    this.#fenced = getFencedLines(lines);
     this.#withChildren = withChildren;
     this.#ignoreBlockquotes = !!ignoreBlockquotes;
     this.#skipCompletedChildren = !!skipCompletedChildren;
@@ -151,7 +156,7 @@ class TodoParser {
     const indentation = this.#getIndentation(linum);
     for (let l = linum + 1; l < this.#lines.length; l++) {
       if (this.#getIndentation(l) <= indentation) return false;
-      if (this.#isTodo(this.#lines[l])) return true;
+      if (!this.#fenced[l] && this.#isTodo(this.#lines[l])) return true;
     }
     return false;
   }
@@ -166,6 +171,7 @@ class TodoParser {
     while (this.#isChildOf(parentLinum, nextLinum)) {
       if (
         this.#skipCompletedChildren &&
+        !this.#fenced[nextLinum] &&
         this.#isDoneTodo(this.#lines[nextLinum]) &&
         !this.#hasOpenTodoBelow(nextLinum)
       ) {
@@ -209,7 +215,7 @@ class TodoParser {
     this.#skippedIndices = [];
     for (let l = 0; l < this.#lines.length; l++) {
       const line = this.#lines[l];
-      if (this.#isTodo(line)) {
+      if (!this.#fenced[l] && this.#isTodo(line)) {
         todos.push(line);
         this.#todoIndices.push(l);
         if (this.#withChildren && this.#hasChildren(l)) {

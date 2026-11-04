@@ -102,7 +102,7 @@ Off by default. Only applies when **#4** is set to mark and **#6** is on. The ma
 
 Whether completed nested todos move is decided by **#8**. With **#8** on they are not rolled over, so they stay in the previous day's note under the marked todo. With it off they are rolled over with the hierarchy and move with it. Nested items that were not moved, for example under a todo that was skipped by **#10**, stay where they are.
 
-**Which lines count as todos:** a todo is a list item (`-`, `*` or `+`) with a checkbox at the start of the line, optionally indented or inside a blockquote. Lines where something else comes before the bullet, such as `1. - [ ] task` or text inside a code block, are not treated as todos.
+**Which lines count as todos:** a todo is a list item (`-`, `*` or `+`) with a checkbox at the start of the line, optionally indented or inside a blockquote. Lines where something else comes before the bullet, such as `1. - [ ] task`, are not treated as todos, and neither is anything inside a fenced code block (` ``` ` or `~~~`), including a block that is never closed. A code block nested under a todo still rolls over with that todo when child items are included.
 
 ## Bugs/Issues
 
