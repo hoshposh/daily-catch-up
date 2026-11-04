@@ -787,6 +787,66 @@ test("removeEmptiedHeadings counts a code fence as content, also with ~~~", () =
   ]);
 });
 
+// ─── fenced code blocks ─────────────────────────────────────────────────────
+
+test("getSections does not treat # lines in a code fence as headings", () => {
+  const lines = ["## A", "```bash", "# comment", "```", "- [ ] t"];
+  expect(getSections({ lines })).toStrictEqual([
+    { headingPath: ["## A"], incompleteTodos: ["- [ ] t"], incompleteLineIndices: [4] },
+  ]);
+});
+
+test("getSections skips headings in a ~~~ fence", () => {
+  const lines = ["## A", "~~~", "## B", "~~~", "- [ ] t"];
+  expect(getSections({ lines })[0].headingPath).toStrictEqual(["## A"]);
+});
+
+test("getSections: a shorter fence inside a longer one does not close it", () => {
+  const lines = ["## A", "````md", "```", "# x", "```", "````", "- [ ] t"];
+  expect(getSections({ lines })[0].headingPath).toStrictEqual(["## A"]);
+});
+
+test("getSections: a fence line with an info string does not close a fence", () => {
+  const lines = ["## A", "```", "```js", "# x", "```", "- [ ] t"];
+  expect(getSections({ lines })[0].headingPath).toStrictEqual(["## A"]);
+});
+
+test("getSections: a fence of the other character does not close a fence", () => {
+  const lines = ["## A", "```", "~~~", "# x", "```", "- [ ] t"];
+  expect(getSections({ lines })[0].headingPath).toStrictEqual(["## A"]);
+});
+
+test("getSections: an unclosed fence runs to the end of the note", () => {
+  const lines = ["## A", "- [ ] t", "```", "## B", "- [ ] u"];
+  const sections = getSections({ lines });
+  expect(sections.map((s) => s.headingPath)).toStrictEqual([["## A"]]);
+  expect(sections[0].incompleteLineIndices).toStrictEqual([1, 4]);
+});
+
+test("getSections still reads headings after a closed fence", () => {
+  const lines = ["## A", "```", "# x", "```", "## B", "- [ ] t"];
+  expect(getSections({ lines })[0].headingPath).toStrictEqual(["## B"]);
+});
+
+test("getSections allows up to three spaces before a fence, not four", () => {
+  const fenced = ["## A", "   ```", "# x", "   ```", "- [ ] t"];
+  expect(getSections({ lines: fenced })[0].headingPath).toStrictEqual(["## A"]);
+  const indentedCode = ["## A", "    ```", "# x", "- [ ] t"];
+  expect(getSections({ lines: indentedCode })[0].headingPath).toStrictEqual(["# x"]);
+});
+
+test("removeEmptiedHeadings: a shorter fence inside a longer one does not close it", () => {
+  const lines = ["## A", "````", "```", "## B", "```", "````", "## C", "- [ ] t"];
+  expect(removeEmptiedHeadings(lines, new Set([7]))).toStrictEqual([
+    "## A",
+    "````",
+    "```",
+    "## B",
+    "```",
+    "````",
+  ]);
+});
+
 // ─── insertUnderHeading ─────────────────────────────────────────────────────
 
 test("insertUnderHeading inserts text right after heading when section is empty", () => {

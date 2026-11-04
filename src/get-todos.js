@@ -270,6 +270,37 @@ function getHeadingLevel(line) {
   return match ? match[1].length : null;
 }
 
+// Returns an array parallel to `lines`: true for lines inside a fenced code block
+// (fence lines included), so a "# comment" in a code sample is never a heading.
+// Follows CommonMark: a fence is 3+ backticks or tildes, indented by up to three
+// spaces; it is closed by a fence of the same character that is at least as long
+// and has nothing after it; a fence that is never closed runs to the end of the note.
+function getFencedLines(lines) {
+  const fenced = new Array(lines.length).fill(false);
+  let open = null; // { char, length } while inside a code block
+  lines.forEach((line, index) => {
+    const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line.replace(/\r$/, ""));
+    if (open === null) {
+      // a backtick fence cannot have a backtick in its info string
+      if (match && !(match[1][0] === "`" && match[2].includes("`"))) {
+        open = { char: match[1][0], length: match[1].length };
+        fenced[index] = true;
+      }
+      return;
+    }
+    fenced[index] = true;
+    if (
+      match &&
+      match[1][0] === open.char &&
+      match[1].length >= open.length &&
+      match[2].trim() === ""
+    ) {
+      open = null;
+    }
+  });
+  return fenced;
+}
+
 // Returns sections from `lines` that have incomplete todos, each with the full ancestor
 // heading chain. Each section is { headingPath: string[], incompleteTodos: string[],
 // incompleteLineIndices: number[] } where headingPath is ordered from outermost to
@@ -316,9 +347,10 @@ export const getSections = ({
     }
   };
 
+  const fenced = getFencedLines(lines);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const level = getHeadingLevel(line);
+    const level = fenced[i] ? null : getHeadingLevel(line);
     if (level !== null) {
       finalizeSection();
       sectionStart = i + 1;
@@ -343,15 +375,9 @@ export const getSections = ({
 // are kept. Lines in fenced code blocks are content, never headings.
 export const removeEmptiedHeadings = (lines, removed) => {
   const headings = [];
-  let fence = null; // the fence character while inside a code block
+  const fenced = getFencedLines(lines);
   lines.forEach((line, index) => {
-    const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(line);
-    if (fenceMatch) {
-      if (fence === null) fence = fenceMatch[1][0];
-      else if (fence === fenceMatch[1][0]) fence = null;
-      return;
-    }
-    if (fence !== null) return;
+    if (fenced[index]) return;
     const level = getHeadingLevel(line);
     if (level !== null) headings.push({ index, level });
   });
