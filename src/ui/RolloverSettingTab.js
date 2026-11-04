@@ -198,9 +198,9 @@ export default class RolloverSettingTab extends PluginSettingTab {
       );
 
     new Setting(this.containerEl)
-      .setName("Automatic rollover on daily note open")
+      .setName("Automatic rollover for new daily notes")
       .setDesc(
-        `If enabled, the plugin will automatically rollover todos when you open a daily note.`
+        `If enabled, the plugin rolls over todos automatically when a new daily note is created. Turn it off to roll over only with the "Rollover Todos Now" command.`
       )
       .addToggle((toggle) =>
         toggle
