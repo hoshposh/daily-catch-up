@@ -2,7 +2,9 @@ import { describe, expect, test } from "vitest";
 import { getSections, splitLines } from "./get-todos";
 import { insertSections } from "./insert-sections";
 import { dedupeAgainstExisting } from "./insert-todos";
-import { applySourceAction } from "./source-action";
+import { appendToBacklog } from "./backlog";
+import { applyDecisions, bumpRolledCounts, toItems } from "./rollover-items";
+import { applySourceAction, markCancelled } from "./source-action";
 
 // The parts of rollover() that do not need Obsidian, run end to end
 function rollover({
@@ -48,6 +50,66 @@ function rollover({
     retainLineIndices,
   });
   return { today: inserted.content, yesterday: source.content };
+}
+
+// The reviewed flow in the order index.js follows: sections, items, decisions,
+// optional counter, insert; backlog; then cancel marks before the source action
+function reviewedRollover({
+  yesterday,
+  today = "",
+  action,
+  decisions,
+  track,
+  skipCompleted = true,
+}) {
+  const sections = getSections({
+    lines: splitLines(yesterday),
+    withChildren: true,
+    doneStatusMarkers: "xX-",
+    skipCompletedChildren: skipCompleted,
+  });
+  const items = toItems(sections, true);
+  const decided = applyDecisions({
+    sections,
+    items,
+    decisions,
+    foundLineIndices: sections.flatMap((s) => s.incompleteLineIndices),
+  });
+  const toInsert = track
+    ? bumpRolledCounts(decided.sections, true)
+    : decided.sections;
+  const inserted = insertSections({
+    content: today,
+    sections: toInsert,
+    templateHeading: "none",
+    leadingNewLine: true,
+  });
+  const backlog =
+    decided.backlogItems.length > 0
+      ? appendToBacklog({
+          content: "",
+          heading: "",
+          items: decided.backlogItems,
+          sourceNoteName: "2026-11-06",
+          leadingNewLine: true,
+        })
+      : "";
+  const cancelled = markCancelled({
+    content: yesterday,
+    lineIndices: decided.cancelledLineIndices,
+    marker: "-",
+    doneStatusMarkers: "xX-",
+  });
+  const source = applySourceAction({
+    content: cancelled.content,
+    action,
+    rolledLineIndices: decided.movedLineIndices,
+    deletedLineIndices: decided.deleteLineIndices,
+    skippedLineIndices: decided.skippedLineIndices,
+    marker: ">",
+    doneStatusMarkers: "xX-",
+  });
+  return { today: inserted.content, yesterday: source.content, backlog };
 }
 
 describe("rollover without a template heading", () => {
@@ -416,5 +478,72 @@ describe("rollover between notes with CRLF line endings", () => {
       crlf(["## Tasks", "", "- [ ] Standup", "- [ ] Ship release", "  - note", "", "## Home", ""])
     );
     expect(result.yesterday).toBe(crlf(["## Tasks", "", "- [x] Done", ""]));
+  });
+});
+
+describe("reviewed rollover with decisions", () => {
+  const yesterday = [
+    "# Work",
+    "",
+    "- [ ] Ship [rolled:: 2]",
+    "  - [x] Changelog",
+    "  - [ ] Tag",
+    "- [ ] Old idea",
+    "- [ ] Call Sam",
+    "",
+    "## Home",
+    "",
+    "- [ ] Laundry",
+  ].join("\n");
+  const decisions = {
+    "0:0": "roll",
+    "0:2": "backlog",
+    "0:3": "cancel",
+    "1:0": "leave",
+  };
+
+  test("delete: rolled and backlogged lines go, cancelled is marked, left stays", () => {
+    const r = reviewedRollover({
+      yesterday,
+      action: "delete",
+      decisions,
+      track: true,
+    });
+    expect(r.yesterday).toBe(
+      ["# Work", "", "- [-] Call Sam", "", "## Home", "", "- [ ] Laundry"].join(
+        "\n",
+      ),
+    );
+    expect(r.today).toContain("- [ ] Ship [rolled:: 3]");
+    expect(r.today).not.toContain("Old idea");
+    expect(r.today).not.toContain("Laundry");
+    expect(r.backlog).toBe("- [ ] Old idea [from:: [[2026-11-06]]]\n");
+  });
+
+  test("none: only the cancelled line changes in the previous note", () => {
+    const r = reviewedRollover({
+      yesterday,
+      action: "none",
+      decisions,
+      track: true,
+    });
+    expect(r.yesterday).toBe(
+      yesterday.replace("- [ ] Call Sam", "- [-] Call Sam"),
+    );
+  });
+
+  test("all roll and no tracking matches the existing flow exactly", () => {
+    const all = { "0:0": "roll", "0:2": "roll", "0:3": "roll", "1:0": "roll" };
+    // the existing helper does not pass skippedLineIndices, so compare without skipping
+    const r = reviewedRollover({
+      yesterday,
+      action: "delete",
+      decisions: all,
+      track: false,
+      skipCompleted: false,
+    });
+    const old = rollover({ yesterday, action: "delete" });
+    expect(r.today).toBe(old.today);
+    expect(r.yesterday).toBe(old.yesterday);
   });
 });
