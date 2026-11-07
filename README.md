@@ -57,7 +57,7 @@ The undo works by restoring complete snapshots of the files the rollover changed
 - The restoration is complete regardless of how many todos or sub-headings were involved
 - Anything you typed into those notes after the rollover is overwritten too, so use undo right away
 
-If the Templater plugin is enabled, `Undo last rollover` only restores the previous day's note and leaves today's note as it is, because Templater rewrites a new note after the todos are added and restoring an earlier version would replace its output. Remove the rolled over todos from today's note yourself in that case. If the rollover did not change the previous day's note, there is nothing to undo.
+If the Templater plugin is enabled, `Undo last rollover` only restores the previous day's note and the backlog note, and leaves today's note as it is, because Templater rewrites a new note after the todos are added and restoring an earlier version would replace its output. Remove the rolled over todos from today's note yourself in that case. There is nothing to undo if the rollover changed neither of them.
 
 Note that if you create a daily note in the future, and you try to run this command, todos will not be rolled into a future date. They will always be rolled to today's note (if it doesn't exist, nothing will happen), from the chronologically closest (in the past) daily note.
 
