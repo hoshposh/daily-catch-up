@@ -46,6 +46,13 @@ export default class RolloverTodosPlugin extends Plugin {
       skipExistingTodos: false,
       ignoreBlockquotes: false,
       skipCompletedChildren: false,
+      trackRolloverCount: false,
+      staleAfterRollovers: 5,
+      staleBehavior: "keep",
+      reviewOnAutoRollover: "off",
+      backlogNotePath: "",
+      backlogHeading: "",
+      cancelMarker: "-",
     };
     const stored = (await this.loadData()) || {};
     this.settings = migrateSourceActionSettings(

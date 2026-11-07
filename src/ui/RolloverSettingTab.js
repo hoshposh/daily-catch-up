@@ -1,5 +1,5 @@
 import { Setting, PluginSettingTab } from "obsidian";
-import { resolveSourceAction } from "../source-action";
+import { resolveSourceAction, isCancelAvailable } from "../source-action";
 import { extractHeadings, headingOptions } from "../template-headings";
 import { getDailyNoteSettings } from "obsidian-daily-notes-interface";
 
@@ -246,6 +246,132 @@ export default class RolloverSettingTab extends PluginSettingTab {
           )
           .onChange((value) => {
             this.plugin.settings.leadingNewLine = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl).setName("Review").setHeading();
+
+    new Setting(this.containerEl)
+      .setName("Review automatic rollovers")
+      .setDesc(
+        `Show a review dialog before an automatic rollover, so you can choose what happens to each todo. "Only when a todo is stale" shows it only if a todo has reached the stale limit below. The "Review and roll over todos" command always shows the review. Closing the review skips that rollover.`
+      )
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions({
+            off: "Never",
+            stale: "Only when a todo is stale",
+            always: "Always",
+          })
+          .setValue(this.plugin.settings.reviewOnAutoRollover || "off")
+          .onChange((value) => {
+            this.plugin.settings.reviewOnAutoRollover = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    const cancelDesc = isCancelAvailable(this.plugin.settings)
+      ? ""
+      : ` Cancel is currently not offered, because this character is not one of the done status markers.`;
+    new Setting(this.containerEl)
+      .setName("Cancel marker")
+      .setDesc(
+        `The checkbox character a todo gets when you choose Cancel in the review. Must be a single character; anything else falls back to "-". Cancel is offered in the review only when this character is one of the done status markers, so a cancelled todo is not rolled over again.` +
+          cancelDesc
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("-")
+          .setValue(this.plugin.settings.cancelMarker ?? "-")
+          .onChange((value) => {
+            this.plugin.settings.cancelMarker = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl).setName("Aging").setHeading();
+
+    const tracking = this.plugin.settings.trackRolloverCount || false;
+
+    new Setting(this.containerEl)
+      .setName("Count rollovers")
+      .setDesc(
+        `Add a counter such as [rolled:: 3] to the text of each todo that is rolled over, increasing by one per rollover.`
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(tracking).onChange(async (value) => {
+          this.plugin.settings.trackRolloverCount = value;
+          await this.plugin.saveSettings();
+          this.display();
+        })
+      );
+
+    new Setting(this.containerEl)
+      .setName("Stale after")
+      .setDesc(
+        `A todo is stale once it has been rolled over this many times. Use 0 to never treat todos as stale.`
+      )
+      .setDisabled(!tracking)
+      .addText((text) =>
+        text
+          .setPlaceholder("5")
+          .setValue(String(this.plugin.settings.staleAfterRollovers ?? 5))
+          .setDisabled(!tracking)
+          .onChange((value) => {
+            const n = parseInt(value, 10);
+            if (Number.isNaN(n) || n < 0) return;
+            this.plugin.settings.staleAfterRollovers = n;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl)
+      .setName("When a todo is stale")
+      .setDesc(
+        `What happens to a stale todo when no review is shown.`
+      )
+      .setDisabled(!tracking)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions({
+            keep: "Keep rolling it",
+            backlog: "Move it to the backlog",
+          })
+          .setValue(this.plugin.settings.staleBehavior || "keep")
+          .setDisabled(!tracking)
+          .onChange((value) => {
+            this.plugin.settings.staleBehavior = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl)
+      .setName("Backlog note")
+      .setDesc(
+        `Path of the note that receives todos you move to the backlog, e.g. Backlog.md. Leave empty to disable the backlog choice.`
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("Backlog.md")
+          .setValue(this.plugin.settings.backlogNotePath || "")
+          .onChange((value) => {
+            this.plugin.settings.backlogNotePath = value.trim();
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(this.containerEl)
+      .setName("Backlog heading")
+      .setDesc(
+        `Heading in the backlog note to add todos under, starting with '#' characters, e.g. '## Someday'. Leave empty to add them at the end of the note.`
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("## Someday")
+          .setValue(this.plugin.settings.backlogHeading || "")
+          .onChange((value) => {
+            this.plugin.settings.backlogHeading = value.trim();
             this.plugin.saveSettings();
           })
       );
