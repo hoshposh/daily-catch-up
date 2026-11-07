@@ -7,7 +7,7 @@ const ROLLED_FIELDS_WITH_SPACE = /\s*\[rolled::[^\]]*\]/g;
 // Start of the Obsidian Tasks emoji fields. Tasks reads these from the end of
 // the line, so inline fields must go before the first one. A trailing U+FE0F
 // does not change where the signifier starts, so it needs no special case.
-const TASKS_SIGNIFIER = /🔺|⏫|🔼|🔽|⏬|🛫|➕|⏳|📅|✅|❌|🔁|🏁|🆔|⛔/u;
+const TASKS_SIGNIFIER = /🔺|⏫|🔼|🔽|⏬|🛫|➕|⏳|📅|✅|❌|🔁|🏁|🆔|⛔/gu;
 const TRAILING_BLOCK_ID = /\s\^[A-Za-z0-9-]+\s*$/;
 const CHECKBOX_PREFIX = /^\s*(?:[-*+]|\d+[.)])\s+\[.\]/;
 
@@ -30,12 +30,13 @@ export function insertField(line, field) {
   const cr = line.endsWith("\r") ? "\r" : "";
   const text = cr ? line.slice(0, -1) : line;
 
-  // Search only after the checkbox, so a todo whose text starts with an emoji
-  // still gets the field after its text.
+  // Search only after the checkbox. A signifier with no description text before
+  // it (a todo that starts with an emoji) is skipped, so the field never goes
+  // before all of the todo's text.
   const start = CHECKBOX_PREFIX.exec(text)?.[0].length ?? 0;
-  const signifier = TASKS_SIGNIFIER.exec(text.slice(start));
-  if (signifier) {
+  for (const signifier of text.slice(start).matchAll(TASKS_SIGNIFIER)) {
     const at = start + signifier.index;
+    if (text.slice(start, at).trim() === "") continue;
     return `${text.slice(0, at).trimEnd()} ${field} ${text.slice(at)}${cr}`;
   }
 

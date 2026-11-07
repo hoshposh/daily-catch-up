@@ -44,6 +44,14 @@ describe("setRolledCount", () => {
   });
   test("searches for signifiers only after the checkbox", () =>
     expect(setRolledCount("- [✅] a", 1)).toBe("- [✅] a [rolled:: 1]"));
+  test("keeps the field after a leading emoji with no other signifier", () =>
+    expect(setRolledCount("- [ ] 📅 plan the week", 1)).toBe(
+      "- [ ] 📅 plan the week [rolled:: 1]"
+    ));
+  test("skips a leading signifier and uses the next one", () =>
+    expect(setRolledCount("- [ ] 📅 plan 📅 2026-11-10", 1)).toBe(
+      "- [ ] 📅 plan [rolled:: 1] 📅 2026-11-10"
+    ));
   test("matches a signifier followed by a variation selector", () =>
     expect(setRolledCount("- [ ] a ⏫️", 1)).toBe("- [ ] a [rolled:: 1] ⏫️"));
   test("goes before Tasks fields that come before a block id", () =>
