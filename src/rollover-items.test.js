@@ -122,6 +122,37 @@ describe("rollover items", () => {
     expect(r.skippedLineIndices).toEqual([]);
   });
 
+  test("open todos under a done parent or a plain bullet are their own items", () => {
+    const noteLines = [
+      "- [ ] A",
+      "- [x] B",
+      "  - [ ] B1",
+      "- Notes",
+      "  - [ ] N1",
+    ];
+    const secs = getSections({ lines: noteLines, withChildren: true });
+    expect(secs[0].incompleteLineIndices).toEqual([0, 2, 4]);
+    const items = toItems(secs, true);
+    expect(items.map((i) => [i.id, i.lineIndices])).toEqual([
+      ["0:0", [0]],
+      ["0:1", [2]],
+      ["0:2", [4]],
+    ]);
+    const r = applyDecisions({
+      sections: secs,
+      items,
+      foundLineIndices: [0, 2, 4],
+      decisions: { "0:0": "cancel", "0:1": "roll", "0:2": "roll" },
+    });
+    expect(r.cancelledLineIndices).toEqual([0]);
+    expect(r.deleteLineIndices).toEqual([2, 4]);
+    expect(bumpRolledCounts(secs, true)[0].incompleteTodos).toEqual([
+      "- [ ] A [rolled:: 1]",
+      "  - [ ] B1 [rolled:: 1]",
+      "  - [ ] N1 [rolled:: 1]",
+    ]);
+  });
+
   test("does not mutate its inputs", () => {
     const before = JSON.stringify(sections);
     const items = toItems(sections, true);

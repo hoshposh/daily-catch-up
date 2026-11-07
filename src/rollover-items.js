@@ -14,13 +14,23 @@ export const OUTCOMES = ["roll", "backlog", "cancel", "leave"];
 
 const indentationOf = (line) => line.search(/\S/);
 
-// End (exclusive) of the item that starts at `start`: the head plus the lines
-// after it that are indented deeper than it. Without children, one line.
-function itemEnd(todos, start, withChildren) {
+// End (exclusive) of the item that starts at `start` in `section`: the head
+// plus the following lines that are its nested lines. A following line extends
+// the item only if it is indented deeper than the head and nothing but skipped
+// completed children lies between it and the line before, in the note. Any
+// other open todo (under a done parent or a plain bullet) is its own item.
+// Without children, one line.
+function itemEnd(section, start, withChildren) {
   if (!withChildren) return start + 1;
+  const todos = section.incompleteTodos;
+  const indices = section.incompleteLineIndices;
+  const skipped = new Set(section.skippedLineIndices ?? []);
   const headIndentation = indentationOf(todos[start]);
   let end = start + 1;
   while (end < todos.length && indentationOf(todos[end]) > headIndentation) {
+    for (let i = indices[end - 1] + 1; i < indices[end]; i++) {
+      if (!skipped.has(i)) return end;
+    }
     end++;
   }
   return end;
@@ -31,7 +41,7 @@ export function toItems(sections, withChildren) {
   sections.forEach((section, sectionIndex) => {
     const todos = section.incompleteTodos;
     for (let start = 0; start < todos.length; ) {
-      const end = itemEnd(todos, start, withChildren);
+      const end = itemEnd(section, start, withChildren);
       const lines = todos.slice(start, end);
       items.push({
         id: `${sectionIndex}:${start}`,
@@ -158,7 +168,7 @@ export function bumpRolledCounts(sections, withChildren) {
     for (let start = 0; start < incompleteTodos.length; ) {
       const line = incompleteTodos[start];
       incompleteTodos[start] = setRolledCount(line, parseRolledCount(line) + 1);
-      start = itemEnd(section.incompleteTodos, start, withChildren);
+      start = itemEnd(section, start, withChildren);
     }
     return { ...section, incompleteTodos };
   });
