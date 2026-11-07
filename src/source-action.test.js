@@ -3,6 +3,8 @@ import { splitLines } from "./get-todos";
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
+  isCancelAvailable,
+  markCancelled,
   migrateSourceActionSettings,
   normalizeMarker,
   resolveSourceAction,
@@ -443,3 +445,62 @@ describe("applySourceAction: mark with moveNested", () => {
   });
 });
 
+
+describe("cancel marking", () => {
+  test("markCancelled marks only open todos at the given lines", () => {
+    const content = "- [ ] a\n  - [x] b\n  - [ ] c\n- [ ] d";
+    expect(markCancelled({ content, lineIndices: [0, 1, 2], marker: "-" })).toEqual({
+      content: "- [-] a\n  - [x] b\n  - [-] c\n- [ ] d",
+      changed: true,
+    });
+  });
+
+  test("markCancelled keeps CRLF", () => {
+    expect(
+      markCancelled({
+        content: "- [ ] a\r\n- [ ] b",
+        lineIndices: [0],
+        marker: "-",
+      }).content,
+    ).toBe("- [-] a\r\n- [ ] b");
+  });
+
+  test("markCancelled reports no change and never changes the line count", () => {
+    const content = "- [x] a\nplain\n- [ ] b";
+    expect(markCancelled({ content, lineIndices: [0, 1, 9], marker: "-" })).toEqual({
+      content,
+      changed: false,
+    });
+    const result = markCancelled({ content, lineIndices: [2], marker: "~" });
+    expect(result.content.split("\n")).toHaveLength(3);
+  });
+
+  test("normalizeMarker takes a fallback", () => {
+    expect(normalizeMarker("", "-")).toBe("-");
+    expect(normalizeMarker("ab", "-")).toBe("-");
+    expect(normalizeMarker("~", "-")).toBe("~");
+  });
+
+  test("Cancel is available only when its marker is a done marker", () => {
+    expect(isCancelAvailable({ doneStatusMarkers: "xX-" })).toBe(true);
+    expect(isCancelAvailable({ doneStatusMarkers: "" })).toBe(true); // parser default
+    expect(isCancelAvailable({ doneStatusMarkers: "xX" })).toBe(false);
+    expect(isCancelAvailable({ doneStatusMarkers: "xX", cancelMarker: "~" })).toBe(false);
+    expect(isCancelAvailable({ doneStatusMarkers: "xX~", cancelMarker: "~" })).toBe(true);
+    // while marking, the rollover marker counts as done, so it can be the cancel marker too
+    expect(
+      isCancelAvailable({
+        doneStatusMarkers: "xX",
+        onRolloverSourceAction: "mark",
+        rolloverSourceMarker: ">",
+        cancelMarker: ">",
+      }),
+    ).toBe(true);
+  });
+
+  test("effectiveDoneStatusMarkers does not add the cancel marker", () => {
+    expect(
+      effectiveDoneStatusMarkers({ doneStatusMarkers: "xX", cancelMarker: "~" }),
+    ).toBe("xX");
+  });
+});

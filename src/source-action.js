@@ -9,6 +9,7 @@ import { getTodos, removeEmptiedHeadings, splitGraphemes } from "./get-todos";
 
 const ACTIONS = ["none", "delete", "mark"];
 const DEFAULT_MARKER = ">";
+const DEFAULT_CANCEL_MARKER = "-";
 const DEFAULT_DONE_MARKERS = "xX-"; // same as the parser's default
 
 // Captures the text around the checkbox content so it can be swapped out
@@ -31,10 +32,10 @@ export function migrateSourceActionSettings(settings, storedSettings = {}) {
   return settings;
 }
 
-// The marker must be a single visible grapheme; anything else falls back to ">"
-export function normalizeMarker(marker) {
-  if (typeof marker !== "string" || marker.trim() === "") return DEFAULT_MARKER;
-  return splitGraphemes(marker).length === 1 ? marker : DEFAULT_MARKER;
+// The marker must be a single visible grapheme; anything else falls back
+export function normalizeMarker(marker, fallback = DEFAULT_MARKER) {
+  if (typeof marker !== "string" || marker.trim() === "") return fallback;
+  return splitGraphemes(marker).length === 1 ? marker : fallback;
 }
 
 // While marking, the marker counts as "done" for the parser, so a rolled and
@@ -49,6 +50,48 @@ export function effectiveDoneStatusMarkers(settings) {
   return doneStatusMarkers.includes(marker)
     ? doneStatusMarkers
     : `${doneStatusMarkers}${marker}`;
+}
+
+// Cancel sets a todo's checkbox to the cancel marker, which only works for
+// "never rolls again" when that marker is one of the done markers. Cancel is
+// offered only then; the done markers themselves are never changed for it.
+export function isCancelAvailable(settings) {
+  const markers = effectiveDoneStatusMarkers(settings) || DEFAULT_DONE_MARKERS;
+  return markers.includes(normalizeMarker(settings.cancelMarker, DEFAULT_CANCEL_MARKER));
+}
+
+// Rewrites the checkbox of an open todo to `marker`; anything else is returned
+// as is. Checked without a trailing \r so CRLF files work too.
+function markLine(line, marker, doneStatusMarkers, ignoreBlockquotes) {
+  const text = line.replace(/\r$/, "");
+  if (getTodos({ lines: [text], doneStatusMarkers, ignoreBlockquotes }).length === 0) {
+    return line;
+  }
+  return line.replace(CHECKBOX_RE, (_, open, close) => `${open}${marker}${close}`);
+}
+
+/**
+ * Sets the checkbox of each open todo at `lineIndices` to `marker`. Done todos
+ * and other lines are untouched, and no line is added or removed, so the same
+ * line positions stay valid for a later delete.
+ *
+ * @returns {{ content: string, changed: boolean }}
+ */
+export function markCancelled({
+  content,
+  lineIndices = [],
+  marker,
+  doneStatusMarkers = null,
+  ignoreBlockquotes = false,
+}) {
+  const targets = new Set(lineIndices);
+  const newContent = content
+    .split("\n")
+    .map((line, index) =>
+      targets.has(index) ? markLine(line, marker, doneStatusMarkers, ignoreBlockquotes) : line,
+    )
+    .join("\n");
+  return { content: newContent, changed: newContent !== content };
 }
 
 const indentationOf = (line) => line.search(/\S/);
@@ -133,15 +176,7 @@ export function applySourceAction({
       .map((line, index) => {
         if (!rolled.has(index)) return line;
         // Rolled completed children keep their checkbox; only open todos move.
-        // Checked without a trailing \r so CRLF files work too.
-        const text = line.replace(/\r$/, "");
-        if (
-          getTodos({ lines: [text], doneStatusMarkers, ignoreBlockquotes })
-            .length === 0
-        ) {
-          return line;
-        }
-        return line.replace(CHECKBOX_RE, (_, open, close) => `${open}${marker}${close}`);
+        return markLine(line, marker, doneStatusMarkers, ignoreBlockquotes);
       })
       .filter((_, index) => !removed.has(index))
       .join("\n");
