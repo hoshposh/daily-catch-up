@@ -8,6 +8,8 @@ This Obsidian plugin will rollover any incomplete todo items from the previous d
 
 ![A demo of the plugin working](./demo.gif)
 
+Beyond the basic rollover, this fork groups todos by their headings and recreates those headings in today's note, lets you review what is about to move and choose an outcome for each todo, and can count how often a todo has been rolled over so you notice the ones that never get done. The options to mark rolled todos as moved and to skip todos already in today's note come from upstream's unreleased `release/v1.3.0` branch.
+
 ## Usage
 
 ### 1. New Daily Note
@@ -22,14 +24,36 @@ You can also open your command palette (CMD+P on macOS) and start typing `roll` 
 
 **Note:** The standard undo command (CMD+Z on macOS) does not work for rollover operations. Use the dedicated `Undo last rollover` command instead (see below).
 
-### 3. Command: Undo Last Rollover
+### 3. Command: Review and Roll Over Todos…
+
+Run `Review and roll over todos…` to see the todos that are about to move before anything happens. A dialog lists them under the headings they sit in, and you pick an outcome for each one:
+
+| Outcome     | Today's note                       | Previous day's note                                                                                             |
+| ----------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Roll**    | The todo is added (counter raised) | Handled as set in **After rollover**                                                                            |
+| **Backlog** | Not added                          | Handled as set in **After rollover**, as if it had been rolled                                                  |
+| **Cancel**  | Not added                          | The checkbox is set to the **Cancel marker**, even if **After rollover** is **Leave them alone**; never deleted |
+| **Leave**   | Not added                          | Not changed                                                                                                     |
+
+Every todo defaults to **Roll**. **All roll** and **All leave** buttons set a whole section, or all todos, at once, and a summary line counts the outcomes as you go. A todo moves together with its nested items as one unit. **Backlog** is only offered when a **Backlog note** is set, and **Cancel** only when the **Cancel marker** is one of your **Done status markers**. Todos that have rolled over too often show a "rolled 5×" badge (see **Aging** below).
+
+**Apply** carries out the choices. Closing the dialog any other way (**Cancel** button, Escape, clicking outside) abandons the rollover and changes nothing. The dialog only opens when there is something to roll; otherwise it behaves like `Rollover Todos Now`. `Rollover Todos Now` never asks, and automatic rollovers only ask if you set **Review automatic rollovers**.
+
+Todos sent to the backlog are added to the **Backlog note** with their nested items, without their rollover counter, and with a link back to where they came from:
+
+```markdown
+- [ ] Write the quarterly report [from:: [[2026-11-02]]]
+```
+
+### 4. Command: Undo Last Rollover
 
 Run `Undo last rollover` from the command palette within **2 minutes** of a rollover to fully reverse it. Only the most recent rollover can be undone.
 
-The undo works by restoring complete snapshots of both files — today's note and the previous day's note — to their exact state before the rollover ran. This means:
+The undo works by restoring complete snapshots of the files the rollover changed — today's note, the previous day's note and the backlog note — to their exact state before the rollover ran. This means:
 
 - All inserted todos and headings are removed from today's note
 - If **After rollover** changed the previous note (**Mark them** or **Delete them**), the marked or deleted todos, and any headings removed with them, are restored
+- If the rollover added to the backlog note, those todos are removed again; a backlog note the rollover created is deleted
 - The restoration is complete regardless of how many todos or sub-headings were involved
 - Anything you typed into those notes after the rollover is overwritten too, so use undo right away
 
@@ -113,6 +137,46 @@ Whether completed nested todos move is decided by **Skip completed children**. W
 ### Add extra blank line between Heading and Todos
 
 On by default. Puts a blank line between a heading and the rolled over todos placed directly under it, and before a heading that the rollover adds. Todos added to a list that is already under a heading continue that list, without a blank line.
+
+### Review automatic rollovers
+
+Under the **Review** group. **Never** (default): automatic rollovers run without asking, exactly as before. **Only when a todo is stale**: the review dialog opens for an automatic rollover only if a todo has reached the **Stale after** limit. **Always**: it opens every time there is something to roll. Closing the dialog skips that rollover, with a notice; run `Review and roll over todos…` when you are ready. The `Review and roll over todos…` command always shows the dialog.
+
+### Cancel marker
+
+Under the **Review** group. The checkbox character a todo gets when you choose **Cancel** in the review (default `-`, so `- [ ] call Sam` becomes `- [-] call Sam`). It must be a single character; anything else falls back to `-`. Cancel is offered only when this character is one of the **Done status markers**, so a cancelled todo is not rolled over again; the settings page tells you when it is not.
+
+### Count rollovers
+
+Under the **Aging** group. Off by default, so your notes are not touched. When on, each todo that is rolled over gets a counter that goes up by one per rollover (not per day), written into the first line of the todo as an inline field that Dataview can query:
+
+```markdown
+- [ ] Write the quarterly report [rolled:: 3]
+```
+
+The counter goes before the first [Obsidian Tasks](https://publish.obsidian.md/tasks/Introduction) emoji field if the line has one (📅, 🔁 and so on), so Tasks still reads its fields from the end of the line:
+
+```markdown
+- [ ] Write the quarterly report [rolled:: 3] 📅 2026-11-10
+```
+
+Otherwise it goes before a trailing block id (`^abc123`), otherwise at the end. Nested items are rolled unchanged. The previous day's note is not rewritten, so a marked todo keeps its old count (`- [>] Write the quarterly report [rolled:: 2]`). **Skip todos already in today's note** ignores the counter when comparing.
+
+### Stale after
+
+Under the **Aging** group, used when **Count rollovers** is on (default 5). A todo is stale once it has been rolled over this many times, so with 5 it is flagged on the sixth rollover. Stale todos get a badge in the review dialog, can open the review for automatic rollovers, and follow **When a todo is stale**. Use 0 to never treat todos as stale.
+
+### When a todo is stale
+
+Under the **Aging** group. **Keep rolling it** (default) or **Move it to the backlog**. This sets the default outcome of stale todos in the review dialog, and decides what happens to them when no review is shown: with **Move it to the backlog**, a stale todo goes to the backlog instead of today's note, and the rollover notice says how many. It needs a **Backlog note**; without one, stale todos keep rolling.
+
+### Backlog note
+
+Under the **Aging** group. The path of the note that receives todos you send to the backlog, for example `Backlog.md` (the plugin creates the note, and any missing folder, if needed). Leave it empty to turn the **Backlog** outcome off. It cannot be today's note or the previous daily note.
+
+### Backlog heading
+
+Under the **Aging** group. An optional heading in the backlog note to add todos under, for example `## Someday`; it is created if the note does not have it. Leave it empty to add todos at the end of the note.
 
 ### Which lines count as todos
 
