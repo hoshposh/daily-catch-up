@@ -187,6 +187,31 @@ describe("dedupeAgainstExisting", () => {
     );
     expect(result.droppedIndices).toStrictEqual([1, 2]);
   });
+
+  test("ignores the rollover counter on either side", () => {
+    const a = dedupeAgainstExisting(
+      ["- [ ] Standup [rolled:: 2]"],
+      "- [ ] Standup\n"
+    );
+    expect(a.skipped).toBe(1);
+    const b = dedupeAgainstExisting(
+      ["- [ ] Standup"],
+      "- [ ] Standup [rolled:: 1]\n"
+    );
+    expect(b.skipped).toBe(1);
+  });
+
+  test("ignores the counter on children", () => {
+    const result = dedupeAgainstExisting(
+      ["- [ ] Parent [rolled:: 2]", "\t- [ ] Child [rolled:: 1]"],
+      "- [ ] Parent\n\t- [ ] Child\n"
+    );
+    expect(result.skipped).toBe(2);
+    expect(result.duplicates).toStrictEqual([
+      "- [ ] Parent [rolled:: 2]",
+      "\t- [ ] Child [rolled:: 1]",
+    ]);
+  });
 });
 
 describe("verifyTodosPresent", () => {
@@ -214,6 +239,19 @@ describe("verifyTodosPresent", () => {
 
   test("false when the note was replaced by unrelated content", () => {
     expect(verifyTodosPresent("# 2026-10-21\n", ["- [ ] a"])).toBe(false);
+  });
+
+  test("verifyTodosPresent ignores counters", () => {
+    expect(
+      verifyTodosPresent(
+        "- [ ] Standup [rolled:: 3]\n",
+        ["- [ ] Standup [rolled:: 3]"],
+        ""
+      )
+    ).toBe(true);
+    expect(
+      verifyTodosPresent("- [ ] Standup\n", ["- [ ] Standup [rolled:: 3]"], "")
+    ).toBe(true);
   });
 });
 

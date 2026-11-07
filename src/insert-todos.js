@@ -1,9 +1,14 @@
 // Pure helpers for choosing which rolled todos get inserted into today's note.
 
 import { getTodos } from "./get-todos";
+import { stripRolledCount } from "./rolled-count";
 
 // An open or closed checkbox list item, e.g. "- [ ] text" or "> * [/] text"
 const CHECKBOX_LINE = /^\s*(?:>\s*)*[*+-] \[.+?\]/;
+
+// Comparison key of a line: trimmed, without any `[rolled:: n]` counter, so a
+// todo matches its copy whatever its count
+const keyOf = (line) => stripRolledCount(line).trim();
 
 const indentationOf = (line) => line.search(/\S/);
 
@@ -18,7 +23,7 @@ const isOpenTodo = (line, doneStatusMarkers) =>
 function childrenAllowSkip(children, existing, doneStatusMarkers) {
   for (let c = 0; c < children.length; c++) {
     const child = children[c];
-    if (existing.has(child.trim())) continue;
+    if (existing.has(keyOf(child))) continue;
     if (isOpenTodo(child, doneStatusMarkers)) return false;
     // a completed todo or a note: ignore its whole subtree when that has no
     // open todo
@@ -64,7 +69,7 @@ export function dedupeAgainstExisting(
   withChildren = true,
   doneStatusMarkers = null
 ) {
-  const existing = new Set(existingContent.split("\n").map((l) => l.trim()));
+  const existing = new Set(existingContent.split("\n").map(keyOf));
   const kept = [];
   const dropped = [];
   const droppedIndices = [];
@@ -82,7 +87,7 @@ export function dedupeAgainstExisting(
     const group = todos.slice(i, end);
     const isDuplicate =
       CHECKBOX_LINE.test(head) &&
-      existing.has(head.trim()) &&
+      existing.has(keyOf(head)) &&
       childrenAllowSkip(group.slice(1), existing, doneStatusMarkers);
 
     (isDuplicate ? dropped : kept).push(...group);
@@ -95,16 +100,16 @@ export function dedupeAgainstExisting(
   return {
     todos: kept,
     skipped: dropped.length,
-    duplicates: dropped.filter((line) => existing.has(line.trim())),
+    duplicates: dropped.filter((line) => existing.has(keyOf(line))),
     droppedIndices,
   };
 }
 
-// Number of times each (trimmed) line occurs in `lines`
+// Number of times each (trimmed, counter-free) line occurs in `lines`
 function countLines(lines) {
   const counts = new Map();
   for (const line of lines) {
-    const key = line.trim();
+    const key = keyOf(line);
     counts.set(key, (counts.get(key) || 0) + 1);
   }
   return counts;
@@ -132,7 +137,7 @@ export function verifyTodosPresent(
   const actual = countLines(content.split(/\r?\n/));
   const base = countLines(baseContent.split(/\r?\n/));
   const inserted = countLines(todos);
-  const lines = new Set([...inserted.keys(), ...alreadyPresent.map((l) => l.trim())]);
+  const lines = new Set([...inserted.keys(), ...alreadyPresent.map(keyOf)]);
 
   for (const line of lines) {
     const expected = (base.get(line) || 0) + (inserted.get(line) || 0);
