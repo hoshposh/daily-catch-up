@@ -38,6 +38,21 @@ export default class UndoModal extends Modal {
     if (undoHistoryInstance.previousDay.file != undefined) {
       await this.plugin.app.vault.modify(undoHistoryInstance.previousDay.file, undoHistoryInstance.previousDay.oldContent);
     }
+    const backlog = undoHistoryInstance.backlog
+    if (backlog?.file != undefined) {
+      if (backlog.created) {
+        // the rollover made this note, so undo removes it again
+        // trashFile needs Obsidian 1.6.6; vault.trash is the older call
+        const { fileManager, vault } = this.plugin.app
+        if (typeof fileManager.trashFile === 'function') {
+          await fileManager.trashFile(backlog.file)
+        } else {
+          await vault.trash(backlog.file, true)
+        }
+      } else {
+        await this.plugin.app.vault.modify(backlog.file, backlog.oldContent)
+      }
+    }
     this.plugin.undoHistory = []
   }
 
@@ -57,6 +72,12 @@ export default class UndoModal extends Modal {
     }
     if (undoHistoryInstance.previousDay.file != undefined) {
       modTextArray.push(await this.parseDay(undoHistoryInstance.previousDay))
+    }
+    const backlog = undoHistoryInstance.backlog
+    if (backlog?.file != undefined) {
+      modTextArray.push(backlog.created
+        ? `- ${backlog.file.basename}.${backlog.file.extension}: will be deleted.`
+        : await this.parseDay(backlog))
     }
     modTextArray.forEach(txt => {
       contentEl.createEl('div', { text: txt })

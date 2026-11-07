@@ -131,7 +131,7 @@ A todo is a list item (`-`, `*` or `+`) with a checkbox at the start of the line
 This fork is not in Obsidian's community plugin list, so the `Third-party plugins` tab would install the upstream plugin instead. Install this one in one of two ways:
 
 - **BRAT:** open BRAT settings → _Add Beta Plugin_ → enter `hoshposh/obsidian-rollover-daily-todos`.
-- **Manually:** download `main.js` and `manifest.json` from the [latest release](https://github.com/hoshposh/obsidian-rollover-daily-todos/releases), put them in `<your vault>/.obsidian/plugins/rollover-daily-todos-lw/`, then enable the plugin under _Community plugins_.
+- **Manually:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/hoshposh/obsidian-rollover-daily-todos/releases), put them in `<your vault>/.obsidian/plugins/rollover-daily-todos-lw/`, then enable the plugin under _Community plugins_.
 
 ## Development
 
@@ -155,10 +155,10 @@ This fork is not in Obsidian's community plugin list, so the `Third-party plugin
    git push
    ```
 
-4. **Create a GitHub release** with `main.js` and `manifest.json` attached as assets. Both files are required — BRAT uses `manifest.json` to read the version and `main.js` as the plugin bundle:
+4. **Create a GitHub release** with `main.js`, `manifest.json` and `styles.css` attached as assets. All three are required — BRAT uses `manifest.json` to read the version, `main.js` as the plugin bundle and `styles.css` for the review dialog:
 
    ```bash
-   gh release create 1.3.0 main.js manifest.json --repo hoshposh/obsidian-rollover-daily-todos --prerelease --title "1.3.0" --notes "Release notes here"
+   gh release create 1.3.0 main.js manifest.json styles.css --repo hoshposh/obsidian-rollover-daily-todos --prerelease --title "1.3.0" --notes "Release notes here"
    ```
 
    Keep `--repo`: a checkout that also has the upstream as a remote can make `gh` default to the upstream repository. Drop `--prerelease` for a stable release.

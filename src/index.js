@@ -1,10 +1,11 @@
-import { Notice, Plugin } from "obsidian";
+import { normalizePath, Notice, Plugin, TFile } from "obsidian";
 import {
   getDailyNoteSettings,
   getAllDailyNotes,
   getDailyNote,
 } from "obsidian-daily-notes-interface";
 import UndoModal from "./ui/UndoModal";
+import ReviewModal from "./ui/ReviewModal";
 import RolloverSettingTab from "./ui/RolloverSettingTab";
 import { getSections, splitLines } from "./get-todos";
 import { insertSections } from "./insert-sections";
@@ -16,10 +17,22 @@ import {
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
+  isCancelAvailable,
+  markCancelled,
   migrateSourceActionSettings,
   normalizeMarker,
   resolveSourceAction,
 } from "./source-action";
+import {
+  applyDecisions,
+  bumpRolledCounts,
+  countOutcomes,
+  defaultDecisions,
+  needsReview,
+  skippedLinesToDelete,
+  toItems,
+} from "./rollover-items";
+import { appendToBacklog } from "./backlog";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
 
@@ -154,7 +167,52 @@ export default class RolloverTodosPlugin extends Plugin {
     return folder;
   }
 
-  async rollover(file = undefined) {
+  // The backlog note's path as a vault path, with ".md" added when missing
+  getBacklogPath() {
+    const path = normalizePath(this.settings.backlogNotePath.trim());
+    return path.toLowerCase().endsWith(".md") ? path : `${path}.md`;
+  }
+
+  // Appends the items to the backlog note, creating it (and its folder) when
+  // missing. Returns what undo needs to put the note back.
+  async writeBacklog(path, items, sourceNoteName) {
+    const { backlogHeading, leadingNewLine } = this.settings;
+    const build = (content) =>
+      appendToBacklog({
+        content,
+        heading: backlogHeading,
+        items,
+        sourceNoteName,
+        leadingNewLine,
+      });
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing == null) {
+      const slash = path.lastIndexOf("/");
+      const folder = slash > 0 ? path.substring(0, slash) : "";
+      if (
+        folder !== "" &&
+        this.app.vault.getAbstractFileByPath(folder) == null
+      ) {
+        await this.app.vault.createFolder(folder);
+      }
+      const created = await this.app.vault.create(path, build(""));
+      return { file: created, oldContent: "", created: true };
+    }
+    if (!(existing instanceof TFile)) {
+      throw new Error(`'${path}' is a folder`);
+    }
+    let oldContent = "";
+    await this.app.vault.process(existing, (content) => {
+      oldContent = content;
+      return build(content);
+    });
+    return { file: existing, oldContent, created: false };
+  }
+
+  async rollover(file = undefined, { review = false } = {}) {
+    // an automatic run is one for a file that was just created
+    const isAutomaticRun = file != undefined;
+
     /*** First we check if the file created is actually a valid daily note ***/
     // the library returns undefined when it cannot read the configuration
     const dailyNoteSettings = getDailyNoteSettings();
@@ -260,10 +318,15 @@ export default class RolloverTodosPlugin extends Plugin {
           file: undefined,
           oldContent: "",
         },
+        // created: the rollover made the note, so undo removes it
+        backlog: {
+          file: undefined,
+          oldContent: "",
+          created: false,
+        },
       };
 
       // Potentially filter empty todos from sections
-      let todosAdded = 0;
       let emptiesToNotAddToTomorrow = 0;
 
       let sections_today = sections_yesterday;
@@ -271,12 +334,86 @@ export default class RolloverTodosPlugin extends Plugin {
         const result = dropEmptyTodos(sections_yesterday);
         sections_today = result.sections;
         emptiesToNotAddToTomorrow = result.removed;
-        todosAdded = result.kept;
-      } else {
-        todosAdded = todos_yesterday.length;
       }
 
-      // get today's content and modify it
+      // Review: group the todos into items and decide what happens to each
+      // (roll, backlog, cancel or leave). Without the dialog everything rolls,
+      // except stale items when they are set to go to the backlog.
+      const withChildren = this.settings.rolloverChildren;
+      const items = toItems(sections_today, withChildren);
+      const staleSettings = {
+        trackRolloverCount: this.settings.trackRolloverCount,
+        staleAfterRollovers: this.settings.staleAfterRollovers,
+      };
+      const backlogEnabled =
+        (this.settings.backlogNotePath || "").trim() !== "";
+      const cancelEnabled = isCancelAvailable(this.settings);
+
+      let backlogPath = null;
+      if (backlogEnabled) {
+        backlogPath = this.getBacklogPath();
+        if (backlogPath === file.path || backlogPath === lastDailyNote.path) {
+          new Notice(
+            "The backlog note can't be today's or the previous daily note. Change it in settings.",
+            10000
+          );
+          return;
+        }
+      }
+
+      let decisions = defaultDecisions(items, {
+        ...staleSettings,
+        staleBehavior: this.settings.staleBehavior,
+        backlogEnabled,
+      });
+      const showReview =
+        items.length > 0 &&
+        (review ||
+          (isAutomaticRun &&
+            needsReview(
+              this.settings.reviewOnAutoRollover,
+              items,
+              staleSettings
+            )));
+      if (showReview) {
+        decisions = await new ReviewModal(this.app, {
+          sourceName: lastDailyNote.basename,
+          sections: sections_today,
+          items,
+          decisions,
+          staleSettings,
+          backlogEnabled,
+          cancelEnabled,
+        }).openAndWait();
+        if (decisions == null) {
+          if (isAutomaticRun) {
+            new Notice(
+              "Rollover skipped. Run 'Review and roll over todos' when you're ready.",
+              10000
+            );
+          }
+          return;
+        }
+      }
+
+      const decided = applyDecisions({
+        sections: sections_today,
+        items,
+        decisions,
+        foundLineIndices,
+      });
+      const skippedLinesDeleted = skippedLinesToDelete({
+        skippedLineIndices: [...skippedLineIndices],
+        sections: sections_today,
+        items,
+        decisions,
+      });
+      const outcomeCounts = countOutcomes(items, decisions);
+      // only Roll items go to today's note
+      sections_today = decided.sections;
+      let todosAdded = sections_today.flatMap((s) => s.incompleteTodos).length;
+
+      // get today's content and modify it (read only now, after any review)
       let templateHeadingNotFoundMessage = "";
 
       let todosAlreadyPresent = 0;
@@ -307,12 +444,27 @@ export default class RolloverTodosPlugin extends Plugin {
               retainedLineIndices.push(
                 ...droppedIndices.map((i) => section.incompleteLineIndices[i])
               );
-              // the line positions no longer match the filtered todos
-              const { incompleteLineIndices, ...rest } = section;
-              return { ...rest, incompleteTodos: todos };
+              // keep the line positions in step with the kept todos, so the
+              // counters below find the same items as the review; the previous
+              // day's note uses retainedLineIndices, not these
+              const dropped = new Set(droppedIndices);
+              return {
+                ...section,
+                incompleteTodos: todos,
+                incompleteLineIndices: section.incompleteLineIndices.filter(
+                  (_, i) => !dropped.has(i)
+                ),
+              };
             })
             .filter((section) => section.incompleteTodos.length > 0);
           todosAdded -= todosAlreadyPresent;
+        }
+        // count this rollover on each item that is actually inserted
+        if (this.settings.trackRolloverCount) {
+          sections_to_insert = bumpRolledCounts(
+            sections_to_insert,
+            withChildren
+          );
         }
         if (sections_to_insert.length > 0) {
           const inserted = insertSections({
@@ -375,8 +527,42 @@ export default class RolloverTodosPlugin extends Plugin {
         }
       }
 
-      // apply the configured action ("delete" | "mark") to yesterday's note
-      if (sourceAction !== "none") {
+      // Backlog items go to the backlog note: after today's note, before the
+      // previous day's note, which is left alone if this fails
+      if (decided.backlogItems.length > 0) {
+        try {
+          undoHistoryInstance.backlog = await this.writeBacklog(
+            backlogPath,
+            decided.backlogItems,
+            lastDailyNote.basename
+          );
+        } catch (error) {
+          console.error(
+            "rollover-daily-todos: could not write the backlog note",
+            error
+          );
+          const todaysPart =
+            insertedTodos.length > 0
+              ? ` ${todosAdded} todo${
+                  todosAdded > 1 ? "s were" : " was"
+                } rolled over to today's note.`
+              : "";
+          new Notice(
+            `Rollover couldn't write the backlog note '${backlogPath}' (${
+              error?.message ?? error
+            }), so the previous day's note was left unchanged.${todaysPart}`,
+            15000
+          );
+          this.recordUndo(undoHistoryInstance);
+          return;
+        }
+      }
+
+      // Cancel marks and the configured action ("delete" | "mark") on
+      // yesterday's note
+      const { cancelledLineIndices } = decided;
+      let cancelApplied = false;
+      if (sourceAction !== "none" || cancelledLineIndices.length > 0) {
         // Read, check and write in one atomic step: the line positions refer
         // to the content we parsed, and the note may have been edited since
         // (by the user, a sync client or another plugin, e.g. during the
@@ -388,15 +574,28 @@ export default class RolloverTodosPlugin extends Plugin {
             editedMeanwhile = true;
             return currentContent;
           }
-          const result = applySourceAction({
+          // Cancel only rewrites checkboxes, so the positions stay valid for
+          // the source action below
+          let content = markCancelled({
             content: currentContent,
+            lineIndices: cancelledLineIndices,
+            marker: normalizeMarker(this.settings.cancelMarker, "-"),
+            doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
+            ignoreBlockquotes: this.settings.ignoreBlockquotes,
+          }).content;
+          if (sourceAction === "none") {
+            changed = content !== currentContent;
+            return content;
+          }
+          const result = applySourceAction({
+            content,
             action: sourceAction,
-            rolledLineIndices: sections_today.flatMap(
-              (s) => s.incompleteLineIndices
-            ),
-            // delete also removes empty todos that were not rolled over
-            deletedLineIndices: foundLineIndices,
-            skippedLineIndices: [...skippedLineIndices],
+            // Roll and Backlog items moved; Cancel and Leave items did not
+            rolledLineIndices: decided.movedLineIndices,
+            // delete also removes empty todos that were not rolled over, but
+            // never Cancel or Leave items
+            deletedLineIndices: decided.deleteLineIndices,
+            skippedLineIndices: skippedLinesDeleted,
             marker: normalizeMarker(this.settings.rolloverSourceMarker),
             doneStatusMarkers: this.settings.doneStatusMarkers,
             ignoreBlockquotes: this.settings.ignoreBlockquotes,
@@ -406,9 +605,10 @@ export default class RolloverTodosPlugin extends Plugin {
               this.settings.rolloverChildren,
             retainLineIndices: retainedLineIndices,
           });
-          changed = result.changed;
+          changed = result.content !== currentContent;
           return result.content;
         });
+        cancelApplied = !editedMeanwhile;
         if (editedMeanwhile) {
           new Notice(
             "Rollover left the previous day's note unchanged: it was edited while the rollover was running.",
@@ -454,7 +654,28 @@ export default class RolloverTodosPlugin extends Plugin {
 
       const part4 = alreadyPresentString;
 
-      let allParts = [part1, part2, part3, part4];
+      const backlogString =
+        outcomeCounts.backlog == 0
+          ? ""
+          : `- ${outcomeCounts.backlog} moved to backlog.`;
+      const cancelledString =
+        outcomeCounts.cancel == 0 || !cancelApplied
+          ? ""
+          : `- ${outcomeCounts.cancel} cancelled.`;
+      const leftString =
+        outcomeCounts.leave == 0
+          ? ""
+          : `- ${outcomeCounts.leave} left in ${lastDailyNote.basename}.`;
+
+      let allParts = [
+        part1,
+        part2,
+        part3,
+        part4,
+        backlogString,
+        cancelledString,
+        leftString,
+      ];
       let nonBlankLines = [];
       allParts.forEach((part) => {
         if (part.length > 0) {
@@ -466,18 +687,24 @@ export default class RolloverTodosPlugin extends Plugin {
       if (message.length > 0) {
         new Notice(message, 4000 + message.length * 3);
       }
-      // nothing was modified that undo can restore; an earlier rollover must
-      // not stay undoable as if it were the latest one
-      if (
-        undoHistoryInstance.today.file == undefined &&
-        undoHistoryInstance.previousDay.file == undefined
-      ) {
-        this.undoHistory = [];
-        return;
-      }
-      this.undoHistoryTime = new Date();
-      this.undoHistory = [undoHistoryInstance];
+      this.recordUndo(undoHistoryInstance);
     }
+  }
+
+  recordUndo(undoHistoryInstance) {
+    const { today, previousDay, backlog } = undoHistoryInstance;
+    // nothing was modified that undo can restore; an earlier rollover must
+    // not stay undoable as if it were the latest one
+    if (
+      today.file == undefined &&
+      previousDay.file == undefined &&
+      backlog.file == undefined
+    ) {
+      this.undoHistory = [];
+      return;
+    }
+    this.undoHistoryTime = new Date();
+    this.undoHistory = [undoHistoryInstance];
   }
 
   async onload() {
@@ -500,6 +727,14 @@ export default class RolloverTodosPlugin extends Plugin {
       name: "Rollover Todos Now",
       callback: () => {
         this.rollover();
+      },
+    });
+
+    this.addCommand({
+      id: "review-and-rollover",
+      name: "Review and roll over todos…",
+      callback: () => {
+        this.rollover(undefined, { review: true });
       },
     });
 

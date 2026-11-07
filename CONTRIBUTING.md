@@ -61,7 +61,7 @@ Then enable _Rollover Daily Todos (fork)_ under **Settings > Community plugins**
 ```bash
 pnpm build
 mkdir -p <vault>/.obsidian/plugins/rollover-daily-todos-lw
-cp main.js manifest.json <vault>/.obsidian/plugins/rollover-daily-todos-lw/
+cp main.js manifest.json styles.css <vault>/.obsidian/plugins/rollover-daily-todos-lw/
 ```
 
 Repeat the copy after each change.
