@@ -84,9 +84,34 @@ export function needsReview(mode, items, staleSettings) {
   return false;
 }
 
+// The item a skipped line belongs to: the one in its section whose head line
+// index is the largest one below it, or null when there is none
+function ownerOf(items, sectionIndex, line) {
+  let owner = null;
+  for (const item of items) {
+    if (item.sectionIndex !== sectionIndex) continue;
+    const head = item.lineIndices[0];
+    if (head < line && (owner === null || head > owner.lineIndices[0])) {
+      owner = item;
+    }
+  }
+  return owner;
+}
+
 // An item without a decision rolls, like defaultDecisions without staleness.
 // An unknown outcome is treated as "leave", which touches nothing.
 const outcomeOf = (decisions, item) => decisions[item.id] ?? "roll";
+
+// How many items get each outcome, read the way applyDecisions reads them: a
+// missing decision rolls, an unknown outcome leaves
+export function countOutcomes(items, decisions) {
+  const counts = { roll: 0, backlog: 0, cancel: 0, leave: 0 };
+  for (const item of items) {
+    const outcome = outcomeOf(decisions, item);
+    counts[outcome in counts ? outcome : "leave"]++;
+  }
+  return counts;
+}
 
 export function applyDecisions({
   sections,
@@ -119,19 +144,11 @@ export function applyDecisions({
       .filter((_, i) => outcomes[i] === "roll" || outcomes[i] === "backlog")
       .map((item) => item.id)
   );
-  const skippedKept = (sectionIndex) => {
-    const heads = items.filter((item) => item.sectionIndex === sectionIndex);
-    return (sections[sectionIndex].skippedLineIndices ?? []).filter((line) => {
-      let owner = null;
-      for (const item of heads) {
-        const head = item.lineIndices[0];
-        if (head < line && (owner === null || head > owner.lineIndices[0])) {
-          owner = item;
-        }
-      }
+  const skippedKept = (sectionIndex) =>
+    (sections[sectionIndex].skippedLineIndices ?? []).filter((line) => {
+      const owner = ownerOf(items, sectionIndex, line);
       return owner !== null && movedItemIds.has(owner.id);
     });
-  };
 
   const outSections = [];
   const skippedLineIndices = [];
@@ -158,6 +175,42 @@ export function applyDecisions({
     deleteLineIndices,
     skippedLineIndices,
   };
+}
+
+/**
+ * The skipped completed children (see skipCompletedChildren) that "delete"
+ * removes from the previous note: every one the parser found, as before review
+ * existed, except those that belong to a Cancel or Leave item.
+ *
+ * `applyDecisions` only sees the sections left after empty todos were dropped,
+ * so its `skippedLineIndices` miss the completed children of a dropped empty
+ * todo. The empty todo itself is still deleted, so its children must go too.
+ *
+ * @param {object} args
+ * @param {number[]} args.skippedLineIndices - every skipped line the parser
+ *   found, before empty todos were dropped
+ * @param {object[]} args.sections - the sections `items` were built from
+ * @param {object[]} args.items
+ * @param {Record<string, string>} args.decisions
+ * @returns {number[]}
+ */
+export function skippedLinesToDelete({
+  skippedLineIndices,
+  sections,
+  items,
+  decisions,
+}) {
+  const held = new Set();
+  sections.forEach((section, sectionIndex) => {
+    for (const line of section.skippedLineIndices ?? []) {
+      const owner = ownerOf(items, sectionIndex, line);
+      const outcome = owner === null ? null : outcomeOf(decisions, owner);
+      if (owner !== null && outcome !== "roll" && outcome !== "backlog") {
+        held.add(line);
+      }
+    }
+  });
+  return skippedLineIndices.filter((line) => !held.has(line));
 }
 
 // Add one to the counter on each item's first line. Other lines and all

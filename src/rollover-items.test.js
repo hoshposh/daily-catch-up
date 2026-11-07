@@ -1,14 +1,17 @@
 import { describe, expect, test } from "vitest";
 import { getSections } from "./get-todos.js";
+import { dropEmptyTodos } from "./insert-todos.js";
 import {
   OUTCOMES,
   applyDecisions,
   bumpRolledCounts,
+  countOutcomes,
   defaultDecisions,
   headingLabel,
   isStale,
   itemLabel,
   needsReview,
+  skippedLinesToDelete,
   summarizeDecisions,
   toItems,
 } from "./rollover-items.js";
@@ -279,5 +282,110 @@ describe("rollover items", () => {
     );
     expect(label("> - [ ] Call mom")).toBe("Call mom");
     expect(label("> > + [ ] Deep")).toBe("Deep");
+  });
+});
+
+describe("skipped lines to delete", () => {
+  const withEmpty = [
+    "# A",
+    "- [ ]",
+    "  - [x] under empty",
+    "- [ ] Real",
+    "  - [x] under real",
+    "## B",
+    "- [ ]",
+    "  - [x] alone",
+  ];
+  const all = getSections({
+    lines: withEmpty,
+    withChildren: true,
+    skipCompletedChildren: true,
+  });
+  const allSkipped = all.flatMap((s) => s.skippedLineIndices ?? []);
+  const kept = dropEmptyTodos(all).sections;
+  const items = toItems(kept, true);
+
+  test("fixture", () => {
+    expect(allSkipped).toEqual([2, 4, 7]);
+    expect(items.map((i) => i.lineIndices)).toEqual([[3]]);
+  });
+
+  test("with every item rolled, all skipped lines go, including those of dropped empty todos", () => {
+    expect(
+      skippedLinesToDelete({
+        skippedLineIndices: allSkipped,
+        sections: kept,
+        items,
+        decisions: {},
+      })
+    ).toEqual([2, 4, 7]);
+  });
+
+  test("backlog moves its skipped lines like roll", () => {
+    expect(
+      skippedLinesToDelete({
+        skippedLineIndices: allSkipped,
+        sections: kept,
+        items,
+        decisions: { [items[0].id]: "backlog" },
+      })
+    ).toEqual([2, 4, 7]);
+  });
+
+  test("skipped lines of Leave and Cancel items stay", () => {
+    for (const outcome of ["leave", "cancel"]) {
+      expect(
+        skippedLinesToDelete({
+          skippedLineIndices: allSkipped,
+          sections: kept,
+          items,
+          decisions: { [items[0].id]: outcome },
+        })
+      ).toEqual([2, 7]);
+    }
+  });
+
+  test("matches applyDecisions when no empty todos were dropped", () => {
+    const decisions = { "0:0": "leave", "0:2": "roll", "1:0": "roll" };
+    const all = toItems(sections, true);
+    const decided = applyDecisions({
+      sections,
+      items: all,
+      decisions,
+      foundLineIndices: found,
+    });
+    expect(
+      skippedLinesToDelete({
+        skippedLineIndices: sections.flatMap((s) => s.skippedLineIndices ?? []),
+        sections,
+        items: all,
+        decisions,
+      })
+    ).toEqual(decided.skippedLineIndices);
+  });
+});
+
+describe("count outcomes", () => {
+  const items = toItems(sections, true); // ids 0:0, 0:2, 1:0
+
+  test("counts items per outcome; missing rolls, unknown leaves", () => {
+    expect(countOutcomes(items, { "0:0": "backlog", "0:2": "bogus" })).toEqual({
+      roll: 1,
+      backlog: 1,
+      cancel: 0,
+      leave: 1,
+    });
+    expect(
+      countOutcomes(items, { "0:0": "cancel", "0:2": "leave", "1:0": "roll" })
+    ).toEqual({ roll: 1, backlog: 0, cancel: 1, leave: 1 });
+  });
+
+  test("ignores decisions for ids that are not items", () => {
+    expect(countOutcomes([], { "9:9": "cancel" })).toEqual({
+      roll: 0,
+      backlog: 0,
+      cancel: 0,
+      leave: 0,
+    });
   });
 });
