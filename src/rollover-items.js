@@ -303,7 +303,8 @@ export function bumpRolledCounts(sections, withChildren) {
   });
 }
 
-const LIST_PREFIX = /^(?:\s*>)*\s*(?:[-*+]|\d+[.)])\s+\[.\]/;
+// The list marker and checkbox, matched whole even for an emoji status
+const LIST_PREFIX = /^(?:\s*>)*\s*(?:[-*+]|\d+[.)])\s+\[[^\]]+\]/u;
 
 export function itemLabel(item) {
   const text = stripRolledCount(item.lines[0]).replace(LIST_PREFIX, "").trim();

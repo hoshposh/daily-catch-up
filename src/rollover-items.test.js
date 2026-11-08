@@ -488,3 +488,9 @@ describe("items around dropped empty todos", () => {
     expect(r.skippedLineIndices).toEqual([2]);
   });
 });
+
+describe("itemLabel with a status character outside the Basic Multilingual Plane", () => {
+  test("strips the whole checkbox", () => {
+    expect(itemLabel({ lines: ["- [🔥] Task"], count: 0 })).toBe("Task");
+  });
+});

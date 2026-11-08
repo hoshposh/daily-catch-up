@@ -77,3 +77,18 @@ describe("insertField", () => {
       insertField("- [ ] a 📅 2026-11-10", "[from:: [[2026-11-06]]]")
     ).toBe("- [ ] a [from:: [[2026-11-06]]] 📅 2026-11-10"));
 });
+
+describe("a status character outside the Basic Multilingual Plane", () => {
+  test("the counter goes after the checkbox, not into it", () => {
+    expect(setRolledCount("- [📅] a", 1)).toBe("- [📅] a [rolled:: 1]");
+    expect(setRolledCount("> - [🔥] a 📅 2026-11-10", 2)).toBe(
+      "> - [🔥] a [rolled:: 2] 📅 2026-11-10"
+    );
+  });
+
+  test("other fields go after the checkbox too", () => {
+    expect(insertField("- [📅] a", "[from:: [[d]]]")).toBe(
+      "- [📅] a [from:: [[d]]]"
+    );
+  });
+});

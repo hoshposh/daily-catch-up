@@ -9,7 +9,10 @@ const ROLLED_FIELDS_WITH_SPACE = /\s*\[rolled::[^\]]*\]/g;
 // does not change where the signifier starts, so it needs no special case.
 const TASKS_SIGNIFIER = /🔺|⏫|🔼|🔽|⏬|🛫|➕|⏳|📅|✅|❌|🔁|🏁|🆔|⛔/gu;
 const TRAILING_BLOCK_ID = /\s\^[A-Za-z0-9-]+\s*$/;
-const CHECKBOX_PREFIX = /^\s*(?:[-*+]|\d+[.)])\s+\[.\]/;
+// The list marker and checkbox at the start of a todo, blockquote prefix
+// included. The checkbox holds any characters, like the parser's, so a status
+// character outside the Basic Multilingual Plane (an emoji) is matched whole.
+const CHECKBOX_PREFIX = /^\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[[^\]]+\]/u;
 
 export function parseRolledCount(line) {
   const value = ROLLED_FIELD.exec(line)?.[1];
