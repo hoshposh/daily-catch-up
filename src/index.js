@@ -250,6 +250,25 @@ export default class RolloverTodosPlugin extends Plugin {
     )
       return;
 
+    // One rollover at a time: a second one while the first waits for the
+    // review dialog or Templater would read the same previous day's note and
+    // roll its todos twice. An automatic run gives way silently.
+    if (this.rolloverInProgress) {
+      if (!isAutomaticRun) {
+        new Notice("A rollover is already in progress.");
+      }
+      return;
+    }
+    this.rolloverInProgress = true;
+    try {
+      await this.rolloverDailyNote(file, { review, isAutomaticRun });
+    } finally {
+      this.rolloverInProgress = false;
+    }
+  }
+
+  // The rollover into `file`, today's daily note, once rollover() checked it
+  async rolloverDailyNote(file, { review, isAutomaticRun }) {
     /*** Next, if it is a valid daily note, but we don't have daily notes enabled, we must alert the user ***/
     if (!this.isDailyNotesEnabled()) {
       new Notice(
@@ -654,6 +673,7 @@ export default class RolloverTodosPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+    this.rolloverInProgress = false;
     this.undoHistory = [];
     this.undoHistoryTime = new Date();
 
