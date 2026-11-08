@@ -35,7 +35,7 @@ Run `Review and roll over todos…` to see the todos that are about to move befo
 | **Cancel**  | Not added                                                         | The checkbox is set to the **Cancel marker**, even if **After rollover** is **Leave them alone**; never deleted |
 | **Leave**   | Not added                                                         | Not changed                                                                                                     |
 
-Every todo defaults to **Roll**. **All roll** and **All leave** buttons set a whole section, or all todos, at once, and a summary line counts the outcomes as you go. A todo moves together with its nested items as one unit: a nested empty todo left out by **Remove empty todos in rollover**, or a completed one left out by **Skip completed children**, belongs to the todo it is indented under, so it stays when that todo is cancelled or left. **Backlog** is only offered when a **Backlog note** is set, and **Cancel** only when the **Cancel marker** is one of your **Done status markers**. Todos that have rolled over too often show a "rolled 5×" badge (see **Aging** below).
+Every todo defaults to **Roll**. **All roll** and **All leave** buttons set a whole section, or all todos, at once, and a summary line counts the outcomes as you go. A todo moves together with its nested items as one unit: a nested empty todo left out by **Remove empty todos**, or a completed one left out by **Skip completed children**, belongs to the todo it is indented under, so it stays when that todo is cancelled or left. **Backlog** is only offered when a **Backlog note** is set, and **Cancel** only when the **Cancel marker** is one of your **Done status markers**. Todos that have rolled over too often show a "rolled 5×" badge (see **Aging** below).
 
 **Apply** carries out the choices. Closing the dialog any other way (**Cancel** button, Escape, clicking outside) abandons the rollover and changes nothing. The dialog only opens when there is something to roll; otherwise it behaves like `Rollover Todos Now`. `Rollover Todos Now` never asks, and automatic rollovers only ask if you set **Review automatic rollovers**. While a rollover is running, for example with the dialog open, no second one starts: running a command then says a rollover is already in progress.
 
@@ -71,11 +71,53 @@ Note that if you create a daily note in the future, and you try to run this comm
 
 ## Settings
 
-### Automatic rollover for new daily notes
+The settings are in six groups, in the order a rollover runs. A setting that depends on another sits indented under it, and is greyed out with a note saying what turns it on while it doesn't apply; its value is kept. The `?` button on each group heading opens a short explanation of that group.
+
+### When it runs
+
+#### Automatic rollover for new daily notes
 
 On by default: todos are rolled over when a new daily note is created. Turn it off if you prefer to trigger the rollover manually with the `Rollover Todos Now` command.
 
-### Template heading
+#### Review automatic rollovers
+
+**Never** (default): automatic rollovers run without asking, exactly as before. **Only when a todo is stale**: the review dialog opens for an automatic rollover only if a todo has reached the **Stale after** limit. **Always**: it opens every time there is something to roll. Closing the dialog skips that rollover, with a notice; run `Review and roll over todos…` when you are ready. The `Review and roll over todos…` command always shows the dialog.
+
+### Which todos roll over
+
+#### Done status markers
+
+By default, the plugin considers checkboxes containing 'x', 'X', or '-' as completed tasks that won't be rolled over. You can customize this by adding any characters that should be considered "done" markers. For example, adding '?+>' would also treat checkboxes like '[?]', '[+]', and '[>]' as completed tasks. This is useful for users of custom status markers like the [Obsidian Tasks](https://publish.obsidian.md/tasks/Introduction) plugin.
+
+The plugin supports Unicode characters, including complex emoji and grapheme clusters, in checkbox content. This means you can use emojis or special Unicode characters as status markers and they will be handled correctly.
+
+#### Roll over children of todos
+
+By default, only the actual todos are rolled over. If you add nested Markdown elements beneath your todos, these are not rolled over but stay in place. Toggling this setting on allows for also migrating the nested elements, including ones that are completed.
+
+#### Skip completed children
+
+Only applies when **Roll over children of todos** is on. Completed nested todos (using the done status markers from **Done status markers**), and everything nested beneath them, are not rolled over. A completed item that still has an open todo somewhere beneath it is rolled over with it, so open work is never left behind. If **After rollover** is set to delete, they are removed from the previous note together with their rolled parent, so no orphaned child lines are left behind. Use `Undo last rollover` to bring them back.
+
+#### Remove empty todos
+
+By default, this plugin will roll over anything that has a checkbox, whether it has content or not. Toggling this setting on will ignore empty todos. An empty todo is a `- [ ]` with nothing after the checkbox; empty `*` or `+` todos are not recognised. If **After rollover** is set to delete, it will also delete empty todos, except a nested one under a todo you cancel or leave in the review dialog.
+
+#### Ignore todos in callouts and blockquotes
+
+Todos inside Markdown blockquotes (lines starting with `>`), such as habit lists kept in a `> [!tip]` callout, are not rolled over. Off by default.
+
+#### Skip todos already in today's note
+
+Off by default. When on, a todo is not rolled over if today's note already contains the same line (compared ignoring surrounding whitespace, checkbox included). This is useful when your daily template already contains recurring tasks such as `- [ ] Standup`. With **Roll over children of todos** on, a duplicate is skipped together with its nested items only when every open todo nested under it is already in today's note too; otherwise the whole group is rolled over so that nothing is lost. Completed nested todos and plain notes never stop a skip: they are skipped with the parent (and removed with it when **After rollover** is set to delete), unless an open todo is nested under them, which then has to be in today's note. A nested item that matches while its parent does not is still rolled over. Skipped todos still count as handled for **After rollover**: they are marked or deleted on the previous day's note, so they don't pile up there.
+
+#### Which lines count as todos
+
+A todo is a list item (`-`, `*` or `+`) with a checkbox at the start of the line, optionally indented or inside a blockquote. The checkbox holds exactly one character, and it is open unless that character is one of the **Done status markers**, so `- [/]` is rolled over unless you add `/` there. Lines where something else comes before the bullet, such as `1. - [ ] task`, are not treated as todos, and neither is anything inside a fenced code block (` ``` ` or `~~~`), including a block that is never closed. A code block nested under a todo still rolls over with that todo when child items are included.
+
+### Where they go in today's note
+
+#### Template heading
 
 If you chose a template file to use for new daily notes in `Daily notes > Settings` or `Periodic Notes > Settings`, you will be able to choose a heading for incomplete notes to roll into. Incomplete todos are taken from the entire file. They are rolled into today's daily note under the heading of choice, and the headings they were under in the previous note are recreated just below it, keeping the levels they had. A recreated heading at the same or a higher level than the template heading is therefore not nested inside it, so give the template heading a higher level (fewer `#`) than the headings you want under it. A heading that today's note already has is reused only when it sits inside its parent heading's section, so a heading of the same name under another parent is not mistaken for it.
 
@@ -83,7 +125,13 @@ If you leave this field as blank, or select `None`, then incomplete todos will b
 
 If the plugin cannot read headings from your template (the template is missing or unreadable, or has no headings), the dropdown is replaced by a text field where you can type the exact heading, e.g. `## Tasks`, or `none`.
 
-### After rollover, on the previous day's note
+#### Blank line after a heading
+
+On by default. Puts a blank line between a heading and the rolled over todos placed directly under it, and before a heading that the rollover adds. Todos added to a list that is already under a heading continue that list, without a blank line.
+
+### What happens to the previous day's note
+
+#### After rollover, on the previous day's note
 
 By default, this plugin makes a copy of incomplete todos. So if you forgot to wash your dog yesterday, and didn't check it off, then you will have an incomplete checkmark on yesterday's daily note, and a new incomplete checkmark will be rolled into today's daily note. You can choose what happens to the rolled todos on yesterday's note once today's note has a copy of them:
 
@@ -102,53 +150,31 @@ leaves `- [x] Do the dishes` in yesterday's note and adds `- [ ] Take out the tr
 
 If you use the `Undo last rollover` command, marked or deleted todos will be restored (remember, the time limit on this is 2 minutes). If you previously had **Delete todos from previous day** turned on, your setting is carried over as **Delete them**.
 
-### Remove empty todos in rollover
-
-By default, this plugin will roll over anything that has a checkbox, whether it has content or not. Toggling this setting on will ignore empty todos. An empty todo is a `- [ ]` with nothing after the checkbox; empty `*` or `+` todos are not recognised. If **After rollover** is set to delete, it will also delete empty todos, except a nested one under a todo you cancel or leave in the review dialog.
-
-### Roll over children of todos
-
-By default, only the actual todos are rolled over. If you add nested Markdown elements beneath your todos, these are not rolled over but stay in place. Toggling this setting on allows for also migrating the nested elements, including ones that are completed.
-
-### Done status markers
-
-By default, the plugin considers checkboxes containing 'x', 'X', or '-' as completed tasks that won't be rolled over. You can customize this by adding any characters that should be considered "done" markers. For example, adding '?+>' would also treat checkboxes like '[?]', '[+]', and '[>]' as completed tasks. This is useful for users of custom status markers like the [Obsidian Tasks](https://publish.obsidian.md/tasks/Introduction) plugin.
-
-The plugin supports Unicode characters, including complex emoji and grapheme clusters, in checkbox content. This means you can use emojis or special Unicode characters as status markers and they will be handled correctly.
-
-### Skip completed children
-
-Only applies when **Roll over children of todos** is on. Completed nested todos (using the done status markers from **Done status markers**), and everything nested beneath them, are not rolled over. A completed item that still has an open todo somewhere beneath it is rolled over with it, so open work is never left behind. If **After rollover** is set to delete, they are removed from the previous note together with their rolled parent, so no orphaned child lines are left behind. Use `Undo last rollover` to bring them back.
-
-### Ignore todos in callouts and blockquotes
-
-Todos inside Markdown blockquotes (lines starting with `>`), such as habit lists kept in a `> [!tip]` callout, are not rolled over. Off by default.
-
-### Skip todos already in today's note
-
-Off by default. When on, a todo is not rolled over if today's note already contains the same line (compared ignoring surrounding whitespace, checkbox included). This is useful when your daily template already contains recurring tasks such as `- [ ] Standup`. With **Roll over children of todos** on, a duplicate is skipped together with its nested items only when every open todo nested under it is already in today's note too; otherwise the whole group is rolled over so that nothing is lost. Completed nested todos and plain notes never stop a skip: they are skipped with the parent (and removed with it when **After rollover** is set to delete), unless an open todo is nested under them, which then has to be in today's note. A nested item that matches while its parent does not is still rolled over. Skipped todos still count as handled for **After rollover**: they are marked or deleted on the previous day's note, so they don't pile up there.
-
-### Move nested items when marking
+#### Move nested items when marking
 
 Off by default. Only applies when **After rollover** is set to mark and **Roll over children of todos** is on. The marked todo stays in the previous day's note as a single line, while everything that was rolled over beneath it (plain bullets, notes and nested todos) moves to today's note and is removed from the previous one. This keeps the hierarchy from being shown in both notes.
 
 Whether completed nested todos move is decided by **Skip completed children**. With **Skip completed children** on they are not rolled over, so they stay in the previous day's note under the marked todo. With it off they are rolled over with the hierarchy and move with it. Nested items that were not moved, for example under a todo that was skipped by **Skip todos already in today's note**, stay where they are.
 
-### Add extra blank line between Heading and Todos
+### Review and backlog
 
-On by default. Puts a blank line between a heading and the rolled over todos placed directly under it, and before a heading that the rollover adds. Todos added to a list that is already under a heading continue that list, without a blank line.
+#### Cancel marker
 
-### Review automatic rollovers
+The checkbox character a todo gets when you choose **Cancel** in the review (default `-`, so `- [ ] call Sam` becomes `- [-] call Sam`). It must be a single character; anything else falls back to `-`. Cancel is offered only when this character is one of the **Done status markers**, so a cancelled todo is not rolled over again; the settings page tells you when it is not.
 
-Under the **Review** group. **Never** (default): automatic rollovers run without asking, exactly as before. **Only when a todo is stale**: the review dialog opens for an automatic rollover only if a todo has reached the **Stale after** limit. **Always**: it opens every time there is something to roll. Closing the dialog skips that rollover, with a notice; run `Review and roll over todos…` when you are ready. The `Review and roll over todos…` command always shows the dialog.
+#### Backlog note
 
-### Cancel marker
+The path of the note that receives todos you send to the backlog, for example `Backlog.md` (the plugin creates the note, and any missing folder, if needed). Leave it empty to turn the **Backlog** outcome off. It cannot be today's note or the previous daily note.
 
-Under the **Review** group. The checkbox character a todo gets when you choose **Cancel** in the review (default `-`, so `- [ ] call Sam` becomes `- [-] call Sam`). It must be a single character; anything else falls back to `-`. Cancel is offered only when this character is one of the **Done status markers**, so a cancelled todo is not rolled over again; the settings page tells you when it is not.
+#### Backlog heading
 
-### Count rollovers
+An optional heading in the backlog note to add todos under, for example `## Someday`; it is created if the note does not have it. Text that is not already a heading (one to six `#` and a space), such as `Someday` or `#someday`, becomes a level 2 heading. Leave it empty to add todos at the end of the note.
 
-Under the **Aging** group. Off by default, so your notes are not touched. When on, each todo that is rolled over gets a counter that goes up by one per rollover (not per day), written into the first line of the todo as an inline field that Dataview can query:
+### Aging
+
+#### Count rollovers
+
+Off by default, so your notes are not touched. When on, each todo that is rolled over gets a counter that goes up by one per rollover (not per day), written into the first line of the todo as an inline field that Dataview can query:
 
 ```markdown
 - [ ] Write the quarterly report [rolled:: 3]
@@ -162,25 +188,13 @@ The counter goes before the first [Obsidian Tasks](https://publish.obsidian.md/t
 
 Otherwise it goes before a trailing block id (`^abc123`), otherwise at the end. Nested items are rolled unchanged. The previous day's note is not rewritten, so a marked todo keeps its old count (`- [>] Write the quarterly report [rolled:: 2]`). **Skip todos already in today's note** ignores the counter when comparing.
 
-### Stale after
+#### Stale after
 
-Under the **Aging** group, used when **Count rollovers** is on (default 5). A todo is stale once it has been rolled over this many times, so with 5 it is flagged on the sixth rollover. Stale todos get a badge in the review dialog, can open the review for automatic rollovers, and follow **When a todo is stale**. Use 0 to never treat todos as stale.
+Used when **Count rollovers** is on (default 5). A todo is stale once it has been rolled over this many times, so with 5 it is flagged on the sixth rollover. Stale todos get a badge in the review dialog, can open the review for automatic rollovers, and follow **When a todo is stale**. Use 0 to never treat todos as stale.
 
-### When a todo is stale
+#### When a todo is stale
 
-Under the **Aging** group. **Keep rolling it** (default) or **Move it to the backlog**. This sets the default outcome of stale todos in the review dialog, and decides what happens to them when no review is shown: with **Move it to the backlog**, a stale todo goes to the backlog instead of today's note, and the rollover notice says how many. It needs a **Backlog note**; without one, stale todos keep rolling.
-
-### Backlog note
-
-Under the **Aging** group. The path of the note that receives todos you send to the backlog, for example `Backlog.md` (the plugin creates the note, and any missing folder, if needed). Leave it empty to turn the **Backlog** outcome off. It cannot be today's note or the previous daily note.
-
-### Backlog heading
-
-Under the **Aging** group. An optional heading in the backlog note to add todos under, for example `## Someday`; it is created if the note does not have it. Text that is not already a heading (one to six `#` and a space), such as `Someday` or `#someday`, becomes a level 2 heading. Leave it empty to add todos at the end of the note.
-
-### Which lines count as todos
-
-A todo is a list item (`-`, `*` or `+`) with a checkbox at the start of the line, optionally indented or inside a blockquote. The checkbox holds exactly one character, and it is open unless that character is one of the **Done status markers**, so `- [/]` is rolled over unless you add `/` there. Lines where something else comes before the bullet, such as `1. - [ ] task`, are not treated as todos, and neither is anything inside a fenced code block (` ``` ` or `~~~`), including a block that is never closed. A code block nested under a todo still rolls over with that todo when child items are included.
+**Keep rolling it** (default) or **Move it to the backlog**. This sets the default outcome of stale todos in the review dialog, and decides what happens to them when no review is shown: with **Move it to the backlog**, a stale todo goes to the backlog instead of today's note, and the rollover notice says how many. It needs a **Backlog note**; without one, stale todos keep rolling.
 
 ## Bugs/Issues
 
