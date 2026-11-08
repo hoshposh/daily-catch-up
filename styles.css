@@ -26,3 +26,41 @@
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
 }
+
+/* Settings tab (src/ui/RolloverSettingTab.js) */
+
+/* A setting that depends on the one above it */
+.rollover-setting-dependent {
+  margin-inline-start: var(--size-4-6);
+  padding-inline-start: var(--size-4-3);
+  border-inline-start: 2px solid var(--background-modifier-border);
+}
+
+.rollover-help-button {
+  font-weight: var(--font-semibold);
+}
+
+.rollover-help-button.is-active {
+  color: var(--interactive-accent);
+  background-color: var(--background-modifier-hover);
+}
+
+/* Help panel under a group heading; pushes the settings down */
+.rollover-settings-help {
+  margin-block: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  border-inline-start: 2px solid var(--interactive-accent);
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+}
+
+.rollover-settings-help[hidden] {
+  display: none;
+}
+
+.rollover-settings-help p {
+  margin-block: var(--size-4-1);
+}

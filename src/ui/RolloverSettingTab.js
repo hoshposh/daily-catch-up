@@ -1,12 +1,28 @@
 import { Setting, PluginSettingTab } from "obsidian";
-import { resolveSourceAction, isCancelAvailable } from "../source-action";
+import { resolveSourceAction } from "../source-action";
 import { extractHeadings, headingOptions } from "../template-headings";
+import {
+  DEPENDENT_SETTINGS,
+  cancelMarkerNote,
+  dependentSettingStates,
+} from "../settings-dependencies";
+import {
+  SETTING_DESCRIPTIONS,
+  SETTING_GROUPS,
+  SETTING_LABELS,
+  helpSegments,
+} from "../settings-text";
 import { getDailyNoteSettings } from "obsidian-daily-notes-interface";
+
+const GROUP = Object.fromEntries(SETTING_GROUPS.map((g) => [g.id, g]));
 
 export default class RolloverSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
+    // key -> { setting, component } for each of DEPENDENT_SETTINGS
+    this.dependents = {};
+    this.cancelMarkerSetting = null;
   }
 
   // Never throws: a broken template path or an unreadable daily-notes config
@@ -39,341 +55,270 @@ export default class RolloverSettingTab extends PluginSettingTab {
     }
   }
 
-  async display() {
-    const templateHeadings = await this.getTemplateHeadings();
+  // Saves, then updates the dependent rows in place, so the page never
+  // re-renders or jumps when a parent setting changes
+  save() {
+    this.plugin.saveSettings();
+    this.refreshDependents();
+  }
 
-    this.containerEl.empty();
+  // A group heading with a `?` button that toggles its help panel, which sits
+  // directly under the heading and pushes the settings down. Starts closed.
+  addGroup(group) {
+    const el = this.containerEl;
+    const heading = new Setting(el).setName(group.title).setHeading();
 
-    if (templateHeadings.length > 0) {
-      new Setting(this.containerEl)
-        .setName("Template heading")
-        .setDesc("Which heading from your template should the todos go under")
-        .addDropdown((dropdown) =>
-          dropdown
-            .addOptions(
-              headingOptions(
-                templateHeadings,
-                this.plugin?.settings.templateHeading
-              )
-            )
-            .setValue(this.plugin?.settings.templateHeading)
-            .onChange((value) => {
-              this.plugin.settings.templateHeading = value;
-              this.plugin.saveSettings();
-            })
-        );
-    } else {
-      new Setting(this.containerEl)
-        .setName("Template heading")
-        .setDesc(
-          `No headings could be read from your daily note template (it may be missing, unreadable or have no headings). Type the exact heading that today's note will contain, starting with '#' characters, e.g. '## Tasks'. Use 'none' to add todos to the end of the note.`
-        )
-        .addText((text) =>
-          text
-            .setPlaceholder("## Tasks")
-            .setValue(this.plugin?.settings.templateHeading || "none")
-            .onChange((value) => {
-              this.plugin.settings.templateHeading = value.trim() || "none";
-              this.plugin.saveSettings();
-            })
-        );
+    const button = heading.controlEl.createEl("button", {
+      text: "?",
+      cls: ["clickable-icon", "rollover-help-button"],
+      attr: {
+        type: "button",
+        "aria-label": `Help: ${group.title}`,
+        "aria-expanded": "false",
+      },
+    });
+
+    const panel = el.createDiv({
+      cls: "rollover-settings-help",
+      attr: { hidden: "" },
+    });
+    for (const paragraph of group.help) {
+      const p = panel.createEl("p");
+      for (const { text, bold } of helpSegments(paragraph)) {
+        if (bold) p.createEl("strong", { text });
+        else p.appendText(text);
+      }
     }
 
-    new Setting(this.containerEl)
-      .setName("After rollover, on the previous day's note")
-      .setDesc(
-        `What to do with the todos that were rolled over, once today's note has a copy of them. "Leave them alone" duplicates them and is the safest. "Mark them" changes their checkbox to the character below (e.g. [>] for "forwarded"); completed items and plain text are not touched. "Delete them" removes them and is destructive. Undo restores either change.`
-      )
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions({
-            none: "Leave them alone",
-            mark: "Mark them",
-            delete: "Delete them",
-          })
-          .setValue(resolveSourceAction(this.plugin.settings))
-          .onChange((value) => {
-            this.plugin.settings.onRolloverSourceAction = value;
-            this.plugin.saveSettings();
-          })
-      );
+    button.addEventListener("click", () => {
+      const open = panel.hidden;
+      panel.hidden = !open;
+      button.setAttr("aria-expanded", String(open));
+      button.toggleClass("is-active", open);
+    });
+  }
 
-    new Setting(this.containerEl)
-      .setName("Marker character")
-      .setDesc(
-        `The checkbox character used by "Mark them". Must be a single character; anything else falls back to ">". While marking is selected, this character also counts as a done marker, so marked todos are not rolled over again.`
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder(">")
-          .setValue(this.plugin.settings.rolloverSourceMarker || ">")
-          .onChange((value) => {
-            this.plugin.settings.rolloverSourceMarker = value;
-            this.plugin.saveSettings();
-          })
-      );
+  // A setting row with its label and short description. Dependent settings
+  // are indented under their parent.
+  addSetting(key, descKey = key) {
+    const setting = new Setting(this.containerEl)
+      .setName(SETTING_LABELS[key])
+      .setDesc(SETTING_DESCRIPTIONS[descKey]);
+    if (DEPENDENT_SETTINGS.includes(key)) {
+      setting.settingEl.addClass("rollover-setting-dependent");
+    }
+    return setting;
+  }
 
-    new Setting(this.containerEl)
-      .setName("Move nested items when marking")
-      .setDesc(
-        `Only applies with "Mark them" and "Roll over children of todos". The marked todo stays in the previous day's note as a single line, and the plain bullets and todos nested under it move to today's note and are removed from the previous one. Completed nested todos move as well, unless "Skip completed children" is on: then they are not rolled over and stay in the previous day's note.`
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.moveNestedItemsOnMark || false)
-          .onChange((value) => {
-            this.plugin.settings.moveNestedItemsOnMark = value;
-            this.plugin.saveSettings();
-          })
-      );
+  track(key, setting, component) {
+    if (DEPENDENT_SETTINGS.includes(key)) {
+      this.dependents[key] = { setting, component };
+    }
+    return component;
+  }
 
-    new Setting(this.containerEl)
-      .setName("Skip todos already in today's note")
-      .setDesc(
-        `Don't roll over a todo if today's note already has the same line (ignoring surrounding whitespace), e.g. a recurring task from your daily template. Its nested items are skipped with it. The skipped todos are still marked or deleted on the previous day's note, according to the setting above.`
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.skipExistingTodos || false)
-          .onChange((value) => {
-            this.plugin.settings.skipExistingTodos = value;
-            this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(this.containerEl)
-      .setName("Remove empty todos in rollover")
-      .setDesc(
-        `If you have empty todos, they will not be rolled over to the next day.`
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.removeEmptyTodos || false)
-          .onChange((value) => {
-            this.plugin.settings.removeEmptyTodos = value;
-            this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(this.containerEl)
-      .setName("Roll over children of todos")
-      .setDesc(
-        `By default, only the actual todos are rolled over. If you add nested Markdown-elements beneath your todos, these are not rolled over but stay in place, possibly altering the logic of your previous note. This setting allows for also migrating the nested elements.`
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.rolloverChildren || false)
-          .onChange((value) => {
-            this.plugin.settings.rolloverChildren = value;
-            this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(this.containerEl)
-      .setName("Skip completed children")
-      .setDesc(
-        `Only applies when "Roll over children of todos" is on. Completed nested todos, and everything nested under them, are not rolled over. If the previous day's note is set to "Delete them", they are removed from the previous note together with their parent.`
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.skipCompletedChildren || false)
-          .onChange((value) => {
-            this.plugin.settings.skipCompletedChildren = value;
-            this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(this.containerEl)
-      .setName("Ignore todos in callouts and blockquotes")
-      .setDesc(
-        `When on, todos inside Markdown blockquotes (lines starting with '>') are not rolled over. Useful for habit lists kept inside callouts like '> [!tip]'.`
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.ignoreBlockquotes || false)
-          .onChange((value) => {
-            this.plugin.settings.ignoreBlockquotes = value;
-            this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(this.containerEl)
-      .setName("Automatic rollover for new daily notes")
-      .setDesc(
-        `If enabled, the plugin rolls over todos automatically when a new daily note is created. Turn it off to roll over only with the "Rollover Todos Now" command.`
-      )
-      .addToggle((toggle) =>
-        toggle
-          // Default to true if the setting is not set
-          .setValue(
-            this.plugin.settings.rolloverOnFileCreate === undefined ||
-              this.plugin.settings.rolloverOnFileCreate === null
-              ? true
-              : this.plugin.settings.rolloverOnFileCreate
-          )
-          .onChange((value) => {
-            console.log(value);
-            this.plugin.settings.rolloverOnFileCreate = value;
-            this.plugin.saveSettings();
-            this.plugin.loadData().then((value) => console.log(value));
-          })
-      );
-
-    new Setting(this.containerEl)
-      .setName("Done status markers")
-      .setDesc(
-        `Characters that represent done status in checkboxes. Default is "xX-". Add any characters that should be considered as marking a task complete.`
-      )
-      .addText((text) =>
-        text
-          .setValue(this.plugin.settings.doneStatusMarkers || "xX-")
-          .onChange((value) => {
-            this.plugin.settings.doneStatusMarkers = value;
-            this.plugin.saveSettings();
-          })
-      );
-    new Setting(this.containerEl)
-      .setName("Add extra blank line between Heading and Todos")
-      .setDesc(`Whether to add a blank line between a heading and the rolled over todos placed directly under it, and before a heading that the rollover adds. Todos added to a list that is already under a heading continue that list, without a blank line.`)
-      .addToggle((toggle) => 
-        toggle
-          .setValue(
-            this.plugin.settings
-              .leadingNewLine === undefined || 
-              this.plugin.settings.leadingNewLine === null 
-              ? true 
-              : this.plugin.settings.leadingNewLine
-          )
-          .onChange((value) => {
-            this.plugin.settings.leadingNewLine = value;
-            this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(this.containerEl).setName("Review").setHeading();
-
-    new Setting(this.containerEl)
-      .setName("Review automatic rollovers")
-      .setDesc(
-        `Show a review dialog before an automatic rollover, so you can choose what happens to each todo. "Only when a todo is stale" shows it only if a todo has reached the stale limit below. The "Review and roll over todos" command always shows the review. Closing the review skips that rollover.`
-      )
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions({
-            off: "Never",
-            stale: "Only when a todo is stale",
-            always: "Always",
-          })
-          .setValue(this.plugin.settings.reviewOnAutoRollover || "off")
-          .onChange((value) => {
-            this.plugin.settings.reviewOnAutoRollover = value;
-            this.plugin.saveSettings();
-          })
-      );
-
-    const cancelDesc = isCancelAvailable(this.plugin.settings)
-      ? ""
-      : ` Cancel is currently not offered, because this character is not one of the done status markers.`;
-    new Setting(this.containerEl)
-      .setName("Cancel marker")
-      .setDesc(
-        `The checkbox character a todo gets when you choose Cancel in the review. Must be a single character; anything else falls back to "-". Cancel is offered in the review only when this character is one of the done status markers, so a cancelled todo is not rolled over again.` +
-          cancelDesc
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("-")
-          .setValue(this.plugin.settings.cancelMarker ?? "-")
-          .onChange((value) => {
-            this.plugin.settings.cancelMarker = value;
-            this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(this.containerEl).setName("Aging").setHeading();
-
-    const tracking = this.plugin.settings.trackRolloverCount || false;
-
-    new Setting(this.containerEl)
-      .setName("Count rollovers")
-      .setDesc(
-        `Add a counter such as [rolled:: 3] to the text of each todo that is rolled over, increasing by one per rollover.`
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(tracking).onChange(async (value) => {
-          this.plugin.settings.trackRolloverCount = value;
-          await this.plugin.saveSettings();
-          this.display();
+  addToggle(key, getValue) {
+    const setting = this.addSetting(key);
+    setting.addToggle((toggle) =>
+      this.track(key, setting, toggle)
+        .setValue(getValue())
+        .onChange((value) => {
+          this.plugin.settings[key] = value;
+          this.save();
         })
-      );
+    );
+    return setting;
+  }
 
-    new Setting(this.containerEl)
-      .setName("Stale after")
-      .setDesc(
-        `A todo is stale once it has been rolled over this many times. Use 0 to never treat todos as stale.`
-      )
-      .setDisabled(!tracking)
-      .addText((text) =>
-        text
-          .setPlaceholder("5")
-          .setValue(String(this.plugin.settings.staleAfterRollovers ?? 5))
-          .setDisabled(!tracking)
-          .onChange((value) => {
-            const n = parseInt(value, 10);
-            if (Number.isNaN(n) || n < 0) return;
-            this.plugin.settings.staleAfterRollovers = n;
-            this.plugin.saveSettings();
-          })
-      );
+  addDropdown(key, options, value) {
+    const setting = this.addSetting(key);
+    setting.addDropdown((dropdown) =>
+      this.track(key, setting, dropdown)
+        .addOptions(options)
+        .setValue(value)
+        .onChange((v) => {
+          this.plugin.settings[key] = v;
+          this.save();
+        })
+    );
+    return setting;
+  }
 
-    new Setting(this.containerEl)
-      .setName("When a todo is stale")
-      .setDesc(
-        `What happens to a stale todo when no review is shown.`
-      )
-      .setDisabled(!tracking)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions({
-            keep: "Keep rolling it",
-            backlog: "Move it to the backlog",
-          })
-          .setValue(this.plugin.settings.staleBehavior || "keep")
-          .setDisabled(!tracking)
-          .onChange((value) => {
-            this.plugin.settings.staleBehavior = value;
-            this.plugin.saveSettings();
-          })
-      );
+  // `parse` turns the typed text into the stored value, or undefined to
+  // ignore it (the value is then not saved)
+  addText(key, { placeholder, value, parse = (v) => v }) {
+    const setting = this.addSetting(key);
+    setting.addText((text) => {
+      this.track(key, setting, text);
+      if (placeholder !== undefined) text.setPlaceholder(placeholder);
+      return text.setValue(value).onChange((v) => {
+        const parsed = parse(v);
+        if (parsed === undefined) return;
+        this.plugin.settings[key] = parsed;
+        this.save();
+      });
+    });
+    return setting;
+  }
 
-    new Setting(this.containerEl)
-      .setName("Backlog note")
-      .setDesc(
-        `Path of the note that receives todos you move to the backlog, e.g. Backlog.md. Leave empty to disable the backlog choice.`
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("Backlog.md")
-          .setValue(this.plugin.settings.backlogNotePath || "")
-          .onChange((value) => {
-            this.plugin.settings.backlogNotePath = value.trim();
-            this.plugin.saveSettings();
-          })
-      );
+  async display() {
+    const templateHeadings = await this.getTemplateHeadings();
+    const settings = this.plugin.settings;
 
-    new Setting(this.containerEl)
-      .setName("Backlog heading")
-      .setDesc(
-        `Heading in the backlog note to add todos under, starting with '#' characters, e.g. '## Someday'. Leave empty to add them at the end of the note.`
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("## Someday")
-          .setValue(this.plugin.settings.backlogHeading || "")
-          .onChange((value) => {
-            this.plugin.settings.backlogHeading = value.trim();
-            this.plugin.saveSettings();
-          })
+    this.containerEl.empty();
+    this.dependents = {};
+
+    // When it runs
+    this.addGroup(GROUP.when);
+    this.addToggle(
+      "rolloverOnFileCreate",
+      // Default to true if the setting is not set
+      () =>
+        settings.rolloverOnFileCreate === undefined ||
+        settings.rolloverOnFileCreate === null
+          ? true
+          : settings.rolloverOnFileCreate
+    );
+    this.addDropdown(
+      "reviewOnAutoRollover",
+      {
+        off: "Never",
+        stale: "Only when a todo is stale",
+        always: "Always",
+      },
+      settings.reviewOnAutoRollover || "off"
+    );
+
+    // Which todos roll over
+    this.addGroup(GROUP.which);
+    this.addText("doneStatusMarkers", {
+      value: settings.doneStatusMarkers || "xX-",
+    });
+    this.addToggle(
+      "rolloverChildren",
+      () => settings.rolloverChildren || false
+    );
+    this.addToggle(
+      "skipCompletedChildren",
+      () => settings.skipCompletedChildren || false
+    );
+    this.addToggle(
+      "removeEmptyTodos",
+      () => settings.removeEmptyTodos || false
+    );
+    this.addToggle(
+      "ignoreBlockquotes",
+      () => settings.ignoreBlockquotes || false
+    );
+    this.addToggle(
+      "skipExistingTodos",
+      () => settings.skipExistingTodos || false
+    );
+
+    // Where they go in today's note
+    this.addGroup(GROUP.where);
+    if (templateHeadings.length > 0) {
+      this.addDropdown(
+        "templateHeading",
+        headingOptions(templateHeadings, settings.templateHeading),
+        settings.templateHeading
       );
+    } else {
+      this.addText("templateHeading", {
+        placeholder: "## Tasks",
+        value: settings.templateHeading || "none",
+        parse: (v) => v.trim() || "none",
+      }).setDesc(SETTING_DESCRIPTIONS.templateHeadingText);
+    }
+    this.addToggle("leadingNewLine", () =>
+      settings.leadingNewLine === undefined || settings.leadingNewLine === null
+        ? true
+        : settings.leadingNewLine
+    );
+
+    // What happens to the previous day's note
+    this.addGroup(GROUP.previous);
+    this.addDropdown(
+      "onRolloverSourceAction",
+      {
+        none: "Leave them alone",
+        mark: "Mark them",
+        delete: "Delete them",
+      },
+      resolveSourceAction(settings)
+    );
+    this.addText("rolloverSourceMarker", {
+      placeholder: ">",
+      value: settings.rolloverSourceMarker || ">",
+    });
+    this.addToggle(
+      "moveNestedItemsOnMark",
+      () => settings.moveNestedItemsOnMark || false
+    );
+
+    // Review and backlog
+    this.addGroup(GROUP.review);
+    this.cancelMarkerSetting = this.addText("cancelMarker", {
+      placeholder: "-",
+      value: settings.cancelMarker ?? "-",
+    });
+    this.addText("backlogNotePath", {
+      placeholder: "Backlog.md",
+      value: settings.backlogNotePath || "",
+      parse: (v) => v.trim(),
+    });
+    this.addText("backlogHeading", {
+      placeholder: "## Someday",
+      value: settings.backlogHeading || "",
+      parse: (v) => v.trim(),
+    });
+
+    // Aging
+    this.addGroup(GROUP.aging);
+    this.addToggle(
+      "trackRolloverCount",
+      () => settings.trackRolloverCount || false
+    );
+    this.addText("staleAfterRollovers", {
+      placeholder: "5",
+      value: String(settings.staleAfterRollovers ?? 5),
+      parse: (v) => {
+        const n = parseInt(v, 10);
+        return Number.isNaN(n) || n < 0 ? undefined : n;
+      },
+    });
+    this.addDropdown(
+      "staleBehavior",
+      {
+        keep: "Keep rolling it",
+        backlog: "Move it to the backlog",
+      },
+      settings.staleBehavior || "keep"
+    );
+
+    this.refreshDependents();
+  }
+
+  // Greys out the dependent settings that don't apply, with the reason in
+  // place of their description. Their values are kept.
+  refreshDependents() {
+    const settings = this.plugin.settings;
+    const states = dependentSettingStates(settings);
+
+    for (const key of DEPENDENT_SETTINGS) {
+      const entry = this.dependents[key];
+      if (!entry) continue;
+      const { enabled, reason } = states[key];
+      entry.setting.setDisabled(!enabled);
+      entry.component.setDisabled(!enabled);
+      entry.setting.setDesc(enabled ? SETTING_DESCRIPTIONS[key] : reason);
+    }
+
+    if (this.cancelMarkerSetting) {
+      const note = cancelMarkerNote(settings);
+      this.cancelMarkerSetting.setDesc(
+        SETTING_DESCRIPTIONS.cancelMarker + (note ? " " + note : "")
+      );
+    }
   }
 }
