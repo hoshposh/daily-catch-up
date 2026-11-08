@@ -9,11 +9,7 @@ import ReviewModal from "./ui/ReviewModal";
 import RolloverSettingTab from "./ui/RolloverSettingTab";
 import { getSections, splitLines } from "./get-todos";
 import { insertSections } from "./insert-sections";
-import {
-  dedupeAgainstExisting,
-  dropEmptyTodos,
-  verifyTodosPresent,
-} from "./insert-todos";
+import { verifyTodosPresent } from "./insert-todos";
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
@@ -23,15 +19,8 @@ import {
   normalizeMarker,
   resolveSourceAction,
 } from "./source-action";
-import {
-  applyDecisions,
-  bumpRolledCounts,
-  countOutcomes,
-  defaultDecisions,
-  needsReview,
-  skippedLinesToDelete,
-  toItems,
-} from "./rollover-items";
+import { needsReview } from "./rollover-items";
+import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import { appendToBacklog } from "./backlog";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
@@ -289,16 +278,6 @@ export default class RolloverTodosPlugin extends Plugin {
       });
 
       const todos_yesterday = sections_yesterday.flatMap((s) => s.incompleteTodos);
-      // positions of every todo line found, including empty ones that may not
-      // be rolled over
-      const foundLineIndices = sections_yesterday.flatMap(
-        (s) => s.incompleteLineIndices
-      );
-      // Completed children left behind by skipCompletedChildren; removed with
-      // their rolled parent when deleting, so they are not orphaned
-      const skippedLineIndices = new Set(
-        sections_yesterday.flatMap((s) => s.skippedLineIndices ?? [])
-      );
 
       console.log(
         `rollover-daily-todos: ${todos_yesterday.length} todos found in ${lastDailyNote.basename}.md`
@@ -326,21 +305,6 @@ export default class RolloverTodosPlugin extends Plugin {
         },
       };
 
-      // Potentially filter empty todos from sections
-      let emptiesToNotAddToTomorrow = 0;
-
-      let sections_today = sections_yesterday;
-      if (removeEmptyTodos) {
-        const result = dropEmptyTodos(sections_yesterday);
-        sections_today = result.sections;
-        emptiesToNotAddToTomorrow = result.removed;
-      }
-
-      // Review: group the todos into items and decide what happens to each
-      // (roll, backlog, cancel or leave). Without the dialog everything rolls,
-      // except stale items when they are set to go to the backlog.
-      const withChildren = this.settings.rolloverChildren;
-      const items = toItems(sections_today, withChildren);
       const staleSettings = {
         trackRolloverCount: this.settings.trackRolloverCount,
         staleAfterRollovers: this.settings.staleAfterRollovers,
@@ -348,6 +312,24 @@ export default class RolloverTodosPlugin extends Plugin {
       const backlogEnabled =
         (this.settings.backlogNotePath || "").trim() !== "";
       const cancelEnabled = isCancelAvailable(this.settings);
+
+      // Review: drop empty todos when set, group the todos into items and
+      // decide what happens to each (roll, backlog, cancel or leave). Without
+      // the dialog everything rolls, except stale items when they are set to
+      // go to the backlog.
+      const plan = planDecisions({
+        sections: sections_yesterday,
+        lines: lastDailyNoteLines,
+        settings: {
+          removeEmptyTodos,
+          rolloverChildren: this.settings.rolloverChildren,
+          ...staleSettings,
+          staleBehavior: this.settings.staleBehavior,
+          backlogEnabled,
+        },
+      });
+      const { items } = plan;
+      const emptiesToNotAddToTomorrow = plan.removedEmptyTodos;
 
       let backlogPath = null;
       if (backlogEnabled) {
@@ -361,11 +343,7 @@ export default class RolloverTodosPlugin extends Plugin {
         }
       }
 
-      let decisions = defaultDecisions(items, {
-        ...staleSettings,
-        staleBehavior: this.settings.staleBehavior,
-        backlogEnabled,
-      });
+      let decisions = plan.decisions;
       const showReview =
         items.length > 0 &&
         (review ||
@@ -378,7 +356,7 @@ export default class RolloverTodosPlugin extends Plugin {
       if (showReview) {
         decisions = await new ReviewModal(this.app, {
           sourceName: lastDailyNote.basename,
-          sections: sections_today,
+          sections: plan.sections,
           items,
           decisions,
           staleSettings,
@@ -396,30 +374,19 @@ export default class RolloverTodosPlugin extends Plugin {
         }
       }
 
-      const decided = applyDecisions({
-        sections: sections_today,
-        items,
-        decisions,
-        foundLineIndices,
-      });
-      const skippedLinesDeleted = skippedLinesToDelete({
-        skippedLineIndices: [...skippedLineIndices],
-        sections: sections_today,
-        items,
-        decisions,
-      });
-      const outcomeCounts = countOutcomes(items, decisions);
+      const decided = applyPlan({ plan, decisions });
+      const { outcomeCounts } = decided;
       // only Roll items go to today's note
-      sections_today = decided.sections;
-      let todosAdded = sections_today.flatMap((s) => s.incompleteTodos).length;
+      const sections_today = decided.rolledSections;
+      let todosAdded = decided.rolledTodoCount;
 
       // get today's content and modify it (read only now, after any review)
       let templateHeadingNotFoundMessage = "";
 
       let todosAlreadyPresent = 0;
-      const duplicateTodos = [];
+      let duplicateTodos = [];
       // lines of duplicates dropped by skip-existing: they did not move
-      const retainedLineIndices = [];
+      let retainedLineIndices = [];
       let insertedTodos = [];
 
       if (sections_today.length > 0) {
@@ -427,45 +394,23 @@ export default class RolloverTodosPlugin extends Plugin {
         const originalDailyNoteContent = dailyNoteContent;
 
         // Optionally leave out todos that today's note already has (compared
-        // against the note as it was before any insertion). They still count
-        // as handled for the previous day's note below.
-        let sections_to_insert = sections_today;
-        if (skipExistingTodos) {
-          sections_to_insert = sections_today
-            .map((section) => {
-              const { todos, skipped, duplicates, droppedIndices } = dedupeAgainstExisting(
-                section.incompleteTodos,
-                originalDailyNoteContent,
-                this.settings.rolloverChildren,
-                effectiveDoneStatusMarkers(this.settings)
-              );
-              todosAlreadyPresent += skipped;
-              duplicateTodos.push(...duplicates);
-              retainedLineIndices.push(
-                ...droppedIndices.map((i) => section.incompleteLineIndices[i])
-              );
-              // keep the line positions in step with the kept todos, so the
-              // counters below find the same items as the review; the previous
-              // day's note uses retainedLineIndices, not these
-              const dropped = new Set(droppedIndices);
-              return {
-                ...section,
-                incompleteTodos: todos,
-                incompleteLineIndices: section.incompleteLineIndices.filter(
-                  (_, i) => !dropped.has(i)
-                ),
-              };
-            })
-            .filter((section) => section.incompleteTodos.length > 0);
-          todosAdded -= todosAlreadyPresent;
-        }
-        // count this rollover on each item that is actually inserted
-        if (this.settings.trackRolloverCount) {
-          sections_to_insert = bumpRolledCounts(
-            sections_to_insert,
-            withChildren
-          );
-        }
+        // against the note as it was before any insertion; they still count
+        // as handled for the previous day's note below), and count this
+        // rollover on each item that is actually inserted.
+        const toInsert = planInsert({
+          sections: sections_today,
+          todayContent: originalDailyNoteContent,
+          settings: {
+            skipExistingTodos,
+            rolloverChildren: this.settings.rolloverChildren,
+            trackRolloverCount: this.settings.trackRolloverCount,
+            doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
+          },
+        });
+        const sections_to_insert = toInsert.sections;
+        ({ todosAlreadyPresent, duplicateTodos, retainedLineIndices } =
+          toInsert);
+        todosAdded -= todosAlreadyPresent;
         if (sections_to_insert.length > 0) {
           const inserted = insertSections({
             content: dailyNoteContent,
@@ -595,7 +540,7 @@ export default class RolloverTodosPlugin extends Plugin {
             // delete also removes empty todos that were not rolled over, but
             // never Cancel or Leave items
             deletedLineIndices: decided.deleteLineIndices,
-            skippedLineIndices: skippedLinesDeleted,
+            skippedLineIndices: decided.skippedLineIndices,
             marker: normalizeMarker(this.settings.rolloverSourceMarker),
             doneStatusMarkers: this.settings.doneStatusMarkers,
             ignoreBlockquotes: this.settings.ignoreBlockquotes,

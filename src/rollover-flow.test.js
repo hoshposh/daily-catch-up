@@ -3,7 +3,7 @@ import { getSections, splitLines } from "./get-todos";
 import { insertSections } from "./insert-sections";
 import { dedupeAgainstExisting } from "./insert-todos";
 import { appendToBacklog } from "./backlog";
-import { applyDecisions, bumpRolledCounts, toItems } from "./rollover-items";
+import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import { applySourceAction, markCancelled } from "./source-action";
 
 // The parts of rollover() that do not need Obsidian, run end to end
@@ -52,8 +52,9 @@ function rollover({
   return { today: inserted.content, yesterday: source.content };
 }
 
-// The reviewed flow in the order index.js follows: sections, items, decisions,
-// optional counter, insert; backlog; then cancel marks before the source action
+// The reviewed flow, through the same plan steps index.js calls: plan the
+// decisions, apply them, plan the insert into today's note; backlog; then
+// cancel marks before the source action, on the original positions
 function reviewedRollover({
   yesterday,
   today = "",
@@ -61,26 +62,43 @@ function reviewedRollover({
   decisions,
   track,
   skipCompleted = true,
+  removeEmpty = false,
+  skipExisting = false,
 }) {
+  const lines = splitLines(yesterday);
   const sections = getSections({
-    lines: splitLines(yesterday),
+    lines,
     withChildren: true,
     doneStatusMarkers: "xX-",
     skipCompletedChildren: skipCompleted,
   });
-  const items = toItems(sections, true);
-  const decided = applyDecisions({
+  const plan = planDecisions({
     sections,
-    items,
-    decisions,
-    foundLineIndices: sections.flatMap((s) => s.incompleteLineIndices),
+    lines,
+    settings: {
+      removeEmptyTodos: removeEmpty,
+      rolloverChildren: true,
+      trackRolloverCount: track,
+      staleAfterRollovers: 5,
+      staleBehavior: "keep",
+      backlogEnabled: true,
+    },
   });
-  const toInsert = track
-    ? bumpRolledCounts(decided.sections, true)
-    : decided.sections;
+  // without decisions, the defaults apply as when no review is shown
+  const decided = applyPlan({ plan, decisions: decisions ?? plan.decisions });
+  const toInsert = planInsert({
+    sections: decided.rolledSections,
+    todayContent: today,
+    settings: {
+      skipExistingTodos: skipExisting,
+      rolloverChildren: true,
+      trackRolloverCount: track,
+      doneStatusMarkers: "xX-",
+    },
+  });
   const inserted = insertSections({
     content: today,
-    sections: toInsert,
+    sections: toInsert.sections,
     templateHeading: "none",
     leadingNewLine: true,
   });
@@ -108,8 +126,14 @@ function reviewedRollover({
     skippedLineIndices: decided.skippedLineIndices,
     marker: ">",
     doneStatusMarkers: "xX-",
+    retainLineIndices: toInsert.retainedLineIndices,
   });
-  return { today: inserted.content, yesterday: source.content, backlog };
+  return {
+    today: inserted.content,
+    yesterday: source.content,
+    backlog,
+    items: plan.items,
+  };
 }
 
 describe("rollover without a template heading", () => {
