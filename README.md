@@ -28,16 +28,16 @@ You can also open your command palette (CMD+P on macOS) and start typing `roll` 
 
 Run `Review and roll over todos…` to see the todos that are about to move before anything happens. A dialog lists them under the headings they sit in, and you pick an outcome for each one:
 
-| Outcome     | Today's note                       | Previous day's note                                                                                             |
-| ----------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **Roll**    | The todo is added (counter raised) | Handled as set in **After rollover**                                                                            |
-| **Backlog** | Not added                          | Handled as set in **After rollover**, as if it had been rolled                                                  |
-| **Cancel**  | Not added                          | The checkbox is set to the **Cancel marker**, even if **After rollover** is **Leave them alone**; never deleted |
-| **Leave**   | Not added                          | Not changed                                                                                                     |
+| Outcome     | Today's note                                                      | Previous day's note                                                                                             |
+| ----------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Roll**    | The todo is added (counter raised when **Count rollovers** is on) | Handled as set in **After rollover**                                                                            |
+| **Backlog** | Not added                                                         | Handled as set in **After rollover**, as if it had been rolled                                                  |
+| **Cancel**  | Not added                                                         | The checkbox is set to the **Cancel marker**, even if **After rollover** is **Leave them alone**; never deleted |
+| **Leave**   | Not added                                                         | Not changed                                                                                                     |
 
-Every todo defaults to **Roll**. **All roll** and **All leave** buttons set a whole section, or all todos, at once, and a summary line counts the outcomes as you go. A todo moves together with its nested items as one unit. **Backlog** is only offered when a **Backlog note** is set, and **Cancel** only when the **Cancel marker** is one of your **Done status markers**. Todos that have rolled over too often show a "rolled 5×" badge (see **Aging** below).
+Every todo defaults to **Roll**. **All roll** and **All leave** buttons set a whole section, or all todos, at once, and a summary line counts the outcomes as you go. A todo moves together with its nested items as one unit: a nested empty todo left out by **Remove empty todos in rollover**, or a completed one left out by **Skip completed children**, belongs to the todo it is indented under, so it stays when that todo is cancelled or left. **Backlog** is only offered when a **Backlog note** is set, and **Cancel** only when the **Cancel marker** is one of your **Done status markers**. Todos that have rolled over too often show a "rolled 5×" badge (see **Aging** below).
 
-**Apply** carries out the choices. Closing the dialog any other way (**Cancel** button, Escape, clicking outside) abandons the rollover and changes nothing. The dialog only opens when there is something to roll; otherwise it behaves like `Rollover Todos Now`. `Rollover Todos Now` never asks, and automatic rollovers only ask if you set **Review automatic rollovers**.
+**Apply** carries out the choices. Closing the dialog any other way (**Cancel** button, Escape, clicking outside) abandons the rollover and changes nothing. The dialog only opens when there is something to roll; otherwise it behaves like `Rollover Todos Now`. `Rollover Todos Now` never asks, and automatic rollovers only ask if you set **Review automatic rollovers**. While a rollover is running, for example with the dialog open, no second one starts: running a command then says a rollover is already in progress.
 
 Todos sent to the backlog are added to the **Backlog note** with their nested items, without their rollover counter, and with a link back to where they came from:
 
@@ -104,7 +104,7 @@ If you use the `Undo last rollover` command, marked or deleted todos will be res
 
 ### Remove empty todos in rollover
 
-By default, this plugin will roll over anything that has a checkbox, whether it has content or not. Toggling this setting on will ignore empty todos. An empty todo is a `- [ ]` with nothing after the checkbox; empty `*` or `+` todos are not recognised. If **After rollover** is set to delete, it will also delete empty todos.
+By default, this plugin will roll over anything that has a checkbox, whether it has content or not. Toggling this setting on will ignore empty todos. An empty todo is a `- [ ]` with nothing after the checkbox; empty `*` or `+` todos are not recognised. If **After rollover** is set to delete, it will also delete empty todos, except a nested one under a todo you cancel or leave in the review dialog.
 
 ### Roll over children of todos
 
@@ -176,7 +176,7 @@ Under the **Aging** group. The path of the note that receives todos you send to 
 
 ### Backlog heading
 
-Under the **Aging** group. An optional heading in the backlog note to add todos under, for example `## Someday`; it is created if the note does not have it. Leave it empty to add todos at the end of the note.
+Under the **Aging** group. An optional heading in the backlog note to add todos under, for example `## Someday`; it is created if the note does not have it. Text that is not already a heading (one to six `#` and a space), such as `Someday` or `#someday`, becomes a level 2 heading. Leave it empty to add todos at the end of the note.
 
 ### Which lines count as todos
 

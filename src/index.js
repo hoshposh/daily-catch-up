@@ -621,7 +621,7 @@ export default class RolloverTodosPlugin extends Plugin {
       const backlogString =
         outcomeCounts.backlog == 0
           ? ""
-          : `- ${outcomeCounts.backlog} moved to backlog.`;
+          : `- ${outcomeCounts.backlog} moved to backlog (${backlogPath}).`;
       const cancelledString =
         outcomeCounts.cancel == 0 || !cancelApplied
           ? ""

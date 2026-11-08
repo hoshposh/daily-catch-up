@@ -59,7 +59,7 @@ export default class UndoModal extends Modal {
   async onOpen() {
     let { contentEl, plugin } = this
     contentEl.createEl('h3', { text: 'Undo last rollover' });
-    contentEl.createEl('div', { text: "A single rollover command can be undone, which will load the state of the files the rollover modified before it occurred: today's note, and the previous day's note if its todos were marked or deleted. With Templater enabled, only the previous day's note is restored. Any text you may have added to those file(s) during that time may be deleted." });
+    contentEl.createEl('div', { text: "A single rollover command can be undone, which will load the state of the files the rollover modified before it occurred: today's note, the previous day's note if its todos were marked, cancelled or deleted, and the backlog note if todos were sent to it (a backlog note the rollover created is deleted). With Templater enabled, only the previous day's note and the backlog note are restored. Any text you may have added to those file(s) during that time may be deleted." });
     contentEl.createEl('div', { text: 'Note that rollover actions can only be undone for up to 2 minutes after the command occurred, and will be removed from history if the app closes.' })
     contentEl.createEl('h4', { text: 'Changes made with undo:' })
 
