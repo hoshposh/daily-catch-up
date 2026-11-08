@@ -51,6 +51,17 @@ describe("appendToBacklog", () => {
     expect(out.indexOf("## Someday")).toBeLessThan(out.indexOf("- [ ] x"));
   });
 
+  test("a heading that starts with a tag, not `# `, gets the `## ` prefix", () => {
+    const out = appendToBacklog({
+      content: "",
+      heading: "#someday",
+      items: [item(["- [ ] x"])],
+      sourceNoteName: "d",
+      leadingNewLine: true,
+    });
+    expect(out).toBe("## #someday\n\n- [ ] x [from:: [[d]]]\n");
+  });
+
   test("adds under an existing heading", () => {
     const content = "## Someday\n\n- [ ] a\n\n## Done\n";
     const out = appendToBacklog({

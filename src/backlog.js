@@ -25,10 +25,12 @@ export function backlogLines(items, sourceNoteName) {
   });
 }
 
-// A heading typed without leading `#` becomes a level 2 heading
+// Anything that is not already a Markdown heading (`#` to `######` and a
+// space) becomes a level 2 heading, so "Someday" and a tag like "#someday"
+// both work
 function normalizeHeading(heading) {
   const trimmed = heading.trim();
-  return trimmed.startsWith("#") ? trimmed : `## ${trimmed}`;
+  return /^#{1,6}\s/.test(trimmed) ? trimmed : `## ${trimmed}`;
 }
 
 /**
