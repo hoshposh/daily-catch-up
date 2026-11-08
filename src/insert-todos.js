@@ -153,10 +153,16 @@ const EMPTY_TODO = /^- \[ {1,2}\]$/;
  * keeping each section's line positions in step with its todos, and drops
  * sections left without todos.
  *
+ * With `recordDropped`, a section that lost empty todos also carries
+ * `droppedLineIndices` (their positions in the note) and `droppedTodos` (their
+ * lines, in the same order), so the review can tell which item an empty todo
+ * sat in. The keys are omitted otherwise.
+ *
  * @param {{ incompleteTodos: string[], incompleteLineIndices: number[] }[]} sections
+ * @param {{ recordDropped?: boolean }} [options]
  * @returns {{ sections: object[], kept: number, removed: number }}
  */
-export function dropEmptyTodos(sections) {
+export function dropEmptyTodos(sections, { recordDropped = false } = {}) {
   let kept = 0;
   let removed = 0;
   const result = [];
@@ -164,9 +170,13 @@ export function dropEmptyTodos(sections) {
   for (const section of sections) {
     const incompleteTodos = [];
     const incompleteLineIndices = [];
+    const droppedTodos = [];
+    const droppedLineIndices = [];
     section.incompleteTodos.forEach((line, i) => {
       if (EMPTY_TODO.test((line || "").trim())) {
         removed++;
+        droppedTodos.push(line);
+        droppedLineIndices.push(section.incompleteLineIndices[i]);
       } else {
         incompleteTodos.push(line);
         incompleteLineIndices.push(section.incompleteLineIndices[i]);
@@ -174,7 +184,12 @@ export function dropEmptyTodos(sections) {
     });
     kept += incompleteTodos.length;
     if (incompleteTodos.length > 0) {
-      result.push({ ...section, incompleteTodos, incompleteLineIndices });
+      const next = { ...section, incompleteTodos, incompleteLineIndices };
+      if (recordDropped && droppedTodos.length > 0) {
+        next.droppedLineIndices = droppedLineIndices;
+        next.droppedTodos = droppedTodos;
+      }
+      result.push(next);
     }
   }
 

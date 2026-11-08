@@ -389,3 +389,102 @@ describe("count outcomes", () => {
     });
   });
 });
+
+describe("items around dropped empty todos", () => {
+  const plan = (noteLines, skipCompletedChildren = false) => {
+    const all = getSections({
+      lines: noteLines,
+      withChildren: true,
+      skipCompletedChildren,
+    });
+    const kept = dropEmptyTodos(all, { recordDropped: true }).sections;
+    return {
+      all,
+      kept,
+      items: toItems(kept, true),
+      found: all.flatMap((s) => s.incompleteLineIndices),
+      skipped: all.flatMap((s) => s.skippedLineIndices ?? []),
+    };
+  };
+
+  test("a dropped empty child stays inside its item", () => {
+    const { kept, items } = plan(["- [ ] P", "  - [ ]", "  - [ ] c"]);
+    expect(items.map((i) => i.lineIndices)).toEqual([[0, 2]]);
+    expect(bumpRolledCounts(kept, true)[0].incompleteTodos).toEqual([
+      "- [ ] P [rolled:: 1]",
+      "  - [ ] c",
+    ]);
+  });
+
+  test("a dropped top-level empty todo ends the item above it", () => {
+    const { items } = plan(["- [ ] A", "- [ ]", "  - [ ] c"]);
+    expect(items.map((i) => i.lineIndices)).toEqual([[0], [2]]);
+  });
+
+  test("an empty todo dropped from a Cancel or Leave item is kept, from a Roll item deleted", () => {
+    const { kept, items, found } = plan([
+      "- [ ] P",
+      "  - [ ]",
+      "  - [ ] c",
+      "- [ ] Q",
+      "  - [ ]",
+    ]);
+    expect(items.map((i) => i.lineIndices)).toEqual([[0, 2], [3]]);
+    for (const outcome of ["cancel", "leave"]) {
+      const r = applyDecisions({
+        sections: kept,
+        items,
+        foundLineIndices: found,
+        decisions: { "0:0": outcome, "0:2": "roll" },
+      });
+      expect(r.deleteLineIndices).toEqual([3, 4]);
+    }
+    const r = applyDecisions({
+      sections: kept,
+      items,
+      foundLineIndices: found,
+      decisions: { "0:0": "backlog", "0:2": "leave" },
+    });
+    expect(r.deleteLineIndices).toEqual([0, 1, 2]);
+  });
+
+  test("an empty todo under a plain bullet belongs to no item", () => {
+    const { kept, items, found } = plan(["- [ ] A", "- Notes", "  - [ ]"]);
+    const r = applyDecisions({
+      sections: kept,
+      items,
+      foundLineIndices: found,
+      decisions: { "0:0": "leave" },
+    });
+    expect(r.deleteLineIndices).toEqual([2]);
+  });
+
+  test("a skipped child belongs to the todo it is indented under", () => {
+    const noteLines = [
+      "- [ ]",
+      "  - [ ] c",
+      "    - [x] under c",
+      "  - [x] under the empty todo",
+    ];
+    const { kept, items, skipped } = plan(noteLines, true);
+    expect(skipped).toEqual([2, 3]);
+    expect(items.map((i) => i.lineIndices)).toEqual([[1]]);
+    expect(
+      skippedLinesToDelete({
+        skippedLineIndices: skipped,
+        sections: kept,
+        items,
+        decisions: { "0:0": "leave" },
+        lines: noteLines,
+      })
+    ).toEqual([3]);
+    const r = applyDecisions({
+      sections: kept,
+      items,
+      foundLineIndices: [0, 1],
+      decisions: { "0:0": "roll" },
+      lines: noteLines,
+    });
+    expect(r.skippedLineIndices).toEqual([2]);
+  });
+});

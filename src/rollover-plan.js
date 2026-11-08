@@ -42,7 +42,7 @@ export function planDecisions({ sections, lines, settings }) {
   let reviewSections = sections;
   let removedEmptyTodos = 0;
   if (settings.removeEmptyTodos) {
-    const result = dropEmptyTodos(sections);
+    const result = dropEmptyTodos(sections, { recordDropped: true });
     reviewSections = result.sections;
     removedEmptyTodos = result.removed;
   }
@@ -82,6 +82,7 @@ export function applyPlan({ plan, decisions }) {
     items,
     decisions,
     foundLineIndices,
+    lines,
   });
   return {
     // only Roll items go to today's note
@@ -99,6 +100,7 @@ export function applyPlan({ plan, decisions }) {
       sections,
       items,
       decisions,
+      lines,
     }),
     outcomeCounts: countOutcomes(items, decisions),
   };

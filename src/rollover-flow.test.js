@@ -571,3 +571,48 @@ describe("reviewed rollover with decisions", () => {
     expect(r.yesterday).toBe(old.yesterday);
   });
 });
+
+describe("reviewed rollover with empty todos dropped", () => {
+  test("a dropped empty child does not split its item, and Leave keeps it all", () => {
+    const yesterday = ["- [ ] L", "  - [ ]", "  - [ ] c", "  - [x] done"].join(
+      "\n",
+    );
+    const r = reviewedRollover({
+      yesterday,
+      action: "delete",
+      decisions: { "0:0": "leave" },
+      track: false,
+      removeEmpty: true,
+    });
+    expect(r.items.map((i) => i.lineIndices)).toEqual([[0, 2]]);
+    expect(r.yesterday).toBe(yesterday);
+    expect(r.today).toBe("");
+  });
+
+  test("a top-level empty todo and its completed child are deleted, not given to the todo above", () => {
+    const yesterday = ["- [ ] A", "- [ ]", "  - [x] done", "- [ ] B"].join(
+      "\n",
+    );
+    const r = reviewedRollover({
+      yesterday,
+      action: "delete",
+      decisions: { "0:0": "leave", "0:1": "roll" },
+      track: false,
+      removeEmpty: true,
+    });
+    expect(r.items.map((i) => i.lineIndices)).toEqual([[0], [3]]);
+    expect(r.yesterday).toBe("- [ ] A");
+    expect(r.today).toBe("- [ ] B\n");
+  });
+
+  test("only the head of an item with a dropped empty child gets the counter", () => {
+    const r = reviewedRollover({
+      yesterday: ["- [ ] R", "  - [ ]", "  - [ ] c"].join("\n"),
+      action: "delete",
+      track: true,
+      removeEmpty: true,
+    });
+    expect(r.today).toBe("- [ ] R [rolled:: 1]\n  - [ ] c\n");
+    expect(r.yesterday).toBe("");
+  });
+});

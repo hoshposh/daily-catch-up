@@ -320,3 +320,38 @@ describe("dropEmptyTodos", () => {
     expect(dropEmptyTodos(sections)).toStrictEqual({ sections, kept: 2, removed: 0 });
   });
 });
+
+describe("dropEmptyTodos with recordDropped", () => {
+  test("records the dropped lines on the sections they were dropped from", () => {
+    const result = dropEmptyTodos(
+      [
+        {
+          headingPath: ["## A"],
+          incompleteTodos: ["- [ ] a", "  - [ ]", "- [ ] b"],
+          incompleteLineIndices: [1, 2, 3],
+        },
+        {
+          headingPath: ["## B"],
+          incompleteTodos: ["- [ ] c"],
+          incompleteLineIndices: [6],
+        },
+      ],
+      { recordDropped: true }
+    );
+    expect(result.sections).toStrictEqual([
+      {
+        headingPath: ["## A"],
+        incompleteTodos: ["- [ ] a", "- [ ] b"],
+        incompleteLineIndices: [1, 3],
+        droppedLineIndices: [2],
+        droppedTodos: ["  - [ ]"],
+      },
+      {
+        headingPath: ["## B"],
+        incompleteTodos: ["- [ ] c"],
+        incompleteLineIndices: [6],
+      },
+    ]);
+    expect(result.removed).toBe(1);
+  });
+});
