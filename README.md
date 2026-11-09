@@ -2,13 +2,36 @@
 
 [![Build](https://github.com/hoshposh/obsidian-rollover-daily-todos/actions/workflows/ci.yml/badge.svg)](https://github.com/hoshposh/obsidian-rollover-daily-todos/actions/workflows/ci.yml)
 
-> This is a personal fork of [lumoe/obsidian-rollover-daily-todos](https://github.com/lumoe/obsidian-rollover-daily-todos).
-
 This Obsidian plugin will rollover any incomplete todo items from the previous daily note (could be yesterday, or a week ago) to today. This is triggered automatically when a new daily note is created via the internal `Daily notes` plugin, or the `Periodic Notes` plugin. It can also be run as a command from the Command Palette.
 
 ![A demo of the plugin working](./demo.gif)
 
-Beyond the basic rollover, this fork groups todos by their headings and recreates those headings in today's note, lets you review what is about to move and choose an outcome for each todo, and can count how often a todo has been rolled over so you notice the ones that never get done. The options to mark rolled todos as moved and to skip todos already in today's note come from upstream's unreleased `release/v1.3.0` branch.
+Beyond the basic rollover, this plugin:
+
+- groups todos by their headings and recreates those headings in today's note;
+- lets you review what is about to move and choose an outcome for each todo: roll it, send it to a backlog note, cancel it, or leave it;
+- can count how often a todo has been rolled over, so you notice the ones that never get done.
+
+## Origins and status
+
+This plugin started as a fork of [Rollover Daily Todos](https://github.com/lumoe/obsidian-rollover-daily-todos), created by Matthew Sessions and maintained by Lukas Mölschl. Thank you to both, and to everyone who contributed to it.
+
+It is being prepared as a separate community plugin under a new name. Its own additions are:
+
+- the heading-aware rollover;
+- the review dialog;
+- rollover counting and stale todos;
+- the backlog note.
+
+Several options were adapted from upstream's unreleased `release/v1.3.0` branch:
+
+- marking rolled todos as moved;
+- skipping todos already in today's note;
+- the Templater safeguard;
+- ignoring todos in callouts and blockquotes;
+- skipping completed children.
+
+Until it is listed in Obsidian's community plugins, install it with BRAT or manually (see [Installation](#installation)).
 
 ## Usage
 
@@ -206,7 +229,7 @@ Used when **Count rollovers** is on (default 5). A todo is stale once it has bee
 
 ## Installation
 
-This fork is not in Obsidian's community plugin list, so the `Third-party plugins` tab would install the upstream plugin instead. Install this one in one of two ways:
+This plugin is not yet in Obsidian's community plugin list. Searching there for "Rollover Daily Todos" finds the original plugin, not this one. Until it is listed, install it in one of two ways:
 
 - **BRAT:** open BRAT settings → _Add Beta Plugin_ → enter `hoshposh/obsidian-rollover-daily-todos`.
 - **Manually:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/hoshposh/obsidian-rollover-daily-todos/releases), put them in `<your vault>/.obsidian/plugins/rollover-daily-todos-lw/`, then enable the plugin under _Community plugins_.
