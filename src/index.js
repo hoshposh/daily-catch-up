@@ -209,7 +209,7 @@ export default class RolloverTodosPlugin extends Plugin {
       // Automatic runs fire for every created file, so only warn in the console;
       // tell the user when they ran the command themselves.
       console.warn(
-        "rollover-daily-todos: could not read the daily notes settings"
+        "Daily Catch-Up: could not read the daily notes settings"
       );
       if (file == undefined) {
         new Notice(
@@ -272,7 +272,7 @@ export default class RolloverTodosPlugin extends Plugin {
     /*** Next, if it is a valid daily note, but we don't have daily notes enabled, we must alert the user ***/
     if (!this.isDailyNotesEnabled()) {
       new Notice(
-        "RolloverTodosPlugin unable to rollover unfinished todos: Please enable Daily Notes, or Periodic Notes (with daily notes enabled).",
+        "Couldn't roll over unfinished todos. Enable Daily Notes, or Periodic Notes with daily notes turned on.",
         10000
       );
     } else {
@@ -297,10 +297,6 @@ export default class RolloverTodosPlugin extends Plugin {
       });
 
       const todos_yesterday = sections_yesterday.flatMap((s) => s.incompleteTodos);
-
-      console.log(
-        `rollover-daily-todos: ${todos_yesterday.length} todos found in ${lastDailyNote.basename}.md`
-      );
 
       if (todos_yesterday.length == 0) {
         return;
@@ -502,7 +498,7 @@ export default class RolloverTodosPlugin extends Plugin {
           );
         } catch (error) {
           console.error(
-            "rollover-daily-todos: could not write the backlog note",
+            "Daily Catch-Up: could not write the backlog note",
             error
           );
           const todaysPart =

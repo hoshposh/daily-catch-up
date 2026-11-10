@@ -48,7 +48,7 @@ export default class RolloverSettingTab extends PluginSettingTab {
       return extractHeadings(await this.app.vault.read(file));
     } catch (err) {
       console.warn(
-        "rollover-daily-todos: failed to read template headings",
+        "Daily Catch-Up: failed to read template headings",
         err
       );
       return [];

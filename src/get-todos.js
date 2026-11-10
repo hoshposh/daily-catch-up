@@ -59,7 +59,7 @@ class TodoParser {
       // Array.from() splits surrogate pairs correctly but not complex grapheme clusters
       // (e.g., 👨‍👩‍👧‍👦 would be split incorrectly) and fail to match.
       console.error(
-        `Intl.Segmenter not available, falling back to Array.from() for ${contentType}`
+        `Daily Catch-Up: Intl.Segmenter not available, falling back to Array.from() for ${contentType}`
       );
       return Array.from(content);
     }

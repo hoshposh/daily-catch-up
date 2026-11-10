@@ -107,7 +107,7 @@ If you use Templater, also try a daily template with Templater syntax together w
 
 ### 5. Debugging
 
-Open the developer console with `Ctrl+Shift+I` (`Cmd+Option+I` on macOS) and look for red errors and for lines starting with `rollover-daily-todos:`.
+Open the developer console with `Ctrl+Shift+I` (`Cmd+Option+I` on macOS) and look for red errors and for lines starting with `Daily Catch-Up:`.
 
 ## Branches and upstream
 

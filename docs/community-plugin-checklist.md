@@ -39,12 +39,12 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
   - `obsidian-rollover-daily-todos-rollover` is now `rollover`, and `obsidian-rollover-daily-todos-undo` is now `undo-rollover` (`src/index.js`). `review-and-rollover` was already fine.
   - Changing them resets hotkeys bound to those commands (done together with the plugin id change, so hotkeys only need re-binding once).
 - [x] **Command name.** "Rollover Todos Now" is now "Roll over todos now", in sentence case like "Undo last rollover". The README, CONTRIBUTING, CLAUDE.md, the settings help and the Templater notice use the new name.
-- [ ] **Leftover upstream branding:**
-  - [ ] the notice "RolloverTodosPlugin unable to rollover…" (`src/index.js`);
-  - [ ] the `rollover-daily-todos:` prefix on console messages.
-- [ ] **Console output.** Remove the per-rollover `console.log` ("N todos found in …", `src/index.js`). Keep `console.warn`/`console.error` only for real problems.
+- [x] **Leftover upstream branding:**
+  - [x] the notice "RolloverTodosPlugin unable to rollover…" (`src/index.js`), now "Couldn't roll over unfinished todos. Enable Daily Notes, or Periodic Notes with daily notes turned on.";
+  - [x] the `rollover-daily-todos:` prefix on console messages, now `Daily Catch-Up:` (also added to the `Intl.Segmenter` fallback error, which had none).
+- [x] **Console output.** Removed the per-rollover `console.log` ("N todos found in …", `src/index.js`). The remaining `console.warn`/`console.error` calls are for real problems only.
 - [ ] **`vault.process` instead of `vault.modify`** for today's note (`src/index.js`) and in undo (`src/ui/UndoModal.js`). This is recommended rather than required, but it is flagged often.
-- [ ] **Undo dialog title.** Use the modal's `titleEl` instead of `h3`/`h4` elements (`src/ui/UndoModal.js`). Minor.
+- [x] **Undo dialog title.** Uses the modal's `titleEl` instead of an `h3`, and a setting heading (`setHeading()`) instead of the `h4` (`src/ui/UndoModal.js`).
 
 ## 4. Docs and repository
 
