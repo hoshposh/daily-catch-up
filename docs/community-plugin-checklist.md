@@ -22,16 +22,16 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
 
 - [ ] `manifest.json`:
   - [x] `name` and `id` from section 1.
-  - [ ] `version` as plain `x.y.z`, e.g. `1.3.0`. Pre-release suffixes like `1.2.1-preview.4` aren't accepted.
+  - [ ] `version` as plain `x.y.z`, e.g. `1.3.0`. Pre-release suffixes like `1.2.1-preview.4` aren't accepted. `1.3.0-preview.1` goes out first through BRAT to try the new id on a real install and the release workflow; then set `1.3.0` for the community release.
   - [x] `description`: one sentence starting with a verb, under 250 characters, ending with a period. No "This Obsidian.md plugin", no URL, no credit line (credit goes in the README).
 - [x] `package.json` `name` and `description` to match.
-- [ ] `versions.json`: add the new version mapped to the current `minAppVersion` (`1.1.0`). The last entry is still `1.2.0` with `0.12.12`.
-- [ ] A release process for community releases:
+- [x] `versions.json`: add the new version mapped to the current `minAppVersion` (`1.1.0`). Added `"1.3.0": "1.1.0"`.
+- [x] A release process for community releases:
   - A normal GitHub release, not a pre-release.
   - Its tag equals the manifest version exactly, with no `v`.
   - Assets are `main.js`, `manifest.json` and `styles.css`.
-  - Consider a tag-triggered GitHub Actions workflow that builds and attaches them. The current `ci.yml` only builds.
-- [ ] Update the README's "Releasing a new version" section. It currently describes BRAT preview releases only.
+  - Done: `.github/workflows/release.yml` runs on a pushed tag, checks the tag against `manifest.json`, `package.json` and (for `x.y.z`) `versions.json`, runs the tests, builds, and creates a draft release with the three assets. A tag with a suffix becomes a pre-release, so it also serves BRAT previews. Publishing the draft stays manual. Not yet run on GitHub.
+- [x] Update the README's "Releasing a new version" section. It now covers community releases and BRAT previews through the workflow.
 
 ## 3. Code that community review checks
 

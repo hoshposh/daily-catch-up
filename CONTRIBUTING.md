@@ -119,4 +119,4 @@ Commit messages are short imperative sentences ("Add mark-as-moved source action
 
 ## Releasing
 
-See _Development > Releasing a new version for BRAT testing_ in the [README](README.md).
+See _Development > Releasing a new version_ in the [README](README.md).

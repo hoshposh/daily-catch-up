@@ -238,32 +238,43 @@ Releases up to 1.2.1-preview.5 were called "Rollover Daily Todos (fork)" and use
 
 ## Development
 
-### Releasing a new version for BRAT testing
+### Releasing a new version
 
-[BRAT](https://github.com/TfTHacker/obsidian42-brat) (Beta Reviewers Auto-update Tool) installs plugins directly from GitHub releases. To publish a testable build:
+Pushing a version tag runs the release workflow (`.github/workflows/release.yml`). It checks that the tag matches the version, runs the tests, builds the plugin and creates a **draft** GitHub release with `main.js`, `manifest.json` and `styles.css` attached. All three are required: Obsidian and [BRAT](https://github.com/TfTHacker/obsidian42-brat) read the version from `manifest.json`, load `main.js` as the plugin and `styles.css` for the review dialog and settings.
 
-1. **Bump the version** in `manifest.json` and `package.json` to the new version (e.g. `1.3.0`).
+There are two kinds of release:
 
-2. **Build** the plugin:
+- **Community release** (`1.3.0`): plain `x.y.z`, published as a normal release. This is what Obsidian's community plugin list installs. `versions.json` must map the version to `minAppVersion` from `manifest.json`.
+- **Preview for BRAT** (`1.3.0-preview.1`): a version with a suffix, which the workflow marks as a pre-release. Obsidian's community list ignores it, and BRAT installs it. It needs no `versions.json` entry.
+
+To release:
+
+1. **Bump the version** in `manifest.json` and `package.json`. For a community release, also add it to `versions.json`.
+
+2. **Commit and push** the version bump (`main.js` is git-ignored; the workflow builds it):
 
    ```bash
-   pnpm build
-   ```
-
-3. **Commit** the version bump (`main.js` is git-ignored; it is attached to the release in the next step):
-
-   ```bash
-   git add manifest.json package.json
+   git add manifest.json package.json versions.json
    git commit -m "Release 1.3.0"
-   git push
+   git push origin main
    ```
 
-4. **Create a GitHub release** with `main.js`, `manifest.json` and `styles.css` attached as assets. All three are required — BRAT uses `manifest.json` to read the version, `main.js` as the plugin bundle and `styles.css` for the review dialog:
+3. **Tag and push the tag.** The tag is the version exactly, with no `v`:
 
    ```bash
-   gh release create 1.3.0 main.js manifest.json styles.css --repo hoshposh/obsidian-rollover-daily-todos --prerelease --title "1.3.0" --notes "Release notes here"
+   git tag 1.3.0
+   git push origin 1.3.0
    ```
 
-   Keep `--repo`: a checkout that also has the upstream as a remote can make `gh` default to the upstream repository. Drop `--prerelease` for a stable release.
+   Push to `origin`: this checkout also has the upstream repository as a remote.
 
-5. **Install via BRAT** in Obsidian: open BRAT settings → _Add Beta Plugin_ → enter `hoshposh/obsidian-rollover-daily-todos`. BRAT will pull the latest release automatically.
+4. **Publish the draft.** When the workflow finishes, open the draft under _Releases_ on GitHub, write the release notes and publish it. Leave the pre-release box as the workflow set it: unticked for a community release, ticked for a preview.
+
+If the workflow fails, fix the cause, then delete the tag and push it again:
+
+```bash
+git tag -d 1.3.0
+git push origin --delete 1.3.0
+```
+
+To try a preview, install it with BRAT: open BRAT settings → _Add Beta Plugin_ → enter `hoshposh/obsidian-rollover-daily-todos`. BRAT picks up later releases automatically.
