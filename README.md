@@ -41,7 +41,7 @@ Just create a new daily note using the `Daily notes` or `Periodic Notes` plugin.
 
 **Note:** Automatic rollover can conflict with other plugins that rewrite new notes, particularly Templater. If Templater is enabled and **After rollover** is set to mark or delete, the plugin waits 3 seconds after adding the todos and checks that they are still in today's note before changing the previous day's note (see Bugs/Issues).
 
-### 2. Command: Manual Rollover Todos Now
+### 2. Command: Roll over todos now
 
 You can also open your command palette (CMD+P on macOS) and start typing `roll` to find this command. No matter where you are in Obsidian, the previous day's todos will get rolled forward.
 
@@ -60,7 +60,7 @@ Run `Review and roll over todos…` to see the todos that are about to move befo
 
 Every todo defaults to **Roll**. **All roll** and **All leave** buttons set a whole section, or all todos, at once, and a summary line counts the outcomes as you go. A todo moves together with its nested items as one unit: a nested empty todo left out by **Remove empty todos**, or a completed one left out by **Skip completed children**, belongs to the todo it is indented under, so it stays when that todo is cancelled or left. **Backlog** is only offered when a **Backlog note** is set, and **Cancel** only when the **Cancel marker** is one of your **Done status markers**. Todos that have rolled over too often show a "rolled 5×" badge (see **Aging** below).
 
-**Apply** carries out the choices. Closing the dialog any other way (**Cancel** button, Escape, clicking outside) abandons the rollover and changes nothing. The dialog only opens when there is something to roll; otherwise it behaves like `Rollover Todos Now`. `Rollover Todos Now` never asks, and automatic rollovers only ask if you set **Review automatic rollovers**. While a rollover is running, for example with the dialog open, no second one starts: running a command then says a rollover is already in progress.
+**Apply** carries out the choices. Closing the dialog any other way (**Cancel** button, Escape, clicking outside) abandons the rollover and changes nothing. The dialog only opens when there is something to roll; otherwise it behaves like `Roll over todos now`. `Roll over todos now` never asks, and automatic rollovers only ask if you set **Review automatic rollovers**. While a rollover is running, for example with the dialog open, no second one starts: running a command then says a rollover is already in progress.
 
 Todos sent to the backlog are added to the **Backlog note** with their nested items, without their rollover counter, and with a link back to where they came from:
 
@@ -100,7 +100,7 @@ The settings are in six groups, in the order a rollover runs. A setting that dep
 
 #### Automatic rollover for new daily notes
 
-On by default: todos are rolled over when a new daily note is created. Turn it off if you prefer to trigger the rollover manually with the `Rollover Todos Now` command.
+On by default: todos are rolled over when a new daily note is created. Turn it off if you prefer to trigger the rollover manually with the `Roll over todos now` command.
 
 #### Review automatic rollovers
 
@@ -223,9 +223,9 @@ Used when **Count rollovers** is on (default 5). A todo is stale once it has bee
 
 1. Sometimes you will use this plugin, and your unfinished todos will stay in the same spot. These could be formatting issues. A line is only a todo when it looks like this (see _Which lines count as todos_ above): optional indentation (spaces or tabs) and `>` blockquote markers, a bullet (`-`, `*` or `+`), one space, then `[`, a single character that is not a done marker, `]`, and your text.
 
-1. Sometimes, if you trigger the `rollover` function too quickly, it will read the state of a file before the new data was saved to disk. For example, if you add a new incomplete todo to yesterday's daily note, and then quickly run the `Rollover Todos Now` command, it may grab the state of the file a second or two before you ran the command. If this happens, just run the `Undo last rollover` command. Wait a second or two, then try rolling over todos again.
+1. Sometimes, if you trigger the `rollover` function too quickly, it will read the state of a file before the new data was saved to disk. For example, if you add a new incomplete todo to yesterday's daily note, and then quickly run the `Roll over todos now` command, it may grab the state of the file a second or two before you ran the command. If this happens, just run the `Undo last rollover` command. Wait a second or two, then try rolling over todos again.
 
-1. There are sometimes conflicts with other plugins that deal with new notes -- particularly the Templater plugin, which rewrites a new note shortly after it is created and can overwrite the rolled todos. When Templater is enabled and **After rollover** is set to mark or delete, the plugin waits 3 seconds, checks that the rolled todos are still in today's note, and otherwise leaves the previous day's note unchanged and shows a notice; run `Rollover Todos Now` to try again. This is a safety net, not a fix: a template slower than 3 seconds (for example one that calls the web) can still overwrite the todos after the check, and plugins other than Templater are not covered. If that affects you, disable the automatic rollover and trigger it manually after the note is created.
+1. There are sometimes conflicts with other plugins that deal with new notes -- particularly the Templater plugin, which rewrites a new note shortly after it is created and can overwrite the rolled todos. When Templater is enabled and **After rollover** is set to mark or delete, the plugin waits 3 seconds, checks that the rolled todos are still in today's note, and otherwise leaves the previous day's note unchanged and shows a notice; run `Roll over todos now` to try again. This is a safety net, not a fix: a template slower than 3 seconds (for example one that calls the web) can still overwrite the todos after the check, and plugins other than Templater are not covered. If that affects you, disable the automatic rollover and trigger it manually after the note is created.
 
 ## Installation
 

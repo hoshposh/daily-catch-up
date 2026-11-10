@@ -8,7 +8,7 @@ export const SETTING_GROUPS = [
     id: "when",
     title: "When it runs",
     help: [
-      "The rollover runs when today's daily note is created, if Automatic rollover is on. You can also run it any time with **Rollover Todos Now**, or with **Review and roll over todos**, which always shows the review.",
+      "The rollover runs when today's daily note is created, if Automatic rollover is on. You can also run it any time with **Roll over todos now**, or with **Review and roll over todos**, which always shows the review.",
       "Review automatic rollovers decides whether an automatic run shows the review first: never, only when a todo is stale (needs Count rollovers), or always. Closing the review skips that rollover and writes nothing.",
     ],
   },

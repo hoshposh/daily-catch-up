@@ -8,20 +8,23 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
 
 ## 1. Identity (decide first; everything below depends on it)
 
-- [ ] **Plugin name.** It must not contain "Obsidian" and must be clearly different from "Rollover Daily Todos". Build it around reviewing and carrying todos forward.
-- [ ] **Plugin id** (`manifest.json` `id`, currently `rollover-daily-todos-lw`).
+- [x] **Plugin name.** It must not contain "Obsidian" and must be clearly different from "Rollover Daily Todos". Build it around reviewing and carrying todos forward.
+  - Chosen: **Daily Catch-Up** (decided 2026-11-09; no community plugin used "catch" in its id or name at the time).
+  - The name doesn't say "todos", so the description and README carry the search terms ("todo", "roll over"). Description: "Catch up on unfinished todos from your previous daily note: roll them over to today, park them in a backlog, or cancel them."
+- [x] **Plugin id**: `daily-catch-up` (was `rollover-daily-todos-lw`; free as of 2026-11-09).
   - It is permanent once listed. It must be unique among community plugins, can't contain "obsidian", and can't end in "plugin".
-  - Changing it moves where Obsidian keeps the plugin's settings (`.obsidian/plugins/<id>/data.json`).
-    - [ ] Copy `data.json` into the new folder in each vault you use.
-    - [ ] Rename the test vault's symlinked plugin folder, and update the plugin path in the local `/setup-test-fixture` script.
+  - Changing it moves where Obsidian keeps the plugin's settings (`.obsidian/plugins/<id>/data.json`), and it resets hotkeys, which Obsidian stores as `<plugin id>:<command id>`.
+    - [ ] Copy `data.json` into the new folder in each vault you use, and enable the plugin again there.
+    - [x] Rename the test vault's symlinked plugin folder, and update the plugin path in the local `/setup-test-fixture` script.
+    - [ ] Vaults that installed a preview through BRAT: the first release with the new id installs as a second plugin next to the old one. Remove the old one after copying its `data.json`.
 
 ## 2. Release metadata
 
 - [ ] `manifest.json`:
-  - [ ] `name` and `id` from section 1.
+  - [x] `name` and `id` from section 1.
   - [ ] `version` as plain `x.y.z`, e.g. `1.3.0`. Pre-release suffixes like `1.2.1-preview.4` aren't accepted.
-  - [ ] `description`: one sentence starting with a verb, under 250 characters, ending with a period. No "This Obsidian.md plugin", no URL, no credit line (credit goes in the README).
-- [ ] `package.json` `name` and `description` to match.
+  - [x] `description`: one sentence starting with a verb, under 250 characters, ending with a period. No "This Obsidian.md plugin", no URL, no credit line (credit goes in the README).
+- [x] `package.json` `name` and `description` to match.
 - [ ] `versions.json`: add the new version mapped to the current `minAppVersion` (`1.1.0`). The last entry is still `1.2.0` with `0.12.12`.
 - [ ] A release process for community releases:
   - A normal GitHub release, not a pre-release.
@@ -32,10 +35,10 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
 
 ## 3. Code that community review checks
 
-- [ ] **Command ids.** Drop the embedded old plugin id, because Obsidian already prefixes command ids:
-  - `obsidian-rollover-daily-todos-rollover` and `obsidian-rollover-daily-todos-undo` (`src/index.js`).
-  - Changing them resets hotkeys bound to those commands.
-- [ ] **Command name.** "Rollover Todos Now" becomes sentence case, e.g. "Roll over todos now", like "Undo last rollover".
+- [x] **Command ids.** Drop the embedded old plugin id, because Obsidian already prefixes command ids:
+  - `obsidian-rollover-daily-todos-rollover` is now `rollover`, and `obsidian-rollover-daily-todos-undo` is now `undo-rollover` (`src/index.js`). `review-and-rollover` was already fine.
+  - Changing them resets hotkeys bound to those commands (done together with the plugin id change, so hotkeys only need re-binding once).
+- [x] **Command name.** "Rollover Todos Now" is now "Roll over todos now", in sentence case like "Undo last rollover". The README, CONTRIBUTING, CLAUDE.md, the settings help and the Templater notice use the new name.
 - [ ] **Leftover upstream branding:**
   - [ ] the notice "RolloverTodosPlugin unable to rollover…" (`src/index.js`);
   - [ ] the `rollover-daily-todos:` prefix on console messages.

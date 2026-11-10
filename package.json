@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-rollover-daily-todos",
+  "name": "daily-catch-up",
   "version": "1.2.1-preview.5",
-  "description": "This Obsidian.md plugin rolls over incomplete TODOs from the previous daily note to today's daily note. (https://obsidian.md)",
+  "description": "Catch up on unfinished todos from your previous daily note: roll them over to today, park them in a backlog, or cancel them.",
   "main": "main.js",
   "scripts": {
     "dev": "rollup -c -w",

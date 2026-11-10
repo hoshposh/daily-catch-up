@@ -40,7 +40,7 @@ The unit tests cannot cover `rollover()` or the settings tab, so check changes t
 
 1. Create a new vault, for example `rollover-test`.
 2. Turn on **Core plugins > Daily notes** and keep the default folder and date format.
-3. Disable the original `obsidian-rollover-daily-todos` plugin in that vault if it is installed. This fork uses the id `rollover-daily-todos-lw`, so both can be installed, but you would get a double rollover.
+3. Disable the original `obsidian-rollover-daily-todos` plugin in that vault if it is installed. This plugin uses the id `daily-catch-up`, so both can be installed, but you would get a double rollover.
 
 ### 2. Install your build
 
@@ -50,18 +50,18 @@ The folder name must match the manifest id.
 
 ```bash
 mkdir -p <vault>/.obsidian/plugins
-ln -s "$(pwd)" <vault>/.obsidian/plugins/rollover-daily-todos-lw
+ln -s "$(pwd)" <vault>/.obsidian/plugins/daily-catch-up
 pnpm dev
 ```
 
-Then enable _Rollover Daily Todos (fork)_ under **Settings > Community plugins** (turn Restricted mode off first). After a rebuild, run **Reload app without saving** from the command palette, or toggle the plugin off and on. The plugin's `data.json` is created inside the repository and is git-ignored.
+Then enable _Daily Catch-Up_ under **Settings > Community plugins** (turn Restricted mode off first). After a rebuild, run **Reload app without saving** from the command palette, or toggle the plugin off and on. The plugin's `data.json` is created inside the repository and is git-ignored.
 
 **Copy the files:**
 
 ```bash
 pnpm build
-mkdir -p <vault>/.obsidian/plugins/rollover-daily-todos-lw
-cp main.js manifest.json styles.css <vault>/.obsidian/plugins/rollover-daily-todos-lw/
+mkdir -p <vault>/.obsidian/plugins/daily-catch-up
+cp main.js manifest.json styles.css <vault>/.obsidian/plugins/daily-catch-up/
 ```
 
 Repeat the copy after each change.
@@ -87,7 +87,7 @@ Create yesterday's note, named with yesterday's date (for example `2026-10-21.md
 
 Add a few lines for the edge cases: a `> [!tip]` callout containing `> - [ ] habit`, and a `- notes` line under two different parents.
 
-Let Obsidian create today's note (the **Open today's daily note** command), so the rollover runs on creation. To repeat a test, delete today's note and create it again. You can also run **Rollover Todos Now** on an empty today's note; it ignores the 5-second creation window.
+Let Obsidian create today's note (the **Open today's daily note** command), so the rollover runs on creation. To repeat a test, delete today's note and create it again. You can also run **Roll over todos now** on an empty today's note; it ignores the 5-second creation window.
 
 ### 4. What to check
 

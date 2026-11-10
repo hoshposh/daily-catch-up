@@ -483,7 +483,7 @@ export default class RolloverTodosPlugin extends Plugin {
             // stay undoable as if it were the latest one.
             this.undoHistory = [];
             new Notice(
-              "Rollover left the previous day's note unchanged: today's note was modified by another plugin (likely Templater) after the todos were added, and they may be missing. Run 'Rollover Todos Now' to try again.",
+              "Rollover left the previous day's note unchanged: today's note was modified by another plugin (likely Templater) after the todos were added, and they may be missing. Run 'Roll over todos now' to try again.",
               15000
             );
             return;
@@ -688,8 +688,8 @@ export default class RolloverTodosPlugin extends Plugin {
     );
 
     this.addCommand({
-      id: "obsidian-rollover-daily-todos-rollover",
-      name: "Rollover Todos Now",
+      id: "rollover",
+      name: "Roll over todos now",
       callback: () => {
         this.rollover();
       },
@@ -704,7 +704,7 @@ export default class RolloverTodosPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "obsidian-rollover-daily-todos-undo",
+      id: "undo-rollover",
       name: "Undo last rollover",
       checkCallback: (checking) => {
         // no history, don't allow undo
