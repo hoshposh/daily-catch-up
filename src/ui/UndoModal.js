@@ -30,13 +30,19 @@ export default class UndoModal extends Modal {
     return s
   }
 
+  // Put a note back to its snapshot. vault.process is the recommended
+  // replacement for vault.modify on a note that is open or may be edited.
+  async restore({ file, oldContent }) {
+    await this.plugin.app.vault.process(file, () => oldContent)
+  }
+
   async confirmUndo(undoHistoryInstance) {
     // today's note is not snapshotted when Templater is enabled
     if (undoHistoryInstance.today.file != undefined) {
-      await this.plugin.app.vault.modify(undoHistoryInstance.today.file, undoHistoryInstance.today.oldContent);
+      await this.restore(undoHistoryInstance.today)
     }
     if (undoHistoryInstance.previousDay.file != undefined) {
-      await this.plugin.app.vault.modify(undoHistoryInstance.previousDay.file, undoHistoryInstance.previousDay.oldContent);
+      await this.restore(undoHistoryInstance.previousDay)
     }
     const backlog = undoHistoryInstance.backlog
     if (backlog?.file != undefined) {
@@ -50,7 +56,7 @@ export default class UndoModal extends Modal {
           await vault.trash(backlog.file, true)
         }
       } else {
-        await this.plugin.app.vault.modify(backlog.file, backlog.oldContent)
+        await this.restore(backlog)
       }
     }
     this.plugin.undoHistory = []

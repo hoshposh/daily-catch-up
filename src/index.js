@@ -405,40 +405,45 @@ export default class RolloverTodosPlugin extends Plugin {
       let insertedTodos = [];
 
       if (sections_today.length > 0) {
-        let dailyNoteContent = await this.app.vault.read(file);
-        const originalDailyNoteContent = dailyNoteContent;
-
-        // Optionally leave out todos that today's note already has (compared
-        // against the note as it was before any insertion; they still count
-        // as handled for the previous day's note below), and count this
-        // rollover on each item that is actually inserted.
-        const toInsert = planInsert({
-          sections: sections_today,
-          todayContent: originalDailyNoteContent,
-          settings: {
-            skipExistingTodos,
-            rolloverChildren: this.settings.rolloverChildren,
-            trackRolloverCount: this.settings.trackRolloverCount,
-            doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
-          },
+        // Read, plan and write today's note in one atomic step, so an edit
+        // made in between (by the user, a sync client or another plugin) is
+        // neither lost nor planned against stale content.
+        let originalDailyNoteContent = "";
+        let toInsert;
+        let inserted;
+        await this.app.vault.process(file, (content) => {
+          originalDailyNoteContent = content;
+          // Optionally leave out todos that today's note already has
+          // (compared against the note as it was before any insertion; they
+          // still count as handled for the previous day's note below), and
+          // count this rollover on each item that is actually inserted.
+          toInsert = planInsert({
+            sections: sections_today,
+            todayContent: content,
+            settings: {
+              skipExistingTodos,
+              rolloverChildren: this.settings.rolloverChildren,
+              trackRolloverCount: this.settings.trackRolloverCount,
+              doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
+            },
+          });
+          if (toInsert.sections.length === 0) return content;
+          inserted = insertSections({
+            content,
+            sections: toInsert.sections,
+            templateHeading,
+            leadingNewLine,
+          });
+          return inserted.content;
         });
         const sections_to_insert = toInsert.sections;
         ({ todosAlreadyPresent, duplicateTodos, retainedLineIndices } =
           toInsert);
         todosAdded -= todosAlreadyPresent;
         if (sections_to_insert.length > 0) {
-          const inserted = insertSections({
-            content: dailyNoteContent,
-            sections: sections_to_insert,
-            templateHeading,
-            leadingNewLine,
-          });
-          dailyNoteContent = inserted.content;
           if (inserted.templateHeadingNotFound) {
             templateHeadingNotFoundMessage = `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
           }
-
-          await this.app.vault.modify(file, dailyNoteContent);
 
           insertedTodos = sections_to_insert.flatMap(
             (section) => section.incompleteTodos

@@ -43,7 +43,7 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
   - [x] the notice "RolloverTodosPlugin unable to rollover…" (`src/index.js`), now "Couldn't roll over unfinished todos. Enable Daily Notes, or Periodic Notes with daily notes turned on.";
   - [x] the `rollover-daily-todos:` prefix on console messages, now `Daily Catch-Up:` (also added to the `Intl.Segmenter` fallback error, which had none).
 - [x] **Console output.** Removed the per-rollover `console.log` ("N todos found in …", `src/index.js`). The remaining `console.warn`/`console.error` calls are for real problems only.
-- [ ] **`vault.process` instead of `vault.modify`** for today's note (`src/index.js`) and in undo (`src/ui/UndoModal.js`). This is recommended rather than required, but it is flagged often.
+- [x] **`vault.process` instead of `vault.modify`** for today's note (`src/index.js`) and in undo (`src/ui/UndoModal.js`). This is recommended rather than required, but it is flagged often. Today's note is now read, planned and written in one `vault.process()`; undo restores every note with it. No `vault.modify` is left.
 - [x] **Undo dialog title.** Uses the modal's `titleEl` instead of an `h3`, and a setting heading (`setHeading()`) instead of the `h4` (`src/ui/UndoModal.js`).
 
 ## 4. Docs and repository
