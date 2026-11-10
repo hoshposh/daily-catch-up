@@ -51,13 +51,14 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
 - [ ] README:
   - [x] Replace the "personal fork" banner at the top. Done with an "Origins and status" section. Trim it to a credit line once the plugin is listed.
   - [ ] Replace the install section that says the fork isn't in the community list and points to BRAT. Use normal installation once listed.
-  - [ ] Lead with what's distinct (review, aging, backlog, heading-aware rollover).
+    - Prepared: it names the community list as the way to install once listed, uses the new folder name for manual installs, and has an "Upgrading from Rollover Daily Todos (fork)" section (copy `data.json`, remove the old plugin, re-bind hotkeys). Drop the BRAT and "not yet listed" wording once listed.
+  - [x] Lead with what's distinct (review, aging, backlog, heading-aware rollover).
   - [x] Keep a short credit section for the original plugin and its authors, noting what came from upstream's `release/v1.3.0`. Done in "Origins and status".
-- [ ] `LICENSE`: keep Lukas Mölschl's MIT copyright line and add your own.
-- [ ] `CLAUDE.md`:
-  - [ ] Update the plugin name.
-  - [ ] Keep or retire the "Fork and upstream relationship" section, depending on whether you still plan to cherry-pick from upstream.
-- [ ] Optional: the GitHub repository is still a GitHub fork of upstream.
+- [x] `LICENSE`: keep Lukas Mölschl's MIT copyright line and add your own.
+- [x] `CLAUDE.md`:
+  - [x] Update the plugin name.
+  - [x] Keep or retire the "Fork and upstream relationship" section, depending on whether you still plan to cherry-pick from upstream. Kept and trimmed as "Origins and upstream": cherry-picking from upstream stays possible.
+- [ ] Optional: the GitHub repository is still a GitHub fork of upstream. Left as is for now (2026-11-09); revisit before submitting.
   - Listing doesn't require changing that.
   - For a separate identity, you can ask GitHub to detach the fork, and rename the repo to match the new name. GitHub redirects the old URL.
 

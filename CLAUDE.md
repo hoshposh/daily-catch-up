@@ -20,7 +20,7 @@ pnpm test -- -t "single todo element"
 
 ## Architecture
 
-This is an [Obsidian](https://obsidian.md) plugin. Obsidian plugins must ship as a CommonJS bundle at `main.js` (built by rollup from `src/index.js`). The `obsidian` import is external (provided by Obsidian at runtime).
+This is Daily Catch-Up (plugin id `daily-catch-up`), an [Obsidian](https://obsidian.md) plugin. Obsidian plugins must ship as a CommonJS bundle at `main.js` (built by rollup from `src/index.js`). The `obsidian` import is external (provided by Obsidian at runtime).
 
 **Core files:**
 
@@ -67,14 +67,14 @@ This is an [Obsidian](https://obsidian.md) plugin. Obsidian plugins must ship as
 
 **Testing:** Tests (`pnpm test`) cover the pure modules: `src/get-todos.test.js`, `src/source-action.test.js`, `src/insert-todos.test.js`, `src/insert-sections.test.js`, `src/template-headings.test.js`, and `src/rolled-count.test.js`, `src/rollover-items.test.js`, `src/backlog.test.js`, `src/settings-dependencies.test.js`, `src/settings-text.test.js`, and `src/rollover-flow.test.js` (the Obsidian-free parts of `rollover()` run end to end, through the same `rollover-plan.js` calls as `index.js`). The vault/UI logic in `index.js` and `src/ui/` (including the review dialog) needs Obsidian and has no tests, so keep logic in the pure modules where it can be tested.
 
-## Fork and upstream relationship
+## Origins and upstream
 
-This is a personal fork of `git@github.com:lumoe/obsidian-rollover-daily-todos.git` (the upstream Obsidian community plugin).
+Daily Catch-Up is an independent plugin that started as a fork of `git@github.com:lumoe/obsidian-rollover-daily-todos.git` (Rollover Daily Todos, the upstream Obsidian community plugin). Upstream changes can still be adopted selectively. The GitHub repository is still a fork named `hoshposh/obsidian-rollover-daily-todos`.
 
 **Branching strategy:**
 
-- `main` — primary branch for this fork. Upstream's `master` changes are selectively cherry-picked here.
+- `main` — primary branch. Upstream's `master` changes are selectively cherry-picked here.
 - `master` — tracks the upstream `master` branch (kept in sync to make cherry-picking straightforward).
-- `release/v1.3.0` — upstream's WIP branch with significant behavioral changes that have not been evaluated yet. Do not merge or cherry-pick from this branch until it has been tested. Keep it around for future reference.
+- `release/v1.3.0` — upstream's unreleased branch, kept for reference. The options worth having were already adapted (see `docs/upstream-v1.3.0-triage.md`).
 
-When pulling in upstream changes: fetch from upstream into `master`, then cherry-pick individual commits onto `main`. Avoid bulk-merging `master` → `main` to stay in control of what behavioral changes are adopted.
+When pulling in upstream changes: fetch from upstream into `master`, then cherry-pick individual commits onto `main`. Avoid bulk-merging `master` → `main` to stay in control of what behavioral changes are adopted. Upstream still uses the old plugin id, command ids, command name and console prefix, so adapt those in anything you cherry-pick.

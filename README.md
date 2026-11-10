@@ -1,27 +1,21 @@
-# Rollover Daily Todos
+# Daily Catch-Up
 
 [![Build](https://github.com/hoshposh/obsidian-rollover-daily-todos/actions/workflows/ci.yml/badge.svg)](https://github.com/hoshposh/obsidian-rollover-daily-todos/actions/workflows/ci.yml)
 
-This Obsidian plugin will rollover any incomplete todo items from the previous daily note (could be yesterday, or a week ago) to today. This is triggered automatically when a new daily note is created via the internal `Daily notes` plugin, or the `Periodic Notes` plugin. It can also be run as a command from the Command Palette.
+Catch up on the unfinished todos from your previous daily note, whether that was yesterday or a week ago. Daily Catch-Up rolls them over to today's note and lets you decide what happens to each one:
+
+- **Review before anything moves.** A dialog lists the todos under their headings, and you choose an outcome for each: roll it over to today, park it in a backlog note, cancel it, or leave it where it is.
+- **See what keeps slipping.** An optional counter records how many times each todo has been rolled over, and todos that roll over too often are flagged as stale. Stale todos can open the review, or go straight to the backlog.
+- **A backlog note** for todos that aren't for today, each with a link back to the note it came from.
+- **Heading-aware rollover.** Todos keep the headings they were under, and those headings are recreated in today's note.
+
+The rollover runs automatically when today's daily note is created with the core `Daily notes` plugin or with `Periodic Notes`, and whenever you run one of its commands from the command palette. The last rollover can be undone for 2 minutes.
 
 ![A demo of the plugin working](./demo.gif)
 
-Beyond the basic rollover, this plugin:
-
-- groups todos by their headings and recreates those headings in today's note;
-- lets you review what is about to move and choose an outcome for each todo: roll it, send it to a backlog note, cancel it, or leave it;
-- can count how often a todo has been rolled over, so you notice the ones that never get done.
-
 ## Origins and status
 
-This plugin started as a fork of [Rollover Daily Todos](https://github.com/lumoe/obsidian-rollover-daily-todos), created by Matthew Sessions and maintained by Lukas Mölschl. Thank you to both, and to everyone who contributed to it.
-
-It is being prepared as a separate community plugin under a new name. Its own additions are:
-
-- the heading-aware rollover;
-- the review dialog;
-- rollover counting and stale todos;
-- the backlog note.
+Daily Catch-Up started as a fork of [Rollover Daily Todos](https://github.com/lumoe/obsidian-rollover-daily-todos), created by Matthew Sessions and maintained by Lukas Mölschl. Thank you to both, and to everyone who contributed to it. The basic rollover, the undo command and many of the settings come from that plugin.
 
 Several options were adapted from upstream's unreleased `release/v1.3.0` branch:
 
@@ -31,7 +25,7 @@ Several options were adapted from upstream's unreleased `release/v1.3.0` branch:
 - ignoring todos in callouts and blockquotes;
 - skipping completed children.
 
-Until it is listed in Obsidian's community plugins, install it with BRAT or manually (see [Installation](#installation)).
+Daily Catch-Up is not yet listed in Obsidian's community plugins. Until it is, install it with BRAT or manually (see [Installation](#installation)).
 
 ## Usage
 
@@ -47,7 +41,7 @@ You can also open your command palette (CMD+P on macOS) and start typing `roll` 
 
 **Note:** The standard undo command (CMD+Z on macOS) does not work for rollover operations. Use the dedicated `Undo last rollover` command instead (see below).
 
-### 3. Command: Review and Roll Over Todos…
+### 3. Command: Review and roll over todos…
 
 Run `Review and roll over todos…` to see the todos that are about to move before anything happens. A dialog lists them under the headings they sit in, and you pick an outcome for each one:
 
@@ -68,7 +62,7 @@ Todos sent to the backlog are added to the **Backlog note** with their nested it
 - [ ] Write the quarterly report [from:: [[2026-11-02]]]
 ```
 
-### 4. Command: Undo Last Rollover
+### 4. Command: Undo last rollover
 
 Run `Undo last rollover` from the command palette within **2 minutes** of a rollover to fully reverse it. Only the most recent rollover can be undone.
 
@@ -229,10 +223,18 @@ Used when **Count rollovers** is on (default 5). A todo is stale once it has bee
 
 ## Installation
 
-This plugin is not yet in Obsidian's community plugin list. Searching there for "Rollover Daily Todos" finds the original plugin, not this one. Until it is listed, install it in one of two ways:
+Daily Catch-Up is not yet in Obsidian's community plugin list. Once it is, install it from **Settings → Community plugins → Browse** by searching for "Daily Catch-Up". Until then, install it in one of two ways:
 
 - **BRAT:** open BRAT settings → _Add Beta Plugin_ → enter `hoshposh/obsidian-rollover-daily-todos`.
-- **Manually:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/hoshposh/obsidian-rollover-daily-todos/releases), put them in `<your vault>/.obsidian/plugins/rollover-daily-todos-lw/`, then enable the plugin under _Community plugins_.
+- **Manually:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/hoshposh/obsidian-rollover-daily-todos/releases), put them in `<your vault>/.obsidian/plugins/daily-catch-up/`, then enable the plugin under _Community plugins_.
+
+### Upgrading from Rollover Daily Todos (fork)
+
+Releases up to 1.2.1-preview.5 were called "Rollover Daily Todos (fork)" and used the plugin id `rollover-daily-todos-lw`. Daily Catch-Up uses the id `daily-catch-up`, so Obsidian installs it as a separate plugin, with default settings and no hotkeys. To move over:
+
+1. Copy `data.json` from `<your vault>/.obsidian/plugins/rollover-daily-todos-lw/` to `<your vault>/.obsidian/plugins/daily-catch-up/`, then run **Reload app without saving** so Daily Catch-Up picks up your settings.
+2. Turn off and uninstall "Rollover Daily Todos (fork)" under _Community plugins_, so the rollover doesn't run twice.
+3. Bind your hotkeys again. The command ids changed, so old hotkeys don't carry over.
 
 ## Development
 
