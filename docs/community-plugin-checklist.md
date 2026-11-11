@@ -76,7 +76,7 @@ Plugins are no longer submitted by a PR to `obsidianmd/obsidian-releases`. They 
   - the original author gives explicit written approval, publicly verifiable; or
   - the original author is unreachable and the project hasn't been updated for at least 6 months, and then the original author is contacted and given 30 days to respond publicly.
 
-  In both cases the original author must be credited as a contributor. Upstream is active (Lukas Mölschl pushed `release/v1.3.0` and commented on PR #167 in May 2026), so ask for approval: open an issue on `lumoe/obsidian-rollover-daily-todos`. A draft request leads with the review dialog, aging and the backlog note. Upstream's `release/v1.3.0` now has a section-aware rollover too (from tyrannikal's PR #167), so heading-aware rollover is no longer a clear differentiator to cite.
+  In both cases the original author must be credited as a contributor. Upstream is active (Lukas Mölschl pushed `release/v1.3.0` and commented on PR #167 in May 2026), so ask for approval. Asked on 2026-11-10 in [lumoe/obsidian-rollover-daily-todos#178](https://github.com/lumoe/obsidian-rollover-daily-todos/issues/178), framed as a different approach (review before rolling over) built on Rollover Daily Todos. Upstream's `release/v1.3.0` now has a section-aware rollover too (from tyrannikal's PR #167), so heading-aware rollover is no longer a clear differentiator to cite.
 
   - If approval is refused or never comes: keep distributing through BRAT and GitHub releases, or start a fresh repository with no upstream code, which the policy allows.
 
