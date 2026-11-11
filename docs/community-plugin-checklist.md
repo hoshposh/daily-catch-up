@@ -20,9 +20,9 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
 
 ## 2. Release metadata
 
-- [ ] `manifest.json`:
+- [x] `manifest.json`:
   - [x] `name` and `id` from section 1.
-  - [ ] `version` as plain `x.y.z`, e.g. `1.3.0`. Pre-release suffixes like `1.2.1-preview.4` aren't accepted. `1.3.0-preview.1` goes out first through BRAT to try the new id on a real install and the release workflow; then set `1.3.0` for the community release. The preview was published on 2026-11-09 and tested through BRAT on 2026-11-10.
+  - [x] `version` as plain `x.y.z`, e.g. `1.3.0`. Pre-release suffixes like `1.2.1-preview.4` aren't accepted. `1.3.0-preview.1` goes out first through BRAT to try the new id on a real install and the release workflow; then set `1.3.0` for the community release. The preview was published on 2026-11-09 and tested through BRAT on 2026-11-10.
   - [x] `description`: one sentence starting with a verb, under 250 characters, ending with a period. No "This Obsidian.md plugin", no URL, no credit line (credit goes in the README).
 - [x] `package.json` `name` and `description` to match.
 - [x] `versions.json`: add the new version mapped to the current `minAppVersion` (`1.1.0`). Added `"1.3.0": "1.1.0"`.
