@@ -69,7 +69,7 @@ This is Daily Catch-Up (plugin id `daily-catch-up`), an [Obsidian](https://obsid
 
 ## Origins and upstream
 
-Daily Catch-Up is an independent plugin that started as a fork of `git@github.com:lumoe/obsidian-rollover-daily-todos.git` (Rollover Daily Todos, the upstream Obsidian community plugin). Upstream changes can still be adopted selectively. The GitHub repository is still a fork named `hoshposh/obsidian-rollover-daily-todos`.
+Daily Catch-Up is an independent plugin that started as a fork of `git@github.com:lumoe/obsidian-rollover-daily-todos.git` (Rollover Daily Todos, the upstream Obsidian community plugin). Upstream changes can still be adopted selectively. The GitHub repository is `hoshposh/daily-catch-up` (renamed from `hoshposh/obsidian-rollover-daily-todos` on 2026-11-10; GitHub redirects the old URL). It is still a GitHub fork of upstream.
 
 **Branching strategy:**
 

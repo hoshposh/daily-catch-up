@@ -1,6 +1,6 @@
 # Daily Catch-Up
 
-[![Build](https://github.com/hoshposh/obsidian-rollover-daily-todos/actions/workflows/ci.yml/badge.svg)](https://github.com/hoshposh/obsidian-rollover-daily-todos/actions/workflows/ci.yml)
+[![Build](https://github.com/hoshposh/daily-catch-up/actions/workflows/ci.yml/badge.svg)](https://github.com/hoshposh/daily-catch-up/actions/workflows/ci.yml)
 
 Catch up on the unfinished todos from your previous daily note, whether that was yesterday or a week ago. Daily Catch-Up rolls them over to today's note and lets you decide what happens to each one:
 
@@ -225,8 +225,8 @@ Used when **Count rollovers** is on (default 5). A todo is stale once it has bee
 
 Daily Catch-Up is not yet in Obsidian's community plugin list. Once it is, install it from **Settings → Community plugins → Browse** by searching for "Daily Catch-Up". Until then, install it in one of two ways:
 
-- **BRAT:** open BRAT settings → _Add Beta Plugin_ → enter `hoshposh/obsidian-rollover-daily-todos`.
-- **Manually:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/hoshposh/obsidian-rollover-daily-todos/releases), put them in `<your vault>/.obsidian/plugins/daily-catch-up/`, then enable the plugin under _Community plugins_.
+- **BRAT:** open BRAT settings → _Add Beta Plugin_ → enter `hoshposh/daily-catch-up`.
+- **Manually:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/hoshposh/daily-catch-up/releases), put them in `<your vault>/.obsidian/plugins/daily-catch-up/`, then enable the plugin under _Community plugins_.
 
 ### Upgrading from Rollover Daily Todos (fork)
 
@@ -277,4 +277,4 @@ git tag -d 1.3.0
 git push origin --delete 1.3.0
 ```
 
-To try a preview, install it with BRAT: open BRAT settings → _Add Beta Plugin_ → enter `hoshposh/obsidian-rollover-daily-todos`. BRAT picks up later releases automatically.
+To try a preview, install it with BRAT: open BRAT settings → _Add Beta Plugin_ → enter `hoshposh/daily-catch-up`. BRAT picks up later releases automatically.

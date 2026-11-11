@@ -58,9 +58,9 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
 - [x] `CLAUDE.md`:
   - [x] Update the plugin name.
   - [x] Keep or retire the "Fork and upstream relationship" section, depending on whether you still plan to cherry-pick from upstream. Kept and trimmed as "Origins and upstream": cherry-picking from upstream stays possible.
-- [ ] Optional: the GitHub repository is still a GitHub fork of upstream. Left as is for now (2026-11-09); revisit before submitting.
-  - Listing doesn't require changing that.
-  - For a separate identity, you can ask GitHub to detach the fork, and rename the repo to match the new name. GitHub redirects the old URL.
+- [ ] Optional: the GitHub repository is still a GitHub fork of upstream.
+  - [x] Renamed to `hoshposh/daily-catch-up` on 2026-11-10. GitHub redirects the old URL; never create a new `obsidian-rollover-daily-todos` repo on this account, or the redirect breaks.
+  - [ ] Detaching the fork needs GitHub support. It doesn't change the fork policy question in section 6, which is about inherited code.
 
 ## 5. Optional cleanup before submitting
 
@@ -68,9 +68,20 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
 
 ## 6. Submit
 
-- [ ] Publish the first community release (section 2).
-- [ ] Open a PR to [`obsidianmd/obsidian-releases`](https://github.com/obsidianmd/obsidian-releases) adding the plugin to `community-plugins.json`:
-  - `id`, `name`, `author` and `description` match `manifest.json` exactly;
-  - `repo` is `owner/repo`.
-- [ ] In the PR description, add a short "How this differs from Rollover Daily Todos" section: review, aging, backlog, heading-aware rollover. Credit upstream for the features that came from it.
-- [ ] Respond to the automated validation and the human review. This can take weeks.
+Plugins are no longer submitted by a PR to `obsidianmd/obsidian-releases`. They go through the [Obsidian Community directory](https://community.obsidian.md) (checked 2026-11-10 against the developer docs, `en/Community directory/` in [`obsidianmd/obsidian-developer-docs`](https://github.com/obsidianmd/obsidian-developer-docs)).
+
+- [x] Publish the first community release (section 2). `1.3.0`, published 2026-11-10.
+- [ ] **Blocker: approval to list a fork.** The [developer policies](https://github.com/obsidianmd/obsidian-developer-docs/blob/main/en/Community%20directory/Developer%20policies.md#forks) don't allow forks in the directory unless:
+
+  - the original author gives explicit written approval, publicly verifiable; or
+  - the original author is unreachable and the project hasn't been updated for at least 6 months, and then the original author is contacted and given 30 days to respond publicly.
+
+  In both cases the original author must be credited as a contributor. Upstream is active (Lukas Mölschl pushed `release/v1.3.0` and commented on PR #167 in May 2026), so ask for approval: open an issue on `lumoe/obsidian-rollover-daily-todos`. A draft request leads with the review dialog, aging and the backlog note. Upstream's `release/v1.3.0` now has a section-aware rollover too (from tyrannikal's PR #167), so heading-aware rollover is no longer a clear differentiator to cite.
+
+  - If approval is refused or never comes: keep distributing through BRAT and GitHub releases, or start a fresh repository with no upstream code, which the policy allows.
+
+- [ ] Sign in at community.obsidian.md with an Obsidian account, and connect GitHub under **Profile** (read-only access, used to verify you own the repository).
+- [ ] Optional: run Obsidian's [ESLint plugin](https://github.com/obsidianmd/eslint-plugin) locally first. It runs the same kind of checks as the automated review.
+- [ ] **Plugins → New plugin**: the form asks for the GitHub repository URL and the owner (yourself or an organization). Agree to the developer policies and to keep supporting the plugin, then submit. There is no free-text field for how it differs; the directory reads `manifest.json` and the README from the default branch.
+- [ ] Respond to the automated review (sections **Manifest**, **Releases**, **Source code**, **Build verification**; each check is an error, warning, recommendation or pass). Fixes need a new release with a higher version. The plugin can't be installed from Obsidian until every error is resolved. The scanner builds with the `build` script.
+- [ ] Optional: under **Profile**, turn on **Action required notifications** to get an email when a check fails later.

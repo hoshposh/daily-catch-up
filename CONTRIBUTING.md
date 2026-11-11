@@ -1,6 +1,6 @@
 # Contributing
 
-This is a personal fork of [lumoe/obsidian-rollover-daily-todos](https://github.com/lumoe/obsidian-rollover-daily-todos). Changes are welcome as issues and pull requests on [hoshposh/obsidian-rollover-daily-todos](https://github.com/hoshposh/obsidian-rollover-daily-todos).
+Daily Catch-Up started as a fork of [lumoe/obsidian-rollover-daily-todos](https://github.com/lumoe/obsidian-rollover-daily-todos). Changes are welcome as issues and pull requests on [hoshposh/daily-catch-up](https://github.com/hoshposh/daily-catch-up).
 
 ## Setup
 
