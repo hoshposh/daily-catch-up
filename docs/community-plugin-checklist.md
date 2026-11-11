@@ -16,13 +16,13 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
   - Changing it moves where Obsidian keeps the plugin's settings (`.obsidian/plugins/<id>/data.json`), and it resets hotkeys, which Obsidian stores as `<plugin id>:<command id>`.
     - [ ] Copy `data.json` into the new folder in each vault you use, and enable the plugin again there.
     - [x] Rename the test vault's symlinked plugin folder, and update the plugin path in the local `/setup-test-fixture` script.
-    - [ ] Vaults that installed a preview through BRAT: the first release with the new id installs as a second plugin next to the old one. Remove the old one after copying its `data.json`.
+    - [x] Vaults that installed a preview through BRAT: the first release with the new id installs as a second plugin next to the old one. Remove the old one after copying its `data.json`. Confirmed with `1.3.0-preview.1` on 2026-11-10: BRAT installed Daily Catch-Up next to Rollover Daily Todos (fork), both listed; copying `data.json` and disabling the old one worked.
 
 ## 2. Release metadata
 
 - [ ] `manifest.json`:
   - [x] `name` and `id` from section 1.
-  - [ ] `version` as plain `x.y.z`, e.g. `1.3.0`. Pre-release suffixes like `1.2.1-preview.4` aren't accepted. `1.3.0-preview.1` goes out first through BRAT to try the new id on a real install and the release workflow; then set `1.3.0` for the community release.
+  - [ ] `version` as plain `x.y.z`, e.g. `1.3.0`. Pre-release suffixes like `1.2.1-preview.4` aren't accepted. `1.3.0-preview.1` goes out first through BRAT to try the new id on a real install and the release workflow; then set `1.3.0` for the community release. The preview was published on 2026-11-09 and tested through BRAT on 2026-11-10.
   - [x] `description`: one sentence starting with a verb, under 250 characters, ending with a period. No "This Obsidian.md plugin", no URL, no credit line (credit goes in the README).
 - [x] `package.json` `name` and `description` to match.
 - [x] `versions.json`: add the new version mapped to the current `minAppVersion` (`1.1.0`). Added `"1.3.0": "1.1.0"`.
@@ -30,7 +30,7 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
   - A normal GitHub release, not a pre-release.
   - Its tag equals the manifest version exactly, with no `v`.
   - Assets are `main.js`, `manifest.json` and `styles.css`.
-  - Done: `.github/workflows/release.yml` runs on a pushed tag, checks the tag against `manifest.json`, `package.json` and (for `x.y.z`) `versions.json`, runs the tests, builds, and creates a draft release with the three assets. A tag with a suffix becomes a pre-release, so it also serves BRAT previews. Publishing the draft stays manual. Not yet run on GitHub.
+  - Done: `.github/workflows/release.yml` runs on a pushed tag, checks the tag against `manifest.json`, `package.json` and (for `x.y.z`) `versions.json`, runs the tests, builds, and creates a draft release with the three assets. A tag with a suffix becomes a pre-release, so it also serves BRAT previews. Publishing the draft stays manual. First run: `1.3.0-preview.1`, 2026-11-09, succeeded.
 - [x] Update the README's "Releasing a new version" section. It now covers community releases and BRAT previews through the workflow.
 
 ## 3. Code that community review checks

@@ -230,7 +230,7 @@ Daily Catch-Up is not yet in Obsidian's community plugin list. Once it is, insta
 
 ### Upgrading from Rollover Daily Todos (fork)
 
-Releases up to 1.2.1-preview.5 were called "Rollover Daily Todos (fork)" and used the plugin id `rollover-daily-todos-lw`. Daily Catch-Up uses the id `daily-catch-up`, so Obsidian installs it as a separate plugin, with default settings and no hotkeys. To move over:
+Releases up to 1.2.1-preview.5 were called "Rollover Daily Todos (fork)" and used the plugin id `rollover-daily-todos-lw`. Daily Catch-Up uses the id `daily-catch-up`, so it is installed as a separate plugin next to the old one, BRAT updates included, with default settings and no hotkeys. Both are listed under _Community plugins_ until you remove the old one. To move over:
 
 1. Copy `data.json` from `<your vault>/.obsidian/plugins/rollover-daily-todos-lw/` to `<your vault>/.obsidian/plugins/daily-catch-up/`, then run **Reload app without saving** so Daily Catch-Up picks up your settings.
 2. Turn off and uninstall "Rollover Daily Todos (fork)" under _Community plugins_, so the rollover doesn't run twice.
