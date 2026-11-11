@@ -131,7 +131,7 @@ export default class RolloverTodosPlugin extends Plugin {
       path = path.substring(0, path.length - file.extension.length - 1);
     }
 
-    return moment(path, format);
+    return window.moment(path, format);
   }
 
   isTemplaterEnabled() {
@@ -139,7 +139,7 @@ export default class RolloverTodosPlugin extends Plugin {
   }
 
   async waitForSettle(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   getCleanFolder(folder) {
@@ -681,10 +681,10 @@ export default class RolloverTodosPlugin extends Plugin {
     this.addSettingTab(new RolloverSettingTab(this.app, this));
 
     this.registerEvent(
-      this.app.vault.on("create", async (file) => {
+      this.app.vault.on("create", (file) => {
         // Check if automatic daily note creation is enabled
         if (!this.settings.rolloverOnFileCreate) return;
-        this.rollover(file);
+        void this.rollover(file);
       })
     );
 
@@ -692,7 +692,7 @@ export default class RolloverTodosPlugin extends Plugin {
       id: "rollover",
       name: "Roll over todos now",
       callback: () => {
-        this.rollover();
+        void this.rollover();
       },
     });
 
@@ -700,7 +700,7 @@ export default class RolloverTodosPlugin extends Plugin {
       id: "review-and-rollover",
       name: "Review and roll over todos…",
       callback: () => {
-        this.rollover(undefined, { review: true });
+        void this.rollover(undefined, { review: true });
       },
     });
 

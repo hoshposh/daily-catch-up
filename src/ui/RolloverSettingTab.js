@@ -161,7 +161,13 @@ export default class RolloverSettingTab extends PluginSettingTab {
     return setting;
   }
 
-  async display() {
+  // Obsidian calls display() without awaiting it, so the async work runs in
+  // render().
+  display() {
+    void this.render();
+  }
+
+  async render() {
     const templateHeadings = await this.getTemplateHeadings();
     const settings = this.plugin.settings;
 

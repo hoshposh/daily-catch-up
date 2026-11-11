@@ -117,8 +117,6 @@ class TodoParser {
     const contentChars = this.#checkboxChars(s);
     if (!contentChars) return false;
 
-    const singleChar = contentChars[0];
-
     // Exclude grapheme modifiers that are not valid as standalone content
     const graphemeModifiers = ['\u202E', '\u200B', '\u200C', '\u200D'];
     const hasGraphemeModifier = contentChars.some((char) =>
