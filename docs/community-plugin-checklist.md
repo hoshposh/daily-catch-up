@@ -80,8 +80,8 @@ Plugins are no longer submitted by a PR to `obsidianmd/obsidian-releases`. They 
 
   - If approval is refused or never comes: keep distributing through BRAT and GitHub releases, or start a fresh repository with no upstream code, which the policy allows.
 
-- [ ] Sign in at community.obsidian.md with an Obsidian account, and connect GitHub under **Profile** (read-only access, used to verify you own the repository).
-- [ ] Optional: run Obsidian's [ESLint plugin](https://github.com/obsidianmd/eslint-plugin) locally first. It runs the same kind of checks as the automated review.
+- [x] Sign in at community.obsidian.md with an Obsidian account, and connect GitHub under **Profile** (read-only access, used to verify you own the repository). Done 2026-11-10.
+- [x] Optional: run Obsidian's [ESLint plugin](https://github.com/obsidianmd/eslint-plugin) locally first. It runs the same kind of checks as the automated review. Done 2026-11-10: no errors; the fixes shipped in `1.3.1`. One warning is left on purpose: no `getSettingDefinitions()`, so the settings are not in Obsidian's settings search on 1.13 and later.
 - [ ] **Plugins → New plugin**: the form asks for the GitHub repository URL and the owner (yourself or an organization). Agree to the developer policies and to keep supporting the plugin, then submit. There is no free-text field for how it differs; the directory reads `manifest.json` and the README from the default branch.
 - [ ] Respond to the automated review (sections **Manifest**, **Releases**, **Source code**, **Build verification**; each check is an error, warning, recommendation or pass). Fixes need a new release with a higher version. The plugin can't be installed from Obsidian until every error is resolved. The scanner builds with the `build` script.
 - [ ] Optional: under **Profile**, turn on **Action required notifications** to get an email when a check fails later.
