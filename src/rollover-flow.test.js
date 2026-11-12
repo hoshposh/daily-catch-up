@@ -616,3 +616,31 @@ describe("reviewed rollover with empty todos dropped", () => {
     expect(r.yesterday).toBe("");
   });
 });
+
+// A note the Journals plugin already rolled from: its rolled todos carry #rolled
+describe("todos Journals already rolled", () => {
+  const yesterday = [
+    "## Action items",
+    "",
+    "- [ ] Send the agenda #rolled",
+    "  - [ ] attach last week's notes",
+    "- [ ] Book the review",
+    "",
+    "## Rolled only",
+    "",
+    "- [ ] Renew badge #rolled",
+  ].join("\n");
+
+  test("delete: only the open todo rolls, the #rolled lines stay in yesterday's note", () => {
+    const result = rollover({ yesterday, action: "delete" });
+    expect(result.today).toBe(["## Action items", "", "- [ ] Book the review", ""].join("\n"));
+    expect(result.yesterday).toBe(yesterday.replace("- [ ] Book the review\n", ""));
+  });
+
+  test("mark: the #rolled lines are not marked", () => {
+    const result = rollover({ yesterday, action: "mark" });
+    expect(result.yesterday).toBe(
+      yesterday.replace("- [ ] Book the review", "- [>] Book the review")
+    );
+  });
+});

@@ -1206,3 +1206,117 @@ test("insertUnderHeading with headingLineIndex uses that line when the heading o
     "## A\n- [ ] x\n\n## A\n- [ ] b\n"
   );
 });
+
+// Journals' own rollover tags the todos it rolled with `#rolled`; those are
+// not open work any more, so they never roll again
+test("a todo tagged #rolled is not rolled over", () => {
+  const lines = ["- [ ] Call the bank #rolled", "- [ ] Book flights"];
+  expect(getTodosAndSkipped({ lines })).toStrictEqual({
+    todos: ["- [ ] Book flights"],
+    todoIndices: [1],
+    skippedIndices: [],
+  });
+});
+
+test("#rolled is matched ignoring case, and before punctuation or a block id", () => {
+  const lines = [
+    "- [ ] a #Rolled",
+    "- [ ] b #rolled.",
+    "- [ ] c #rolled ^abc123",
+    "* [/] d #rolled",
+    "\t- [ ] e #ROLLED",
+  ];
+  expect(getTodos({ lines })).toStrictEqual([]);
+});
+
+test("only the whole #rolled tag counts", () => {
+  const lines = [
+    "- [ ] a #rolledback",
+    "- [ ] b #rolled-over",
+    "- [ ] c #rolled/sub",
+    "- [ ] d x#rolled",
+    "- [ ] e `#rolled`",
+    "- [ ] f ``code `#rolled` here``",
+    "- [ ] g rolled",
+  ];
+  expect(getTodos({ lines })).toStrictEqual(lines);
+});
+
+test("a #rolled line that is not a checkbox is ignored as before", () => {
+  const lines = ["- note #rolled", "    - [ ] child"];
+  expect(getTodos({ lines })).toStrictEqual(["    - [ ] child"]);
+});
+
+test("open todos nested under a #rolled todo do not roll, without children", () => {
+  const lines = [
+    "- [ ] parent #rolled",
+    "    - [ ] child",
+    "        - [ ] grandchild",
+    "- [ ] next",
+  ];
+  expect(getTodosAndSkipped({ lines })).toStrictEqual({
+    todos: ["- [ ] next"],
+    todoIndices: [3],
+    skippedIndices: [],
+  });
+});
+
+test("open todos nested under a #rolled todo do not roll, with children", () => {
+  const lines = [
+    "- [ ] parent #rolled",
+    "    - [ ] child",
+    "    - a note",
+    "- [ ] next",
+    "    - [ ] next child",
+  ];
+  expect(
+    getTodosAndSkipped({ lines, withChildren: true, skipCompletedChildren: true })
+  ).toStrictEqual({
+    todos: ["- [ ] next", "    - [ ] next child"],
+    todoIndices: [3, 4],
+    skippedIndices: [],
+  });
+});
+
+test("a completed todo tagged #rolled also keeps its nested todos from rolling", () => {
+  const lines = ["- [x] done #rolled", "    - [ ] child"];
+  expect(getTodos({ lines })).toStrictEqual([]);
+});
+
+test("a #rolled child of an open todo comes along with its parent", () => {
+  const lines = ["- [ ] parent", "    - [ ] child #rolled"];
+  expect(getTodos({ lines, withChildren: true })).toStrictEqual(lines);
+  expect(getTodos({ lines })).toStrictEqual(["- [ ] parent"]);
+});
+
+test("getSections gives no section for a heading whose only todos are #rolled", () => {
+  const lines = ["## Done here", "- [ ] a #rolled", "## Open", "- [ ] b"];
+  expect(getSections({ lines })).toStrictEqual([
+    { headingPath: ["## Open"], incompleteTodos: ["- [ ] b"], incompleteLineIndices: [3] },
+  ]);
+});
+
+test("every todo nested under a #rolled todo stays, not only the first", () => {
+  const lines = [
+    "- [ ] parent #rolled",
+    "    - [ ] first child",
+    "    - [ ] second child",
+    "- [ ] next",
+  ];
+  expect(getTodos({ lines })).toStrictEqual(["- [ ] next"]);
+});
+
+test("a todo nested under a #rolled todo after a blank line stays too", () => {
+  const lines = [
+    "- [ ] parent #rolled",
+    "",
+    "    - [ ] child",
+    "",
+    "- [ ] next",
+  ];
+  expect(getTodosAndSkipped({ lines })).toStrictEqual({
+    todos: ["- [ ] next"],
+    todoIndices: [4],
+    skippedIndices: [],
+  });
+});

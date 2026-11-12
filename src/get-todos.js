@@ -16,6 +16,25 @@ export const splitGraphemes = (text) =>
     ? Array.from(graphemeSegmenter.segment(text), (s) => s.segment)
     : Array.from(text);
 
+// The tag the Journals plugin's own rollover puts on a todo it rolled. Such a
+// todo, and everything nested under it, is no longer open work.
+export const ROLLED_MARKER = "#rolled";
+
+// Characters that end a tag, as in Obsidian's tag tokenizer (the same set
+// Journals uses). Letters, digits, "_", "-" and "/" carry on the tag, so
+// "#rolled-over" and "#rolled/sub" are other tags.
+const TAG_END = String.raw`[ -⁯⸀-⹿'!"#$%&()*+,.:;<=>?@^\x60{|}~[\]\\\s]`;
+const rolledMarkerRegex = new RegExp(
+  `(?:^|\\s)${ROLLED_MARKER}(?=$|${TAG_END})`,
+  "iu"
+);
+
+// Returns true if `line` carries the rolled marker as a whole tag, ignoring
+// case. Text in inline code is not a tag. A simplified version of Obsidian's
+// tag rules: a tag right after emphasis (`**#rolled**`) is not recognised.
+export const hasRolledMarker = (line) =>
+  rolledMarkerRegex.test(line.replace(/(`+)[\s\S]*?[^`]\1(?!`)/g, " "));
+
 class TodoParser {
   // Support all unordered list bullet symbols as per spec (https://daringfireball.net/projects/markdown/syntax#list)
   bulletSymbols = ["-", "*", "+"];
@@ -213,6 +232,21 @@ class TodoParser {
     this.#skippedIndices = [];
     for (let l = 0; l < this.#lines.length; l++) {
       const line = this.#lines[l];
+      if (
+        !this.#fenced[l] &&
+        this.#checkboxChars(line) &&
+        hasRolledMarker(line)
+      ) {
+        // Already rolled by Journals: neither it nor anything nested under it
+        // rolls, including nested items after a blank line
+        const head = l;
+        for (let next = l + 1; next < this.#lines.length; next++) {
+          if (this.#lines[next].trim() === "") continue;
+          if (!this.#isChildOf(head, next)) break;
+          l = next;
+        }
+        continue;
+      }
       if (!this.#fenced[l] && this.#isTodo(line)) {
         todos.push(line);
         this.#todoIndices.push(l);

@@ -132,6 +132,8 @@ Off by default. When on, a todo is not rolled over if today's note already conta
 
 A todo is a list item (`-`, `*` or `+`) with a checkbox at the start of the line, optionally indented or inside a blockquote. The checkbox holds exactly one character, and it is open unless that character is one of the **Done status markers**, so `- [/]` is rolled over unless you add `/` there. Lines where something else comes before the bullet, such as `1. - [ ] task`, are not treated as todos, and neither is anything inside a fenced code block (` ``` ` or `~~~`), including a block that is never closed. A code block nested under a todo still rolls over with that todo when child items are included.
 
+A todo tagged `#rolled` is not rolled over, and neither is anything nested under it. That is the tag the [Journals](https://github.com/srg-kostyrko/obsidian-journal) plugin puts on a todo its own rollover has already carried forward. Only the whole tag counts, in any case: `#rolled-over`, `#rolled/later` and `` `#rolled` `` in inline code are not it. If you use Journals for your daily notes, let only one of the two plugins roll over each folder: Journals doesn't recognise the todos Daily Catch-Up rolled, so it would roll them again.
+
 ### Where they go in today's note
 
 #### Template heading

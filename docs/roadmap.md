@@ -64,4 +64,8 @@ What Daily Catch-Up does that Journals' rollover does not, as candidates to cont
 - A rollover counter on each task, and stale flags once it reaches a limit.
 - A backlog note for parked or stale tasks, with a link back to the source note.
 
-Known overlap: Daily Catch-Up does not recognise Journals' `#rolled` marker, so if both plugins ever handled the same notes it would read `- [ ] task #rolled` as open and roll it again. Not handled, because Daily Catch-Up does not read journal notes.
+Overlap when a Journals daily journal and Daily Catch-Up use the same folder:
+
+- Daily Catch-Up skips todos tagged `#rolled` (Journals' default marker), and everything nested under them, so it does not roll again what Journals rolled. The marker is fixed. If Journals support or official recognition is ever added, surface it as a setting, or read Journals' configured marker through its API (the API does not expose it as of 3.6.0).
+- The other direction is not handled: Journals does not recognise the todos Daily Catch-Up rolled (with the default source action they stay open, and `[rolled:: n]` stops Journals' duplicate check from matching them), so it would roll them again. The README says to let only one plugin roll over each folder.
+- Not built: a warning when a Journals daily journal and core Daily notes write to the same folder. Journals' API does not give a journal's folder.
