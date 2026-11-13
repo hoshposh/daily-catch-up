@@ -23,7 +23,7 @@ export const ROLLED_MARKER = "#rolled";
 // Characters that end a tag, as in Obsidian's tag tokenizer (the same set
 // Journals uses). Letters, digits, "_", "-" and "/" carry on the tag, so
 // "#rolled-over" and "#rolled/sub" are other tags.
-const TAG_END = String.raw`[ -⁯⸀-⹿'!"#$%&()*+,.:;<=>?@^\x60{|}~[\]\\\s]`;
+export const TAG_END = String.raw`[ -⁯⸀-⹿'!"#$%&()*+,.:;<=>?@^\x60{|}~[\]\\\s]`;
 const rolledMarkerRegex = new RegExp(
   `(?:^|\\s)${ROLLED_MARKER}(?=$|${TAG_END})`,
   "iu"

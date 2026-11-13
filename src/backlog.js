@@ -28,7 +28,7 @@ export function backlogLines(items, sourceNoteName) {
 // Anything that is not already a Markdown heading (`#` to `######` and a
 // space) becomes a level 2 heading, so "Someday" and a tag like "#someday"
 // both work
-function normalizeHeading(heading) {
+export function normalizeHeading(heading) {
   const trimmed = heading.trim();
   return /^#{1,6}\s/.test(trimmed) ? trimmed : `## ${trimmed}`;
 }
