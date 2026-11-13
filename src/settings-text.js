@@ -55,6 +55,16 @@ export const SETTING_GROUPS = [
       "A todo is stale once its count reaches Stale after. Stale todos get a badge in the review, can open the review on their own, and can go straight to the backlog when no review is shown.",
     ],
   },
+  {
+    id: "rules",
+    title: "Rules",
+    help: [
+      "A rule looks at each open todo: a **Tag** on the todo's own line (#someday also matches #someday/later; @errands works too), a **Heading** anywhere above it, at any level, or a **Regex** tested on its text after the checkbox.",
+      "**Roll**, **Backlog**, **Cancel** and **Leave** pick the todo's default outcome; the review can still change it. **Not a todo** leaves the line, and everything nested under it, out of the rollover entirely. **No stale count** keeps its [rolled:: n] counter as it is, so it never turns stale. **Move to heading** puts it under another heading in today's note, created at the end when missing.",
+      "Rules are tried top to bottom, and the first match of each kind wins: one outcome, one move, one stale exemption. To make an exception, put it higher: Action items → Roll above Meetings → Leave rolls the action items under a Meetings heading.",
+      "The example rules start switched off. Turn on the ones that fit your notes.",
+    ],
+  },
 ];
 
 export const SETTING_LABELS = {

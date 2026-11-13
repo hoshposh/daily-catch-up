@@ -72,3 +72,26 @@
 .rollover-settings-help p {
   margin-block: var(--size-4-1);
 }
+
+/* Rules group: rows wrap at phone width instead of scrolling */
+.rollover-rules .rollover-rule-row {
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.rollover-rules .rollover-rule-row .setting-item-info {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rollover-rules .rollover-rule-row .setting-item-description {
+  color: var(--text-warning);
+}
+
+/* Rule dialog (src/ui/RuleModal.js) */
+.rollover-rule-problem {
+  padding-block: var(--size-4-1);
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+}

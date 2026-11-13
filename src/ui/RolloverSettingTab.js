@@ -13,6 +13,8 @@ import {
   helpSegments,
 } from "../settings-text";
 import { getDailyNoteSettings } from "obsidian-daily-notes-interface";
+import { newRuleId, ruleNote, ruleSummary } from "../rules";
+import RuleModal from "./RuleModal";
 
 const GROUP = Object.fromEntries(SETTING_GROUPS.map((g) => [g.id, g]));
 
@@ -23,6 +25,10 @@ export default class RolloverSettingTab extends PluginSettingTab {
     // key -> { setting, component } for each of DEPENDENT_SETTINGS
     this.dependents = {};
     this.cancelMarkerSetting = null;
+    // the Rules group's own container, re-rendered alone when the list changes
+    this.rulesEl = null;
+    // [{ rule, setting }] for each row, so notes can be refreshed in place
+    this.ruleRows = [];
   }
 
   // Never throws: a broken template path or an unreadable daily-notes config
@@ -302,7 +308,125 @@ export default class RolloverSettingTab extends PluginSettingTab {
       settings.staleBehavior || "keep"
     );
 
+    // Rules
+    this.addGroup(GROUP.rules);
+    this.rulesEl = this.containerEl.createDiv({ cls: "rollover-rules" });
+    this.renderRules();
+
     this.refreshDependents();
+  }
+
+  rules() {
+    if (!Array.isArray(this.plugin.settings.rules)) {
+      this.plugin.settings.rules = [];
+    }
+    return this.plugin.settings.rules;
+  }
+
+  // Saves a change to the rule list and redraws only the Rules group
+  saveRules() {
+    this.plugin.saveSettings();
+    this.renderRules();
+  }
+
+  async editRule(rule, title) {
+    return new RuleModal(this.app, { rule, title }).openAndWait();
+  }
+
+  // One row per rule (switch, summary, note, edit / up / down / delete), then
+  // Add rule. Rebuilds only this.rulesEl, so the page does not jump.
+  renderRules() {
+    const el = this.rulesEl;
+    if (!el) return;
+    el.empty();
+    this.ruleRows = [];
+    const rules = this.rules();
+
+    rules.forEach((rule, index) => {
+      const setting = new Setting(el).setName(ruleSummary(rule));
+      setting.settingEl.addClass("rollover-rule-row");
+      setting
+        .addToggle((toggle) =>
+          toggle
+            .setTooltip("Use this rule")
+            .setValue(Boolean(rule?.enabled))
+            .onChange((value) => {
+              rule.enabled = value;
+              this.plugin.saveSettings();
+            })
+        )
+        .addExtraButton((button) =>
+          button
+            .setIcon("pencil")
+            .setTooltip("Edit")
+            .onClick(async () => {
+              const edited = await this.editRule(rule, "Edit rule");
+              if (!edited) return;
+              rules[index] = edited;
+              this.saveRules();
+            })
+        )
+        .addExtraButton((button) =>
+          button
+            .setIcon("arrow-up")
+            .setTooltip("Move up")
+            .setDisabled(index === 0)
+            .onClick(() => {
+              if (index === 0) return;
+              [rules[index - 1], rules[index]] = [rules[index], rules[index - 1]];
+              this.saveRules();
+            })
+        )
+        .addExtraButton((button) =>
+          button
+            .setIcon("arrow-down")
+            .setTooltip("Move down")
+            .setDisabled(index === rules.length - 1)
+            .onClick(() => {
+              if (index === rules.length - 1) return;
+              [rules[index], rules[index + 1]] = [rules[index + 1], rules[index]];
+              this.saveRules();
+            })
+        )
+        .addExtraButton((button) =>
+          button
+            .setIcon("trash-2")
+            .setTooltip("Delete")
+            .onClick(() => {
+              rules.splice(index, 1);
+              this.saveRules();
+            })
+        );
+      this.ruleRows.push({ rule, setting });
+    });
+
+    new Setting(el).addButton((button) =>
+      button.setButtonText("Add rule").onClick(async () => {
+        const added = await this.editRule(
+          {
+            id: newRuleId(),
+            enabled: true,
+            match: "tag",
+            value: "",
+            effect: "roll",
+          },
+          "Add rule"
+        );
+        if (!added) return;
+        rules.push(added);
+        this.saveRules();
+      })
+    );
+
+    this.refreshRuleNotes();
+  }
+
+  // Each rule's note (why it does nothing), from the current settings
+  refreshRuleNotes() {
+    const settings = this.plugin.settings;
+    for (const { rule, setting } of this.ruleRows) {
+      setting.setDesc(ruleNote(rule, settings));
+    }
   }
 
   // Greys out the dependent settings that don't apply, with the reason in
@@ -319,6 +443,8 @@ export default class RolloverSettingTab extends PluginSettingTab {
       entry.component.setDisabled(!enabled);
       entry.setting.setDesc(enabled ? SETTING_DESCRIPTIONS[key] : reason);
     }
+
+    this.refreshRuleNotes();
 
     if (this.cancelMarkerSetting) {
       const note = cancelMarkerNote(settings);

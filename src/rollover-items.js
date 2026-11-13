@@ -9,8 +9,7 @@ import {
   setRolledCount,
   stripRolledCount,
 } from "./rolled-count.js";
-import { LIST_PREFIX } from "./get-todos.js";
-import { headingText } from "./rules.js";
+import { LIST_PREFIX, headingText } from "./get-todos.js";
 
 export const OUTCOMES = ["roll", "backlog", "cancel", "leave"];
 

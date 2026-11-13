@@ -4,8 +4,9 @@
 // ruleResult() about each item's head line. A rule with a problem, a disabled
 // rule or a malformed object never matches and never throws.
 
-import { LIST_PREFIX, TAG_END } from "./get-todos.js";
+import { LIST_PREFIX, TAG_END, headingText } from "./get-todos.js";
 import { normalizeHeading } from "./backlog.js";
+import { isCancelAvailable } from "./source-action.js";
 
 export const MATCH_TYPES = ["tag", "heading", "regex"];
 export const EFFECTS = [
@@ -18,6 +19,18 @@ export const EFFECTS = [
   "move",
 ];
 export const OUTCOME_EFFECTS = ["roll", "backlog", "cancel", "leave"];
+
+// Names shown in the settings tab and the rule dialog
+export const MATCH_LABELS = { tag: "Tag", heading: "Heading", regex: "Regex" };
+export const EFFECT_LABELS = {
+  roll: "Roll",
+  backlog: "Backlog",
+  cancel: "Cancel",
+  leave: "Leave",
+  ignore: "Not a todo",
+  noStale: "No stale count",
+  move: "Move to heading",
+};
 
 // The spec's example rules, all switched off. Seeded into settings when the
 // stored settings have no `rules` key.
@@ -88,13 +101,6 @@ export function normalizeTag(value) {
 const withoutInlineCode = (line) =>
   line.replace(/(`+)[\s\S]*?[^`]\1(?!`)/g, " ");
 
-// Heading text without its leading "#"s, for comparing by text alone
-export const headingText = (heading) =>
-  heading
-    .replace(/^[#\s]+/, "")
-    .trim()
-    .toLowerCase();
-
 /**
  * The rule's match as shown to the user: `Tag #someday`, `Heading "Inbox"`,
  * `Regex ^idea:`. A blank value shows as "(empty)".
@@ -112,6 +118,44 @@ export function ruleLabel(rule) {
     default:
       return "Unknown rule";
   }
+}
+
+/** The rule as one line for its row in settings: `Tag #someday → Backlog`. */
+export function ruleSummary(rule) {
+  if (rule?.effect === "move") {
+    const target = isBlank(rule.target) ? "(empty)" : normalizeHeading(rule.target);
+    return `${ruleLabel(rule)} → Move to ${target}`;
+  }
+  return `${ruleLabel(rule)} → ${EFFECT_LABELS[rule?.effect] ?? "?"}`;
+}
+
+/**
+ * Why the rule does nothing with these settings, or "" when it works: a
+ * problem with the rule itself first, then a setting its effect needs.
+ */
+export function ruleNote(rule, settings) {
+  const problem = ruleProblem(rule);
+  if (problem) return problem;
+  if (rule.effect === "backlog" && isBlank(settings.backlogNotePath)) {
+    return 'Set a Backlog note (in "Review and backlog") to use this rule.';
+  }
+  if (rule.effect === "cancel" && !isCancelAvailable(settings)) {
+    return "Cancel is not offered, because the cancel marker is not one of the done status markers.";
+  }
+  if (rule.effect === "noStale" && !settings.trackRolloverCount) {
+    return 'Turn on Count rollovers (in "Aging") to use this rule.';
+  }
+  return "";
+}
+
+let idCounter = 0;
+
+/** A new rule id, unique within this session and across restarts. */
+export function newRuleId() {
+  idCounter += 1;
+  return `rule-${Date.now().toString(36)}-${idCounter.toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 6)}`;
 }
 
 function matches(rule, headLine, headingPath) {

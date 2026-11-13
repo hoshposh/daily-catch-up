@@ -6,7 +6,7 @@ import {
   helpSegments,
 } from "./settings-text";
 
-test("six groups in spec order, each with help", () => {
+test("seven groups in spec order, each with help", () => {
   expect(SETTING_GROUPS.map((g) => g.title)).toEqual([
     "When it runs",
     "Which todos roll over",
@@ -14,6 +14,7 @@ test("six groups in spec order, each with help", () => {
     "What happens to the previous day's note",
     "Review and backlog",
     "Aging",
+    "Rules",
   ]);
   for (const g of SETTING_GROUPS) expect(g.help.length).toBeGreaterThan(0);
 });

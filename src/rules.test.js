@@ -4,8 +4,11 @@ import {
   isIgnoredByRules,
   ruleMatches,
   ruleProblem,
+  newRuleId,
   ruleLabel,
+  ruleNote,
   ruleResult,
+  ruleSummary,
 } from "./rules";
 
 const rule = (match, value, effect, extra = {}) => ({
@@ -164,4 +167,51 @@ test("ruleLabel names the rule", () => {
     'Heading "Top 3 today"'
   );
   expect(ruleLabel({ match: "regex", value: "^@\\w+$" })).toBe("Regex ^@\\w+$");
+});
+
+test("summaries", () => {
+  expect(ruleSummary(EXAMPLE_RULES[0])).toBe("Tag #someday → Backlog");
+  expect(ruleSummary(EXAMPLE_RULES[7])).toBe(
+    'Heading "Top 3 today" → Move to ## Inbox'
+  );
+  expect(ruleSummary(EXAMPLE_RULES[8])).toBe("Regex ^@\\w+$ → Not a todo");
+  expect(ruleSummary(EXAMPLE_RULES[2])).toBe("Tag #waiting → No stale count");
+  expect(ruleSummary({ match: "tag", value: "", effect: "leave" })).toBe(
+    "Tag (empty) → Leave"
+  );
+});
+
+test("notes", () => {
+  const settings = {
+    backlogNotePath: "Backlog.md",
+    cancelMarker: "-",
+    doneStatusMarkers: "xX-",
+    trackRolloverCount: true,
+  };
+  const r = (effect, extra = {}) => ({
+    id: "r",
+    enabled: true,
+    match: "tag",
+    value: "a",
+    effect,
+    ...extra,
+  });
+  for (const effect of ["roll", "backlog", "cancel", "leave", "ignore", "noStale"]) {
+    expect(ruleNote(r(effect), settings)).toBe("");
+  }
+  expect(ruleNote(r("leave", { value: "" }), settings)).toBe("Enter a tag.");
+  expect(ruleNote(r("backlog"), { ...settings, backlogNotePath: "  " })).toBe(
+    'Set a Backlog note (in "Review and backlog") to use this rule.'
+  );
+  expect(ruleNote(r("cancel"), { ...settings, cancelMarker: "~" })).toBe(
+    "Cancel is not offered, because the cancel marker is not one of the done status markers."
+  );
+  expect(ruleNote(r("noStale"), { ...settings, trackRolloverCount: false })).toBe(
+    'Turn on Count rollovers (in "Aging") to use this rule.'
+  );
+});
+
+test("newRuleId is unique", () => {
+  const ids = new Set(Array.from({ length: 100 }, () => newRuleId()));
+  expect(ids.size).toBe(100);
 });

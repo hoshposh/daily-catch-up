@@ -19,6 +19,13 @@ export const splitGraphemes = (text) =>
 // The list marker and checkbox, matched whole even for an emoji status
 export const LIST_PREFIX = /^(?:\s*>)*\s*(?:[-*+]|\d+[.)])\s+\[[^\]]+\]/u;
 
+// Heading text without its leading "#"s, for comparing by text alone
+export const headingText = (heading) =>
+  heading
+    .replace(/^[#\s]+/, "")
+    .trim()
+    .toLowerCase();
+
 // The tag the Journals plugin's own rollover puts on a todo it rolled. Such a
 // todo, and everything nested under it, is no longer open work.
 export const ROLLED_MARKER = "#rolled";

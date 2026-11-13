@@ -1,7 +1,6 @@
 // Pure logic for putting yesterday's sections of todos into today's note.
 
-import { insertUnderHeading } from "./get-todos";
-import { headingText } from "./rules";
+import { headingText, insertUnderHeading } from "./get-todos";
 
 // A created heading is followed by a blank line before the todos when
 // leadingNewLine is on, like the todos under an existing heading
