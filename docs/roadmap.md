@@ -31,9 +31,11 @@ Use cases for each item: [roadmap-phase-4-use-cases.md](roadmap-phase-4-use-case
 
 Rules first: they mostly set an item's default outcome, which `defaultDecisions()` already does, and the review dialog still lets the user override them. They also stop the stale counter flagging todos that are not really slipping.
 
-- [ ] Tag rules. Examples: `#someday` / `#maybe` go to the backlog note; `#waiting` doesn't count toward staleness; `#habit` never rolls; `@errands` goes to its own heading or note.
-- [ ] Per-heading rules. Examples: never roll `## Meetings` (agenda points and attendance) or `## Log`; always roll `## Inbox`; roll `## Top 3 today` into `## Inbox` instead of recreating its heading.
-- [ ] A regex exclude for custom conventions, such as checkbox lines used as data (`- [ ] @Alice`) or a personal `idea:` prefix.
+Rules shipped as one rule list in a Rules settings section, designed in `docs/superpowers/specs/2026-11-12-rules-design.md`. Each rule matches by tag, heading or regex and sets the default outcome, marks the line as not a todo, exempts it from the stale counter, or moves it to another heading in today's note.
+
+- [x] Tag rules. Examples: `#someday` / `#maybe` go to the backlog note; `#waiting` doesn't count toward staleness; `#habit` never rolls; `@errands` goes to its own heading. Moving to another note was left out: it needs a second write target with its own undo snapshot.
+- [x] Per-heading rules. Examples: never roll `## Meetings` (agenda points and attendance) or `## Log`; always roll `## Inbox`; roll `## Top 3 today` into `## Inbox` instead of recreating its heading.
+- [x] A regex exclude for custom conventions, such as checkbox lines used as data (`- [ ] @Alice`) or a personal `idea:` prefix. A regex rule can have any effect, not only exclude.
 
 Then Obsidian Tasks dates and recurrence, which build on Phase 3's multi-note sourcing. Tasks users already list scheduled todos with query blocks, so the value here is keeping old notes and the stale counter clean.
 

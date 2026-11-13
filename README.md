@@ -215,6 +215,40 @@ Used when **Count rollovers** is on (default 5). A todo is stale once it has bee
 
 **Keep rolling it** (default) or **Move it to the backlog**. This sets the default outcome of stale todos in the review dialog, and decides what happens to them when no review is shown: with **Move it to the backlog**, a stale todo goes to the backlog instead of today's note, and the rollover notice says how many. It needs a **Backlog note**; without one, stale todos keep rolling.
 
+### Rules
+
+Rules give certain todos their own treatment, such as GTD tags, meeting notes and logs that use checkboxes, or your own conventions. Each rule matches a todo one of three ways:
+
+- **Tag**: a tag on the todo's own line, ignoring case. `#someday` also matches nested tags like `#someday/later`, but not `#somedayish`. A context such as `@errands` works too. Tags on nested lines and in inline code don't count.
+- **Heading**: a heading anywhere above the todo, by its text, at any level. `Meetings` matches `### Meetings` under `## Work`.
+- **Regex**: a JavaScript regular expression (case-sensitive) tested on the todo's text after the checkbox, so `^idea:` matches `- [ ] idea: a podcast`.
+
+Each rule has one effect:
+
+| Effect | What happens |
+| --- | --- |
+| **Roll**, **Backlog**, **Cancel**, **Leave** | The todo's default outcome. It wins over **When a todo is stale**. The review dialog shows which rule chose it, and you can still change it. With no review, it is what happens. |
+| **Not a todo** | The line, and everything nested under it, is left out of the rollover entirely: not rolled, not in the review, not marked or deleted. For checkboxes used as data, such as attendance lists. |
+| **No stale count** | The todo's `[rolled:: n]` counter stays as it is, so it never turns stale. For todos that wait on someone else. |
+| **Move to heading** | When the todo rolls, it goes under this heading in today's note instead of under its own headings. The first heading with that text is used, whatever its level and whatever **Template heading** says. When today's note doesn't have it, it is created at the end. |
+
+Rules are tried from top to bottom, and the first matching rule of each kind wins: one outcome, one move, one stale exemption, so a todo can get several effects from different rules. To make an exception, put it higher. For example, `Heading "Action items" → Roll` above `Heading "Meetings" → Leave` rolls the action items under a Meetings heading and leaves the agenda behind.
+
+A rule whose effect can't apply does nothing, and the settings page says why: **Backlog** without a **Backlog note**, **Cancel** when it isn't offered, **No stale count** without **Count rollovers**, an invalid regex or an empty value.
+
+The plugin comes with example rules, all switched off. Turn on the ones that fit your notes:
+
+| Rule | Effect |
+| --- | --- |
+| Tag `#someday`, Tag `#maybe` | Backlog |
+| Tag `#waiting` | No stale count |
+| Tag `#habit` | Leave |
+| Heading `Meetings` | Leave |
+| Heading `Log` | Not a todo |
+| Heading `Inbox` | Roll |
+| Heading `Top 3 today` | Move to `## Inbox` |
+| Regex `^@\w+$` | Not a todo |
+
 ## Bugs/Issues
 
 1. Sometimes you will use this plugin, and your unfinished todos will stay in the same spot. These could be formatting issues. A line is only a todo when it looks like this (see _Which lines count as todos_ above): optional indentation (spaces or tabs) and `>` blockquote markers, a bullet (`-`, `*` or `+`), one space, then `[`, a single character that is not a done marker, `]`, and your text.
