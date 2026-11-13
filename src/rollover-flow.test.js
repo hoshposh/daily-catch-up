@@ -5,6 +5,7 @@ import { dedupeAgainstExisting } from "./insert-todos";
 import { appendToBacklog } from "./backlog";
 import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import { applySourceAction, markCancelled } from "./source-action";
+import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
 
 // The parts of rollover() that do not need Obsidian, run end to end
 function rollover({
@@ -64,6 +65,9 @@ function reviewedRollover({
   skipCompleted = true,
   removeEmpty = false,
   skipExisting = false,
+  rules = [],
+  backlogEnabled = true,
+  cancelEnabled = true,
 }) {
   const lines = splitLines(yesterday);
   const sections = getSections({
@@ -71,6 +75,7 @@ function reviewedRollover({
     withChildren: true,
     doneStatusMarkers: "xX-",
     skipCompletedChildren: skipCompleted,
+    isIgnored: (line, path) => isIgnoredByRules(line, path, rules),
   });
   const plan = planDecisions({
     sections,
@@ -81,7 +86,9 @@ function reviewedRollover({
       trackRolloverCount: track,
       staleAfterRollovers: 5,
       staleBehavior: "keep",
-      backlogEnabled: true,
+      backlogEnabled,
+      cancelEnabled,
+      rules,
     },
   });
   // without decisions, the defaults apply as when no review is shown
@@ -95,6 +102,7 @@ function reviewedRollover({
       trackRolloverCount: track,
       doneStatusMarkers: "xX-",
     },
+    noStaleLineIndices: decided.noStaleLineIndices,
   });
   const inserted = insertSections({
     content: today,
@@ -641,6 +649,93 @@ describe("todos Journals already rolled", () => {
     const result = rollover({ yesterday, action: "mark" });
     expect(result.yesterday).toBe(
       yesterday.replace("- [ ] Book the review", "- [>] Book the review")
+    );
+  });
+});
+
+describe("rules", () => {
+  const rule = (match, value, effect, extra = {}) => ({
+    id: `${match}:${value}:${effect}`,
+    enabled: true,
+    match,
+    value,
+    effect,
+    ...extra,
+  });
+  const yesterday = [
+    "## Meetings",
+    "- [ ] @Alice",
+    "- [ ] Agenda point",
+    "## Work",
+    "- [ ] Learn Rust #someday",
+    "- [ ] Stretch #habit",
+    "- [ ] Write report",
+    "",
+  ].join("\n");
+
+  test("example rules switched off change nothing", () => {
+    const off = reviewedRollover({ yesterday, action: "delete", rules: EXAMPLE_RULES });
+    const none = reviewedRollover({ yesterday, action: "delete", rules: [] });
+    expect(off.today).toBe(none.today);
+    expect(off.yesterday).toBe(none.yesterday);
+    expect(off.backlog).toBe(none.backlog);
+  });
+
+  test("each outcome rule end to end", () => {
+    const result = reviewedRollover({
+      yesterday,
+      action: "delete",
+      rules: [
+        rule("tag", "someday", "backlog"),
+        rule("tag", "habit", "leave"),
+        rule("heading", "Meetings", "leave"),
+      ],
+    });
+    expect(result.backlog).toContain("- [ ] Learn Rust #someday [from:: [[2026-11-06]]]");
+    expect(result.today).toBe("## Work\n\n- [ ] Write report\n");
+    expect(result.yesterday).toBe(
+      [
+        "## Meetings",
+        "- [ ] @Alice",
+        "- [ ] Agenda point",
+        "## Work",
+        "- [ ] Stretch #habit",
+        "",
+      ].join("\n")
+    );
+  });
+
+  test("not a todo lines are never rolled, shown or deleted", () => {
+    const result = reviewedRollover({
+      yesterday,
+      action: "delete",
+      rules: [rule("regex", "^@\\w+$", "ignore")],
+    });
+    expect(result.items.map((i) => i.lines[0])).not.toContain("- [ ] @Alice");
+    expect(result.today).not.toContain("@Alice");
+    expect(result.yesterday).toBe("## Meetings\n- [ ] @Alice");
+  });
+
+  test("moved todos land under the target and leave the source as configured", () => {
+    const result = reviewedRollover({
+      yesterday: "## Top 3 today\n- [ ] a\n- [ ] b\n",
+      today: "## Inbox\n- [ ] existing\n",
+      action: "mark",
+      rules: [rule("heading", "Top 3 today", "move", { target: "Inbox" })],
+    });
+    expect(result.today).toBe("## Inbox\n- [ ] existing\n- [ ] a\n- [ ] b\n");
+    expect(result.yesterday).toBe("## Top 3 today\n- [>] a\n- [>] b\n");
+  });
+
+  test("no stale count end to end", () => {
+    const result = reviewedRollover({
+      yesterday: "- [ ] Call Bob #waiting [rolled:: 9]\n- [ ] Other [rolled:: 9]\n",
+      action: "none",
+      track: true,
+      rules: [rule("tag", "waiting", "noStale")],
+    });
+    expect(result.today).toBe(
+      "- [ ] Call Bob #waiting [rolled:: 9]\n- [ ] Other [rolled:: 10]\n"
     );
   });
 });

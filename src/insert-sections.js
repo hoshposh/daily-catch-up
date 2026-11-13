@@ -1,6 +1,7 @@
 // Pure logic for putting yesterday's sections of todos into today's note.
 
 import { insertUnderHeading } from "./get-todos";
+import { headingText } from "./rules";
 
 // A created heading is followed by a blank line before the todos when
 // leadingNewLine is on, like the todos under an existing heading
@@ -87,6 +88,9 @@ function locateHeadingPath(content, rootHeading, path) {
  * - Without one ("none"), sections go under their own headings, which are
  *   created at the end of the note when missing. Todos that were not under any
  *   heading are appended without one.
+ * - A section with `moveTo` (a Move to heading rule) goes under the first
+ *   heading with that text anywhere in the note, whatever the template heading,
+ *   or under a new heading at the end of the note.
  *
  * @param {object} args
  * @param {string} args.content - today's note
@@ -119,13 +123,48 @@ export function insertSections({
     : inserted;
 }
 
+// A section a Move to heading rule sent to `section.moveTo`: under the first
+// heading anywhere in the note with that text (any level), or at the end of
+// the note under a new heading. The template heading plays no part.
+function insertMoved(content, section, todosString, leadingNewLine) {
+  const target = headingText(section.moveTo);
+  const line = headingsOf(content.split("\n")).find(
+    (h) => headingText(h.key) === target
+  );
+  if (!line) {
+    return {
+      content: appendToEnd(
+        content,
+        buildBlock([section.moveTo], todosString, leadingNewLine)
+      ),
+      appended: true,
+    };
+  }
+  const heading = content.split("\n")[line.index];
+  return {
+    content: insertUnderHeading(content, heading, todosString, leadingNewLine, {
+      beforeSubHeadings: true,
+      headingLineIndex: line.index,
+    }),
+    appended: false,
+  };
+}
+
 function insertSectionsLf({ content, sections, templateHeading, leadingNewLine }) {
   const templateSelected = templateHeading !== "none";
   let result = content;
   let templateHeadingNotFound = false;
+  let movedToEnd = false;
 
   for (const section of sections) {
     const todosString = section.incompleteTodos.join("\n");
+
+    if (section.moveTo) {
+      const moved = insertMoved(result, section, todosString, leadingNewLine);
+      result = moved.content;
+      movedToEnd ||= moved.appended;
+      continue;
+    }
 
     // headings to find or create, outermost first
     const templateIdx = templateSelected
@@ -175,7 +214,11 @@ function insertSectionsLf({ content, sections, templateHeading, leadingNewLine }
   }
 
   // keep the last appended todo on its own line
-  if (!templateSelected && result !== content && !result.endsWith("\n")) {
+  if (
+    (!templateSelected || movedToEnd) &&
+    result !== content &&
+    !result.endsWith("\n")
+  ) {
     result += "\n";
   }
 

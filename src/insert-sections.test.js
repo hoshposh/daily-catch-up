@@ -249,3 +249,41 @@ describe("insertSections in a note with CRLF line endings", () => {
   });
 });
 
+
+describe("moved sections", () => {
+  const moved = (todos) => ({
+    headingPath: ["## Inbox"],
+    moveTo: "## Inbox",
+    incompleteTodos: todos,
+  });
+
+  test("a moved section ignores the template heading", () => {
+    const result = insertSections({
+      content: "## Todos\n\n## Inbox\n- [ ] old\n",
+      sections: [moved(["- [ ] new"])],
+      templateHeading: "## Todos",
+    });
+    expect(result.content).toBe("## Todos\n\n## Inbox\n- [ ] old\n- [ ] new\n");
+    expect(result.templateHeadingNotFound).toBe(false);
+  });
+
+  test("a moved section matches the heading text at any level, first one wins", () => {
+    const result = insertSections({
+      content: "### inbox\n\n## Inbox\n",
+      sections: [moved(["- [ ] new"])],
+    });
+    expect(result.content).toBe("### inbox\n\n- [ ] new\n\n## Inbox\n");
+  });
+
+  test("a missing target is created at the end even with a template heading", () => {
+    const result = insertSections({
+      content: "## Todos\n- [ ] t\n## Notes\nx\n",
+      sections: [moved(["- [ ] new"])],
+      templateHeading: "## Todos",
+    });
+    expect(result.content).toBe(
+      "## Todos\n- [ ] t\n## Notes\nx\n\n## Inbox\n\n- [ ] new\n"
+    );
+    expect(result.templateHeadingNotFound).toBe(false);
+  });
+});
