@@ -22,7 +22,7 @@ import {
 import { needsReview } from "./rollover-items";
 import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import { appendToBacklog } from "./backlog";
-import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
+import { EXAMPLE_RULES, isIgnoredByRules, sanitizeRules } from "./rules";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
 
@@ -64,6 +64,7 @@ export default class RolloverTodosPlugin extends Plugin {
       Object.assign({}, DEFAULT_SETTINGS, stored),
       stored
     );
+    this.settings.rules = sanitizeRules(this.settings.rules);
   }
 
   async saveSettings() {

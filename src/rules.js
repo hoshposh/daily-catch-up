@@ -7,6 +7,7 @@
 import { LIST_PREFIX, TAG_END, headingText } from "./get-todos.js";
 import { normalizeHeading } from "./backlog.js";
 import { isCancelAvailable } from "./source-action.js";
+import { stripRolledCount } from "./rolled-count.js";
 
 export const MATCH_TYPES = ["tag", "heading", "regex"];
 export const EFFECTS = [
@@ -52,6 +53,19 @@ export const EXAMPLE_RULES = [
   effect,
   ...(target === undefined ? {} : { target }),
 }));
+
+/**
+ * The stored rule list with everything that is not a rule object removed
+ * (a hand-edited null, number, string or array), so the settings tab can
+ * always edit what is left. Objects with bad fields are kept: they stay
+ * inert and their row says why.
+ */
+export function sanitizeRules(rules) {
+  if (!Array.isArray(rules)) return [];
+  return rules.filter(
+    (rule) => rule !== null && typeof rule === "object" && !Array.isArray(rule)
+  );
+}
 
 const isBlank = (value) => typeof value !== "string" || value.trim() === "";
 
@@ -172,7 +186,7 @@ function matches(rule, headLine, headingPath) {
     }
     case "regex":
       return new RegExp(rule.value, "u").test(
-        headLine.replace(LIST_PREFIX, "").trim()
+        stripRolledCount(headLine).replace(LIST_PREFIX, "").trim()
       );
     default:
       return false;

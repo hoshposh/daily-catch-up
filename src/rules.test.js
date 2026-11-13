@@ -9,6 +9,7 @@ import {
   ruleNote,
   ruleResult,
   ruleSummary,
+  sanitizeRules,
 } from "./rules";
 
 const rule = (match, value, effect, extra = {}) => ({
@@ -214,4 +215,17 @@ test("notes", () => {
 test("newRuleId is unique", () => {
   const ids = new Set(Array.from({ length: 100 }, () => newRuleId()));
   expect(ids.size).toBe(100);
+});
+
+test("regex rules do not see the rollover counter", () => {
+  const r = rule("regex", "^@\\w+$", "ignore");
+  expect(ruleMatches(r, "- [ ] @Alice [rolled:: 4]", [])).toBe(true);
+  expect(isIgnoredByRules("- [ ] @Alice [rolled:: 4]", [], [r])).toBe(true);
+});
+
+test("sanitizeRules keeps rule objects and drops what is not one", () => {
+  const odd = { enabled: true, match: "tag", value: 42, effect: "leave" };
+  expect(sanitizeRules([null, 42, "x", odd, [1]])).toEqual([odd]);
+  expect(sanitizeRules(undefined)).toEqual([]);
+  expect(sanitizeRules({ 0: odd })).toEqual([]);
 });

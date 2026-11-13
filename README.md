@@ -221,7 +221,7 @@ Rules give certain todos their own treatment, such as GTD tags, meeting notes an
 
 - **Tag**: a tag on the todo's own line, ignoring case. `#someday` also matches nested tags like `#someday/later`, but not `#somedayish`. A context such as `@errands` works too. Tags on nested lines and in inline code don't count.
 - **Heading**: a heading anywhere above the todo, by its text, at any level. `Meetings` matches `### Meetings` under `## Work`.
-- **Regex**: a JavaScript regular expression (case-sensitive) tested on the todo's text after the checkbox, so `^idea:` matches `- [ ] idea: a podcast`.
+- **Regex**: a JavaScript regular expression (case-sensitive) tested on the todo's text after the checkbox (without the `[rolled:: n]` counter), so `^idea:` matches `- [ ] idea: a podcast`.
 
 Each rule has one effect:
 
