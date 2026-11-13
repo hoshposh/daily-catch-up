@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import {
   getTodos,
   getTodosAndSkipped,
@@ -1318,5 +1318,52 @@ test("a todo nested under a #rolled todo after a blank line stays too", () => {
     todos: ["- [ ] next"],
     todoIndices: [4],
     skippedIndices: [],
+  });
+});
+
+describe("isIgnored", () => {
+  test("skips an ignored todo and its nested lines, blank lines included", () => {
+    const result = getTodosAndSkipped({
+      lines: ["- [ ] @Alice", "  - [ ] note", "", "  - [ ] more", "- [ ] real"],
+      withChildren: true,
+      isIgnored: (l) => l.includes("@Alice"),
+    });
+    expect(result.todos).toEqual(["- [ ] real"]);
+    expect(result.todoIndices).toEqual([4]);
+  });
+
+  test("a matching child of a rolled todo is not checked", () => {
+    const result = getTodosAndSkipped({
+      lines: ["- [ ] parent", "  - [ ] @Alice"],
+      withChildren: true,
+      isIgnored: (l) => l.includes("@Alice"),
+    });
+    expect(result.todos).toEqual(["- [ ] parent", "  - [ ] @Alice"]);
+  });
+
+  test("getSections passes the heading path", () => {
+    const sections = getSections({
+      lines: "## Log\n- [ ] a\n## Work\n- [ ] b".split("\n"),
+      isIgnored: (_, path) => path.includes("## Log"),
+    });
+    expect(sections).toEqual([
+      {
+        headingPath: ["## Work"],
+        incompleteTodos: ["- [ ] b"],
+        incompleteLineIndices: [3],
+      },
+    ]);
+  });
+
+  test("done lines are never passed to isIgnored", () => {
+    const seen = [];
+    getTodosAndSkipped({
+      lines: ["- [x] done", "- [ ] open", "plain"],
+      isIgnored: (l) => {
+        seen.push(l);
+        return false;
+      },
+    });
+    expect(seen).toEqual(["- [ ] open"]);
   });
 });

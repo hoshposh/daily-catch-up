@@ -67,6 +67,10 @@ class TodoParser {
   // Indices (into #lines) of the lines getTodos() returned, in the same order
   #todoIndices = [];
 
+  // Optional (line) => boolean: an open todo line it returns true for is not a
+  // todo (a "Not a todo" rule), and neither is anything nested under it
+  #isIgnored;
+
   // Parse content with segmentation to allow for Unicode grapheme clusters
   #parseIntoChars(content, contentType = "content") {
     // Use Intl.Segmenter to properly split grapheme clusters if available,
@@ -89,9 +93,11 @@ class TodoParser {
     withChildren,
     doneStatusMarkers,
     ignoreBlockquotes,
-    skipCompletedChildren
+    skipCompletedChildren,
+    isIgnored = null
   ) {
     this.#lines = lines;
+    this.#isIgnored = isIgnored;
     this.#fenced = getFencedLines(lines);
     this.#withChildren = withChildren;
     this.#ignoreBlockquotes = !!ignoreBlockquotes;
@@ -225,6 +231,18 @@ class TodoParser {
     return this.#lines[l].search(/\S/);
   }
 
+  // The last line nested under line `head`, counting nested lines after blank
+  // lines; `head` itself when nothing is nested under it
+  #lastNestedLine(head) {
+    let last = head;
+    for (let next = head + 1; next < this.#lines.length; next++) {
+      if (this.#lines[next].trim() === "") continue;
+      if (!this.#isChildOf(head, next)) break;
+      last = next;
+    }
+    return last;
+  }
+
   // Returns a list of strings that represents all the todos along with there potential children
   getTodos() {
     let todos = [];
@@ -239,15 +257,15 @@ class TodoParser {
       ) {
         // Already rolled by Journals: neither it nor anything nested under it
         // rolls, including nested items after a blank line
-        const head = l;
-        for (let next = l + 1; next < this.#lines.length; next++) {
-          if (this.#lines[next].trim() === "") continue;
-          if (!this.#isChildOf(head, next)) break;
-          l = next;
-        }
+        l = this.#lastNestedLine(l);
         continue;
       }
       if (!this.#fenced[l] && this.#isTodo(line)) {
+        if (this.#isIgnored && this.#isIgnored(line)) {
+          // a rule says it is not a todo: skipped like a rolled one
+          l = this.#lastNestedLine(l);
+          continue;
+        }
         todos.push(line);
         this.#todoIndices.push(l);
         if (this.#withChildren && this.#hasChildren(l)) {
@@ -279,20 +297,24 @@ export const getTodos = (options) => getTodosAndSkipped(options).todos;
 // Like `getTodos`, but also returns where things are in `lines`:
 // `todoIndices` are the indices of the returned todos (same order), and
 // `skippedIndices` those of completed children left out by
-// `skipCompletedChildren`.
+// `skipCompletedChildren`. `isIgnored(line)`, when given, is asked about each
+// open todo line that is not nested under another todo; when it returns true
+// the line and everything nested under it are left out.
 export const getTodosAndSkipped = ({
   lines,
   withChildren = false,
   doneStatusMarkers = null,
   ignoreBlockquotes = false,
   skipCompletedChildren = false,
+  isIgnored = null,
 }) => {
   const todoParser = new TodoParser(
     lines,
     withChildren,
     doneStatusMarkers,
     ignoreBlockquotes,
-    skipCompletedChildren
+    skipCompletedChildren,
+    isIgnored
   );
   const todos = todoParser.getTodos();
   return {
@@ -348,12 +370,16 @@ function getFencedLines(lines) {
 // When skipCompletedChildren leaves lines out, the section also carries
 // `skippedLineIndices`: their indices in `lines`, so they can be removed from
 // the source note along with their rolled parent. The key is omitted otherwise.
+//
+// `isIgnored(line, headingPath)`, when given, works as in getTodosAndSkipped,
+// with the section's heading path (outermost first) as second argument.
 export const getSections = ({
   lines,
   withChildren = false,
   doneStatusMarkers = null,
   ignoreBlockquotes = false,
   skipCompletedChildren = false,
+  isIgnored = null,
 }) => {
   const sections = [];
   const headingStack = []; // [{ heading: string, level: number }]
@@ -361,6 +387,7 @@ export const getSections = ({
   let sectionStart = 0; // index in `lines` of sectionLines[0]
 
   const finalizeSection = () => {
+    const headingPath = headingStack.map((h) => h.heading);
     const {
       todos: incompleteTodos,
       todoIndices,
@@ -371,10 +398,11 @@ export const getSections = ({
       doneStatusMarkers,
       ignoreBlockquotes,
       skipCompletedChildren,
+      isIgnored: isIgnored && ((line) => isIgnored(line, headingPath)),
     });
     if (incompleteTodos.length > 0) {
       const section = {
-        headingPath: headingStack.map((h) => h.heading),
+        headingPath,
         incompleteTodos,
         incompleteLineIndices: todoIndices.map((i) => sectionStart + i),
       };
