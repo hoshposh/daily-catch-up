@@ -4,8 +4,7 @@
 // ruleResult() about each item's head line. A rule with a problem, a disabled
 // rule or a malformed object never matches and never throws.
 
-import { TAG_END } from "./get-todos.js";
-import { LIST_PREFIX } from "./rollover-items.js";
+import { LIST_PREFIX, TAG_END } from "./get-todos.js";
 import { normalizeHeading } from "./backlog.js";
 
 export const MATCH_TYPES = ["tag", "heading", "regex"];

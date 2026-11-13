@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { getSections } from "./get-todos.js";
 import { dropEmptyTodos } from "./insert-todos.js";
+import { applyPlan, planDecisions, planInsert } from "./rollover-plan.js";
 import {
   OUTCOMES,
   applyDecisions,
@@ -492,5 +493,136 @@ describe("items around dropped empty todos", () => {
 describe("itemLabel with a status character outside the Basic Multilingual Plane", () => {
   test("strips the whole checkbox", () => {
     expect(itemLabel({ lines: ["- [🔥] Task"], count: 0 })).toBe("Task");
+  });
+});
+
+describe("rules", () => {
+  const rule = (match, value, effect, extra = {}) => ({
+    id: `${match}:${value}:${effect}`,
+    enabled: true,
+    match,
+    value,
+    effect,
+    ...extra,
+  });
+  const planNote = (note, rules, extra = {}) => {
+    const noteLines = note.split("\n");
+    return planDecisions({
+      sections: getSections({
+        lines: noteLines,
+        withChildren: true,
+        skipCompletedChildren: true,
+      }),
+      lines: noteLines,
+      settings: {
+        removeEmptyTodos: false,
+        rolloverChildren: true,
+        trackRolloverCount: true,
+        staleAfterRollovers: 5,
+        staleBehavior: "backlog",
+        backlogEnabled: true,
+        cancelEnabled: true,
+        rules,
+        ...extra,
+      },
+    });
+  };
+  const insert = (plan, decided) =>
+    planInsert({
+      sections: decided.rolledSections,
+      todayContent: "",
+      settings: {
+        skipExistingTodos: false,
+        rolloverChildren: true,
+        trackRolloverCount: true,
+        doneStatusMarkers: "xX-",
+      },
+      noStaleLineIndices: decided.noStaleLineIndices,
+    });
+
+  test("a rule outcome beats the stale default", () => {
+    const plan = planNote("## Inbox\n- [ ] x [rolled:: 9]", [
+      rule("heading", "Inbox", "roll"),
+    ]);
+    expect(plan.decisions[plan.items[0].id]).toBe("roll");
+    expect(plan.items[0].rule.outcomeRule.value).toBe("Inbox");
+  });
+
+  test("no stale count: never stale, never a stale review, no bump", () => {
+    const plan = planNote(
+      "- [ ] x #waiting [rolled:: 9]\n- [ ] y [rolled:: 9]",
+      [rule("tag", "waiting", "noStale")]
+    );
+    const [waiting, other] = plan.items;
+    const stale = { trackRolloverCount: true, staleAfterRollovers: 5 };
+    expect(plan.decisions[waiting.id]).toBe("roll");
+    expect(plan.decisions[other.id]).toBe("backlog");
+    expect(isStale(waiting, stale)).toBe(false);
+    expect(needsReview("stale", [waiting], stale)).toBe(false);
+
+    const decided = applyPlan({
+      plan,
+      decisions: { [waiting.id]: "roll", [other.id]: "roll" },
+    });
+    expect(decided.noStaleLineIndices).toEqual([0]);
+    expect(insert(plan, decided).sections[0].incompleteTodos).toEqual([
+      "- [ ] x #waiting [rolled:: 9]",
+      "- [ ] y [rolled:: 10]",
+    ]);
+  });
+
+  test("moved items gather under their target after the regular sections", () => {
+    const note = [
+      "## Top 3 today",
+      "- [ ] a",
+      "- [ ] b",
+      "## Work",
+      "- [ ] c",
+      "- [ ] d #inbox",
+    ].join("\n");
+    const plan = planNote(note, [
+      rule("heading", "Top 3 today", "move", { target: "Inbox" }),
+      rule("tag", "inbox", "move", { target: "## inbox" }),
+    ]);
+    const decided = applyPlan({ plan, decisions: plan.decisions });
+    expect(decided.rolledSections).toEqual([
+      {
+        headingPath: ["## Work"],
+        incompleteTodos: ["- [ ] c"],
+        incompleteLineIndices: [4],
+      },
+      {
+        headingPath: ["## Inbox"],
+        moveTo: "## Inbox",
+        incompleteTodos: ["- [ ] a", "- [ ] b", "- [ ] d #inbox"],
+        incompleteLineIndices: [1, 2, 5],
+      },
+    ]);
+    expect([...decided.movedLineIndices].sort()).toEqual([1, 2, 4, 5]);
+  });
+
+  test("a moved item that is not Roll does not move", () => {
+    const plan = planNote("## Top 3 today\n- [ ] a", [
+      rule("heading", "Top 3 today", "move", { target: "Inbox" }),
+    ]);
+    const decided = applyPlan({
+      plan,
+      decisions: { [plan.items[0].id]: "leave" },
+    });
+    expect(decided.rolledSections).toEqual([]);
+  });
+
+  test("a moved item keeps a dropped empty child inside it", () => {
+    const plan = planNote(
+      "## Top 3 today\n- [ ] a\n  - [ ] \n  - [ ] b",
+      [rule("heading", "Top 3 today", "move", { target: "Inbox" })],
+      { removeEmptyTodos: true, staleBehavior: "keep" }
+    );
+    expect(plan.items).toHaveLength(1);
+    const decided = applyPlan({ plan, decisions: plan.decisions });
+    expect(insert(plan, decided).sections[0].incompleteTodos).toEqual([
+      "- [ ] a [rolled:: 1]",
+      "  - [ ] b",
+    ]);
   });
 });

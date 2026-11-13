@@ -9,6 +9,8 @@ import {
   setRolledCount,
   stripRolledCount,
 } from "./rolled-count.js";
+import { LIST_PREFIX } from "./get-todos.js";
+import { headingText } from "./rules.js";
 
 export const OUTCOMES = ["roll", "backlog", "cancel", "leave"];
 
@@ -74,7 +76,9 @@ export function toItems(sections, withChildren) {
   return items;
 }
 
+// A No stale count rule keeps an item from ever being stale
 export function isStale(item, { trackRolloverCount, staleAfterRollovers }) {
+  if (item.rule?.noStale) return false;
   return !!(
     trackRolloverCount &&
     staleAfterRollovers > 0 &&
@@ -87,8 +91,10 @@ export function defaultDecisions(items, settings) {
     settings.staleBehavior === "backlog" && settings.backlogEnabled;
   const decisions = {};
   for (const item of items) {
+    // a rule's outcome comes first, even over the stale default
     decisions[item.id] =
-      toBacklog && isStale(item, settings) ? "backlog" : "roll";
+      item.rule?.outcome ??
+      (toBacklog && isStale(item, settings) ? "backlog" : "roll");
   }
   return decisions;
 }
@@ -224,10 +230,16 @@ export function applyDecisions({
 
   const outSections = [];
   const skippedLineIndices = [];
+  // Roll items a Move to heading rule sends elsewhere, by target
+  const moved = new Map();
   sections.forEach((section, sectionIndex) => {
-    const mine = keptItems.filter((item) => item.sectionIndex === sectionIndex);
+    const own = keptItems.filter((item) => item.sectionIndex === sectionIndex);
     const skipped = skippedKept(sectionIndex);
     skippedLineIndices.push(...skipped);
+    for (const item of own.filter((item) => item.rule?.moveTo)) {
+      addMoved(moved, section, item, skipped);
+    }
+    const mine = own.filter((item) => !item.rule?.moveTo);
     if (mine.length === 0) return;
     const next = {
       ...section,
@@ -240,13 +252,45 @@ export function applyDecisions({
   });
 
   return {
-    sections: outSections,
+    sections: [...outSections, ...moved.values()],
     backlogItems,
     movedLineIndices,
     cancelledLineIndices,
     deleteLineIndices,
     skippedLineIndices,
   };
+}
+
+// Adds a moved Roll item to the section for its target. The section also
+// carries its sources' dropped empty todos and the skipped lines kept with its
+// items, so itemEnd() groups the same items as in the source sections.
+function addMoved(moved, section, item, skippedKeptLines) {
+  const key = headingText(item.rule.moveTo);
+  if (!moved.has(key)) {
+    moved.set(key, {
+      headingPath: [item.rule.moveTo],
+      moveTo: item.rule.moveTo,
+      incompleteTodos: [],
+      incompleteLineIndices: [],
+    });
+  }
+  const target = moved.get(key);
+  target.incompleteTodos.push(...item.lines);
+  target.incompleteLineIndices.push(...item.lineIndices);
+  const knownSkipped = new Set(target.skippedLineIndices ?? []);
+  for (const index of skippedKeptLines) {
+    if (!knownSkipped.has(index)) {
+      (target.skippedLineIndices ??= []).push(index);
+    }
+  }
+  // dropped lines travel as a pair of parallel lists
+  const dropped = droppedLines(section);
+  const knownDropped = new Set(target.droppedLineIndices ?? []);
+  for (const [index, line] of dropped) {
+    if (knownDropped.has(index)) continue;
+    (target.droppedLineIndices ??= []).push(index);
+    (target.droppedTodos ??= []).push(line);
+  }
 }
 
 /**
@@ -289,22 +333,30 @@ export function skippedLinesToDelete({
   return skippedLineIndices.filter((line) => !held.has(line));
 }
 
-// Add one to the counter on each item's first line. Other lines and all
-// indices stay as they are.
-export function bumpRolledCounts(sections, withChildren) {
+// Add one to the counter on each item's first line, except items whose head
+// is at a position in `skipHeadLineIndices` (No stale count). Other lines and
+// all indices stay as they are.
+export function bumpRolledCounts(
+  sections,
+  withChildren,
+  { skipHeadLineIndices = new Set() } = {}
+) {
   return sections.map((section) => {
     const incompleteTodos = [...section.incompleteTodos];
     for (let start = 0; start < incompleteTodos.length; ) {
       const line = incompleteTodos[start];
-      incompleteTodos[start] = setRolledCount(line, parseRolledCount(line) + 1);
+      if (!skipHeadLineIndices.has(section.incompleteLineIndices?.[start])) {
+        incompleteTodos[start] = setRolledCount(
+          line,
+          parseRolledCount(line) + 1
+        );
+      }
       start = itemEnd(section, start, withChildren);
     }
     return { ...section, incompleteTodos };
   });
 }
 
-// The list marker and checkbox, matched whole even for an emoji status
-export const LIST_PREFIX = /^(?:\s*>)*\s*(?:[-*+]|\d+[.)])\s+\[[^\]]+\]/u;
 
 export function itemLabel(item) {
   const text = stripRolledCount(item.lines[0]).replace(LIST_PREFIX, "").trim();

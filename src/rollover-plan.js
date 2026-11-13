@@ -16,6 +16,7 @@ import {
   skippedLinesToDelete,
   toItems,
 } from "./rollover-items";
+import { ruleResult } from "./rules";
 
 /**
  * Groups the todos found in the previous day's note into review items and
@@ -26,8 +27,9 @@ import {
  * @param {string[]} [args.lines] - the lines the sections were parsed from;
  *   they tell which todo a skipped completed child sits under
  * @param {object} args.settings - removeEmptyTodos, rolloverChildren,
- *   trackRolloverCount, staleAfterRollovers, staleBehavior and backlogEnabled
- *   (whether a backlog note is set)
+ *   trackRolloverCount, staleAfterRollovers, staleBehavior, backlogEnabled
+ *   (whether a backlog note is set), cancelEnabled (whether Cancel is offered)
+ *   and rules (the rule list; each item gets its ruleResult() as `rule`)
  */
 export function planDecisions({ sections, lines, settings }) {
   const withChildren = settings.rolloverChildren;
@@ -47,7 +49,19 @@ export function planDecisions({ sections, lines, settings }) {
     removedEmptyTodos = result.removed;
   }
 
-  const items = toItems(reviewSections, withChildren);
+  const availability = {
+    backlogEnabled: settings.backlogEnabled,
+    cancelEnabled: settings.cancelEnabled,
+  };
+  const items = toItems(reviewSections, withChildren).map((item) => ({
+    ...item,
+    rule: ruleResult(
+      item.lines[0],
+      item.headingPath,
+      settings.rules ?? [],
+      availability
+    ),
+  }));
   const decisions = defaultDecisions(items, {
     trackRolloverCount: settings.trackRolloverCount,
     staleAfterRollovers: settings.staleAfterRollovers,
@@ -103,6 +117,10 @@ export function applyPlan({ plan, decisions }) {
       lines,
     }),
     outcomeCounts: countOutcomes(items, decisions),
+    // heads of the items whose counter a No stale count rule keeps as it is
+    noStaleLineIndices: items
+      .filter((item) => item.rule?.noStale)
+      .map((item) => item.lineIndices[0]),
   };
 }
 
@@ -116,8 +134,15 @@ export function applyPlan({ plan, decisions }) {
  * @param {string} args.todayContent - today's note before anything is inserted
  * @param {object} args.settings - skipExistingTodos, rolloverChildren,
  *   trackRolloverCount, and doneStatusMarkers (the effective ones)
+ * @param {number[]} [args.noStaleLineIndices] - from applyPlan(): items whose
+ *   counter is not raised
  */
-export function planInsert({ sections, todayContent, settings }) {
+export function planInsert({
+  sections,
+  todayContent,
+  settings,
+  noStaleLineIndices = [],
+}) {
   let todosAlreadyPresent = 0;
   const duplicateTodos = [];
   // lines of duplicates dropped by skip-existing: they did not move
@@ -155,7 +180,9 @@ export function planInsert({ sections, todayContent, settings }) {
   }
   // count this rollover on each item that is actually inserted
   if (settings.trackRolloverCount) {
-    toInsert = bumpRolledCounts(toInsert, settings.rolloverChildren);
+    toInsert = bumpRolledCounts(toInsert, settings.rolloverChildren, {
+      skipHeadLineIndices: new Set(noStaleLineIndices),
+    });
   }
 
   return {
