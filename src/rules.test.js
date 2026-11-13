@@ -4,6 +4,7 @@ import {
   isIgnoredByRules,
   ruleMatches,
   ruleProblem,
+  ruleLabel,
   ruleResult,
 } from "./rules";
 
@@ -154,4 +155,13 @@ describe("rule matching", () => {
       false
     );
   });
+});
+
+test("ruleLabel names the rule", () => {
+  expect(ruleLabel({ match: "tag", value: "someday" })).toBe("Tag #someday");
+  expect(ruleLabel({ match: "tag", value: "@errands" })).toBe("Tag @errands");
+  expect(ruleLabel({ match: "heading", value: "## Top 3 today" })).toBe(
+    'Heading "Top 3 today"'
+  );
+  expect(ruleLabel({ match: "regex", value: "^@\\w+$" })).toBe("Regex ^@\\w+$");
 });

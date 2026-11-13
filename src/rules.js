@@ -95,6 +95,25 @@ export const headingText = (heading) =>
     .trim()
     .toLowerCase();
 
+/**
+ * The rule's match as shown to the user: `Tag #someday`, `Heading "Inbox"`,
+ * `Regex ^idea:`. A blank value shows as "(empty)".
+ */
+export function ruleLabel(rule) {
+  const value = typeof rule?.value === "string" ? rule.value : "";
+  const blank = value.trim() === "";
+  switch (rule?.match) {
+    case "tag":
+      return `Tag ${blank ? "(empty)" : normalizeTag(value)}`;
+    case "heading":
+      return `Heading ${blank ? "(empty)" : `"${value.replace(/^[#\s]+/, "").trim()}"`}`;
+    case "regex":
+      return `Regex ${blank ? "(empty)" : value}`;
+    default:
+      return "Unknown rule";
+  }
+}
+
 function matches(rule, headLine, headingPath) {
   switch (rule.match) {
     case "tag": {

@@ -5,6 +5,7 @@ import {
   itemLabel,
   summarizeDecisions,
 } from "../rollover-items";
+import { ruleLabel } from "../rules";
 
 const OUTCOME_LABELS = {
   roll: "Roll",
@@ -41,6 +42,9 @@ export default class ReviewModal extends Modal {
         (outcome !== "cancel" || cancelEnabled)
     );
     this.dropdowns = new Map(); // item id -> DropdownComponent
+    // item id -> the "→ heading" badge of an item a rule moves, shown while
+    // the item rolls
+    this.moveBadges = new Map();
     this.resolve = null;
     this.settled = false;
   }
@@ -69,8 +73,14 @@ export default class ReviewModal extends Modal {
       this.decisions[item.id] = outcome;
       const dropdown = this.dropdowns.get(item.id);
       if (dropdown) dropdown.setValue(outcome);
+      this.updateMoveBadge(item.id);
     }
     this.updateSummary();
+  }
+
+  updateMoveBadge(itemId) {
+    const badge = this.moveBadges.get(itemId);
+    if (badge) badge.toggle((this.decisions[itemId] ?? "roll") === "roll");
   }
 
   updateSummary() {
@@ -121,6 +131,23 @@ export default class ReviewModal extends Modal {
             text: `rolled ${item.count}×`,
           });
         }
+        // the rule that chose the default stays named after an override
+        if (item.rule?.outcomeRule) {
+          row.nameEl.createSpan({
+            cls: "rollover-rule-badge",
+            text: ruleLabel(item.rule.outcomeRule),
+          });
+        }
+        if (item.rule?.moveTo) {
+          this.moveBadges.set(
+            item.id,
+            row.nameEl.createSpan({
+              cls: "rollover-rule-badge",
+              text: `→ ${item.rule.moveTo}`,
+            })
+          );
+          this.updateMoveBadge(item.id);
+        }
         row.addDropdown((dropdown) => {
           for (const outcome of this.outcomes) {
             dropdown.addOption(outcome, OUTCOME_LABELS[outcome]);
@@ -129,6 +156,7 @@ export default class ReviewModal extends Modal {
             .setValue(this.decisions[item.id] ?? "roll")
             .onChange((value) => {
               this.decisions[item.id] = value;
+              this.updateMoveBadge(item.id);
               this.updateSummary();
             });
           this.dropdowns.set(item.id, dropdown);
@@ -157,6 +185,7 @@ export default class ReviewModal extends Modal {
   onClose() {
     this.contentEl.empty();
     this.dropdowns.clear();
+    this.moveBadges.clear();
     this.summaryEl = null;
     this.finish(null);
   }

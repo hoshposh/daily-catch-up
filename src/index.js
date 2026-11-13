@@ -22,6 +22,7 @@ import {
 import { needsReview } from "./rollover-items";
 import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import { appendToBacklog } from "./backlog";
+import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
 
@@ -55,6 +56,8 @@ export default class RolloverTodosPlugin extends Plugin {
       backlogNotePath: "",
       backlogHeading: "",
       cancelMarker: "-",
+      // seeded only when stored settings have no rules key, all switched off
+      rules: EXAMPLE_RULES.map((rule) => ({ ...rule })),
     };
     const stored = (await this.loadData()) || {};
     this.settings = migrateSourceActionSettings(
@@ -287,6 +290,7 @@ export default class RolloverTodosPlugin extends Plugin {
       // get unfinished todos from yesterday grouped by their parent heading
       const lastDailyNoteContent = await this.app.vault.read(lastDailyNote);
       const lastDailyNoteLines = splitLines(lastDailyNoteContent);
+      const rules = this.settings.rules ?? [];
 
       const sections_yesterday = getSections({
         lines: lastDailyNoteLines,
@@ -294,6 +298,9 @@ export default class RolloverTodosPlugin extends Plugin {
         doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
         ignoreBlockquotes: this.settings.ignoreBlockquotes,
         skipCompletedChildren: this.settings.skipCompletedChildren,
+        // "Not a todo" rules: such a line and what is nested under it stay put
+        isIgnored: (line, headingPath) =>
+          isIgnoredByRules(line, headingPath, rules),
       });
 
       const todos_yesterday = sections_yesterday.flatMap((s) => s.incompleteTodos);
@@ -330,8 +337,8 @@ export default class RolloverTodosPlugin extends Plugin {
 
       // Review: drop empty todos when set, group the todos into items and
       // decide what happens to each (roll, backlog, cancel or leave). Without
-      // the dialog everything rolls, except stale items when they are set to
-      // go to the backlog.
+      // the dialog each item gets what a matching rule says, and otherwise
+      // rolls, except stale items when they are set to go to the backlog.
       const plan = planDecisions({
         sections: sections_yesterday,
         lines: lastDailyNoteLines,
@@ -341,6 +348,8 @@ export default class RolloverTodosPlugin extends Plugin {
           ...staleSettings,
           staleBehavior: this.settings.staleBehavior,
           backlogEnabled,
+          cancelEnabled,
+          rules,
         },
       });
       const { items } = plan;
@@ -426,6 +435,7 @@ export default class RolloverTodosPlugin extends Plugin {
               trackRolloverCount: this.settings.trackRolloverCount,
               doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
             },
+            noStaleLineIndices: decided.noStaleLineIndices,
           });
           if (toInsert.sections.length === 0) return content;
           inserted = insertSections({
