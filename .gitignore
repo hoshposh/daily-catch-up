@@ -19,3 +19,6 @@ data.json
 # local developer scripts
 deployLocally.js
 .prettierignore
+
+# e2e screenshots
+e2e/screenshots/
