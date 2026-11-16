@@ -151,20 +151,38 @@ test("the Rules group fits a phone", async () => {
   expect(await evalJson("document.body.classList.contains('is-phone')")).toBe(
     true
   );
+  // something elsewhere in the window that never stops animating (like a
+  // sync indicator), out of sight; waiting for the dialog must ignore it
+  await evalJs(`(() => {
+    const spinner = document.body.createDiv({ cls: 'e2e-spinner' });
+    spinner.style.cssText = 'position: fixed; top: -20px; left: 0; width: 10px; height: 10px;';
+    spinner.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: 1000, iterations: Infinity });
+    return true;
+  })()`);
   await openSettings();
   expect(await evalJson(`${SETTINGS_DOC} === document`)).toBe(true);
-  // the dialog slides in; measure and capture it once it has arrived
-  await waitFor(
-    async () =>
-      evalJson(
-        "document.getAnimations().every((a) => a.playState !== 'running')"
-      ),
-    { message: "the settings dialog to finish opening", timeout: 15000 }
-  );
+  // The dialog slides in. Its animations only advance while Obsidian paints
+  // the window, which it may not do in the background, so they are skipped
+  // to their end state instead of waited for. Only the dialog's own
+  // animations, and only ones that end (anything else in the window, like
+  // the spinner above, is left alone).
+  const settle = `(() => {
+    const own = document.getAnimations().filter((a) => {
+      const target = a.effect?.target;
+      return target && app.setting.containerEl.contains(target) &&
+        a.effect.getTiming().iterations !== Infinity;
+    });
+    own.forEach((a) => a.playState === 'running' && a.finish());
+    return own.every((a) => a.playState !== 'running');
+  })()`;
+  await waitFor(async () => evalJson(settle), {
+    message: "the settings dialog to finish opening",
+  });
   await scrollRulesIntoView();
 
   expect(await horizontalOverflow(".rollover-rules")).toBe(0);
   await screenshot("rules-settings-phone");
+  await evalJs("document.querySelector('.e2e-spinner')?.remove(); true");
 });
 
 test("a rule added in the dialog is saved and used", async () => {
