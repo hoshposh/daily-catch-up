@@ -22,8 +22,11 @@ import {
   evalJson,
   obsidian,
   setMobile,
+  startAsync,
+  awaitAsync,
   waitFor,
 } from "./obsidian";
+import { installNoticeRecorder } from "./rollover";
 
 export const MARKER = ".e2e-vault";
 export const PLUGIN_ID = "daily-catch-up";
@@ -203,6 +206,10 @@ export async function reset({ notes, settings = {}, rawData } = {}) {
   await closeModals();
   await setMobile(false);
   await evalJs("app.changeTheme('moonstone')");
+  // earlier tests' notices (their timers may not run in an unused window)
+  await evalJs(
+    "document.querySelectorAll('.notice').forEach((n) => n.remove()); true"
+  );
   await waitFor(
     async () =>
       (await evalJson(`${plugin}?.rolloverInProgress === true`)) === false,
@@ -211,9 +218,23 @@ export async function reset({ notes, settings = {}, rawData } = {}) {
 
   // the plugin is off while notes are written, so writing today's note does
   // not start a rollover
-  await obsidian(["plugin:disable", `id=${PLUGIN_ID}`, "filter=community"]);
+  // (it may already be off, when an earlier reset failed halfway)
+  if (await evalJson(`Boolean(${plugin}?._loaded)`)) {
+    await obsidian(["plugin:disable", `id=${PLUGIN_ID}`, "filter=community"]);
+  }
   await waitForPlugin(false);
 
+  // Delete through Obsidian, with the editors closed: deleting on disk and
+  // recreating the same folder at once can slip past its file watcher,
+  // leaving a deleted note in app.vault (and an open tab writing it back).
+  await startAsync(`
+    app.workspace.getLeavesOfType('markdown').forEach((leaf) => leaf.detach());
+    for (const child of [...app.vault.getRoot().children]) {
+      await app.vault.delete(child, true);
+    }
+    return true;
+  `);
+  await awaitAsync();
   for (const entry of await readdir(dir)) {
     if (!KEEP_ENTRIES.includes(entry)) {
       await rm(path.join(dir, entry), { recursive: true, force: true });
@@ -225,9 +246,14 @@ export async function reset({ notes, settings = {}, rawData } = {}) {
     await writeFile(file, content);
   }
   const expected = JSON.stringify(Object.keys(notes ?? {}).sort());
-  await waitFor(async () => JSON.stringify(await vaultFiles()) === expected, {
-    message: `the vault to hold exactly ${expected}`,
-  });
+  await waitFor(
+    async () => {
+      const actual = JSON.stringify(await vaultFiles());
+      if (actual !== expected) throw new Error(`the vault holds ${actual}`);
+      return true;
+    },
+    { message: `the vault to hold exactly ${expected}` }
+  );
 
   await writeFile(
     path.join(pluginDir(dir), "data.json"),
@@ -236,6 +262,7 @@ export async function reset({ notes, settings = {}, rawData } = {}) {
   await obsidian(["plugin:enable", `id=${PLUGIN_ID}`, "filter=community"]);
   await waitForPlugin(true);
   await clearErrors();
+  await installNoticeRecorder();
 }
 
 /** A note's text, or null when it does not exist. */
