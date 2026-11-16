@@ -165,3 +165,22 @@ export async function snapshotNotes(paths) {
   for (const path of paths) snapshot[path] = await readNote(path);
   return snapshot;
 }
+
+/**
+ * How far the element (or anything inside it) is wider than its box or runs
+ * past the window's edges, in pixels; 0 when nothing overflows sideways.
+ */
+export async function horizontalOverflow(selector) {
+  const result = await evalJson(`(() => {
+    const root = document.querySelector(${JSON.stringify(selector)});
+    if (!root) return null;
+    let worst = 0;
+    for (const el of [root, ...root.querySelectorAll('*')]) {
+      if (el.clientWidth > 0) worst = Math.max(worst, el.scrollWidth - el.clientWidth);
+    }
+    const rect = root.getBoundingClientRect();
+    return Math.max(worst, Math.ceil(rect.right - innerWidth), Math.ceil(-rect.left));
+  })()`);
+  if (result === null) throw new Error(`Nothing matches ${selector}`);
+  return result;
+}

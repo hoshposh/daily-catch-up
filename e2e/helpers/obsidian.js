@@ -137,10 +137,41 @@ export async function screenshot(name) {
   return file;
 }
 
+/**
+ * Obsidian's mobile emulation. It reloads the app and keeps the window's
+ * width, so phone-width checks use setViewportWidth() instead; reset() only
+ * makes sure it is off.
+ */
 export async function setMobile(on) {
   if ((await evalJson("app.isMobile")) === on) return;
   await obsidian(["dev:mobile", on ? "on" : "off"]);
   await waitFor(async () => (await evalJson("app.isMobile")) === on, {
     message: `mobile emulation ${on ? "on" : "off"}`,
+    timeout: 30000,
+  });
+}
+
+/**
+ * Narrows the window's viewport to `width` CSS pixels, like a phone or a
+ * narrow window (Chrome DevTools device metrics); null restores it.
+ */
+export async function setViewportWidth(width) {
+  if (width === null) {
+    await obsidian(["dev:cdp", "method=Emulation.clearDeviceMetricsOverride"]);
+    return;
+  }
+  const height = await evalJson("innerHeight");
+  await obsidian([
+    "dev:cdp",
+    "method=Emulation.setDeviceMetricsOverride",
+    `params=${JSON.stringify({
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: true,
+    })}`,
+  ]);
+  await waitFor(async () => (await evalJson("innerWidth")) === width, {
+    message: `a ${width}px wide viewport`,
   });
 }

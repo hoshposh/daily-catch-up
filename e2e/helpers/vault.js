@@ -22,6 +22,7 @@ import {
   evalJson,
   obsidian,
   setMobile,
+  setViewportWidth,
   startAsync,
   awaitAsync,
   waitFor,
@@ -205,6 +206,7 @@ export async function reset({ notes, settings = {}, rawData } = {}) {
   const dir = await guardVault();
   await closeModals();
   await setMobile(false);
+  await setViewportWidth(null);
   await evalJs("app.changeTheme('moonstone')");
   // earlier tests' notices (their timers may not run in an unused window)
   await evalJs(
