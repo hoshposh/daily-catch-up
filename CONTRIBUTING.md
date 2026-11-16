@@ -12,6 +12,7 @@ pnpm dev                    # rebuild main.js on every change
 pnpm build                  # production build -> main.js
 pnpm test -- --run          # run the unit tests once (plain `pnpm test` watches)
 pnpm test -- -t "some name" # run tests whose name matches
+pnpm test:e2e               # end-to-end tests in Obsidian (see "Testing in Obsidian")
 ```
 
 `pnpm format` runs Prettier over the whole repository. Some existing files are not Prettier-clean, so it creates noisy diffs; format the files you create instead (`npx prettier --write <file>`).
@@ -34,15 +35,29 @@ See `CLAUDE.md` for the settings and the rollover flow in more detail.
 
 ## Testing in Obsidian
 
-The unit tests cannot cover `rollover()` or the settings tab, so check changes to them by hand. Use a throwaway vault: Delete and Mark rewrite the previous day's note.
+The unit tests cannot cover `rollover()`, the dialogs or the settings tab. The end-to-end tests do, by driving the real Obsidian app.
 
-### 1. Set up a test vault
+### Automated tests
+
+`pnpm test:e2e` runs the end-to-end tests (`e2e/*.e2e.js`) in the running Obsidian app, through the official Obsidian CLI (Obsidian 1.12 or later, with the CLI turned on).
+
+1. Once: create an **empty** vault named `e2e-vault` and open it in Obsidian. The suite adopts it by writing a `.e2e-vault` marker file, and from then on deletes and rewrites its notes on every run. It refuses any other vault, and an unmarked vault that already has notes.
+2. Keep Obsidian running with `e2e-vault` open, then run `pnpm test:e2e` (or `pnpm test:e2e e2e/guards.e2e.js` for one file).
+3. Don't use that Obsidian window while the tests run: they open dialogs, press keys and change the theme in it.
+
+Each run builds the plugin straight into the vault's `.obsidian/plugins/daily-catch-up/` (a real folder, not a symlink) and never touches the repo's own `main.js` or `data.json`. Tests that check a layout save screenshots in `e2e/screenshots/`, and the run lists them at the end for you to look at.
+
+### Exploring by hand
+
+To try a change yourself, use a throwaway vault: Delete and Mark rewrite the previous day's note.
+
+#### 1. Set up a test vault
 
 1. Create a new vault, for example `rollover-test`.
 2. Turn on **Core plugins > Daily notes** and keep the default folder and date format.
 3. Disable the original `obsidian-rollover-daily-todos` plugin in that vault if it is installed. This plugin uses the id `daily-catch-up`, so both can be installed, but you would get a double rollover.
 
-### 2. Install your build
+#### 2. Install your build
 
 The folder name must match the manifest id.
 
@@ -66,7 +81,7 @@ cp main.js manifest.json styles.css <vault>/.obsidian/plugins/daily-catch-up/
 
 Repeat the copy after each change.
 
-### 3. Create the notes
+#### 3. Create the notes
 
 Create yesterday's note, named with yesterday's date (for example `2026-10-21.md`):
 
@@ -89,7 +104,7 @@ Add a few lines for the edge cases: a `> [!tip]` callout containing `> - [ ] hab
 
 Let Obsidian create today's note (the **Open today's daily note** command), so the rollover runs on creation. To repeat a test, delete today's note and create it again. You can also run **Roll over todos now** on an empty today's note; it ignores the 5-second creation window.
 
-### 4. What to check
+#### 4. What to check
 
 | Setting                                      | What to look for                                                                                                                                                                        |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -105,7 +120,7 @@ Let Obsidian create today's note (the **Open today's daily note** command), so t
 
 If you use Templater, also try a daily template with Templater syntax together with Delete or Mark. After about 3 seconds either yesterday's note changes, or you see the "modified by another plugin" notice.
 
-### 5. Debugging
+#### 5. Debugging
 
 Open the developer console with `Ctrl+Shift+I` (`Cmd+Option+I` on macOS) and look for red errors and for lines starting with `Daily Catch-Up:`.
 
