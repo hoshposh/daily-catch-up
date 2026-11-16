@@ -168,7 +168,8 @@ export async function snapshotNotes(paths) {
 
 /**
  * How far the element (or anything inside it) is wider than its box or runs
- * past the window's edges, in pixels; 0 when nothing overflows sideways.
+ * past the window's edges, in whole pixels; 0 when nothing overflows
+ * sideways. Less than a pixel past an edge (sub-pixel layout) counts as 0.
  */
 export async function horizontalOverflow(selector) {
   const result = await evalJson(`(() => {
@@ -179,7 +180,7 @@ export async function horizontalOverflow(selector) {
       if (el.clientWidth > 0) worst = Math.max(worst, el.scrollWidth - el.clientWidth);
     }
     const rect = root.getBoundingClientRect();
-    return Math.max(worst, Math.ceil(rect.right - innerWidth), Math.ceil(-rect.left));
+    return Math.max(worst, Math.floor(rect.right - innerWidth), Math.floor(-rect.left));
   })()`);
   if (result === null) throw new Error(`Nothing matches ${selector}`);
   return result;
