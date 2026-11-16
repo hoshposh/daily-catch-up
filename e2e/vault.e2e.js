@@ -4,13 +4,17 @@ import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import {
   REPO_ROOT,
+  capturedErrors,
   evalJs,
   evalJson,
   setMobile,
+  setViewportWidth,
   waitFor,
 } from "./helpers/obsidian";
+import { runCommand, waitForReview } from "./helpers/rollover";
 import {
   PLUGIN_ID,
+  bootstrap,
   day,
   expectNoErrors,
   fixture,
@@ -52,22 +56,30 @@ test("reset writes notes and settings", async () => {
 });
 
 test("reset starts clean after a failed test", async () => {
-  await reset({ notes: standardNotes() });
-  // the palette first: it opens in the focused window, and the settings
+  await reset({ notes: standardNotes({ withToday: true }) });
+  const fullWidth = await evalJson("innerWidth");
+  // mobile emulation first: switching it reloads the app, which would close
+  // everything opened before it
+  await setMobile(true);
+  await setViewportWidth(375);
+  // a rollover left waiting in its review dialog
+  await runCommand("review-and-rollover");
+  await waitForReview();
+  expect(await evalJson(`${plugin}.rolloverInProgress`)).toBe(true);
+  // the palette next: it opens in the focused window, and the settings
   // window is a popout that takes focus
   await evalJs("app.commands.executeCommandById('command-palette:open')");
   await waitFor(
     async () =>
       (await evalJson(
         "document.querySelectorAll('.modal-container').length"
-      )) === 1,
-    { message: "the command palette to open" }
+      )) === 2,
+    { message: "the command palette to open over the review" }
   );
   await evalJs("app.setting.open()");
   await waitFor(async () => evalJson("app.setting.isOpen"), {
     message: "the settings window to open",
   });
-  await setMobile(true);
   await evalJs("app.changeTheme('obsidian')");
   await writeFile(path.join(await vaultPath(), "Stray.md"), "stray\n");
 
@@ -77,9 +89,30 @@ test("reset starts clean after a failed test", async () => {
     await evalJson("document.querySelectorAll('.modal-container').length")
   ).toBe(0);
   expect(await evalJson("app.setting.isOpen")).toBe(false);
+  expect(await evalJson(`${plugin}.rolloverInProgress`)).toBe(false);
   expect(await evalJson("app.isMobile")).toBe(false);
+  expect(await evalJson("innerWidth")).toBe(fullWidth);
   expect(
     await evalJson("document.body.classList.contains('theme-light')")
   ).toBe(true);
   expect(await readNote("Stray.md")).toBeNull();
+});
+
+test("expectNoErrors catches errors the plugin logs", async () => {
+  await reset({ notes: standardNotes() });
+  await evalJs("console.error('Daily Catch-Up: e2e logged error'); true");
+  await expect(expectNoErrors()).rejects.toThrow(/e2e logged error/);
+  // a reset starts the next test with a clean list
+  await reset({ notes: standardNotes() });
+});
+
+test("bootstrap clears errors captured before the run", async () => {
+  await evalJs(
+    "setTimeout(() => { throw new Error('e2e stale error'); }, 0); true"
+  );
+  await waitFor(async () => (await capturedErrors()).length > 0, {
+    message: "the stale error to be captured",
+  });
+  await bootstrap();
+  expect(await capturedErrors()).toEqual([]);
 });

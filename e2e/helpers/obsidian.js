@@ -3,6 +3,8 @@
 // never a shell string.
 import { execFile } from "node:child_process";
 import { appendFile, mkdir } from "node:fs/promises";
+import net from "node:net";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -14,9 +16,15 @@ export const SCREENSHOT_INDEX = path.join(SCREENSHOT_DIR, ".index");
 const UNREACHABLE = () =>
   `Obsidian CLI could not reach vault "${VAULT_NAME}". Open it in Obsidian and keep Obsidian running.`;
 
+const CONSOLE_LINE = /^\[(log|info|warn|error|debug)\] /;
+
 /** The CLI's printed result: `=> ` prefix removed, errors thrown. */
 export function parseOutput(stdout) {
-  const text = (stdout ?? "").trim();
+  // console output printed while `eval` ran comes first, one `[level] ` line
+  // per message
+  const lines = (stdout ?? "").trim().split("\n");
+  while (lines.length > 1 && CONSOLE_LINE.test(lines[0])) lines.shift();
+  const text = lines.join("\n").trim();
   if (text.startsWith("Error:")) throw new Error(text);
   if (text === "Vault not found.") throw new Error(`${UNREACHABLE()}\n${text}`);
   if (text === "(no output)") return "";
@@ -26,9 +34,12 @@ export function parseOutput(stdout) {
 /** A readable error for a CLI process that failed to run or exited non-zero. */
 export function cliError(err, args) {
   const output = [err?.stdout, err?.stderr].filter(Boolean).join("\n").trim();
+  const lines = output.split("\n").map((line) => line.trim());
   if (
     err?.code === "ENOENT" ||
-    /not running|ECONNREFUSED|connect/i.test(output)
+    err?.killed === true ||
+    lines.includes("Unable to connect to main process") ||
+    lines.includes("Vault not found.")
   ) {
     return new Error(
       `${UNREACHABLE()}\n${err?.message ?? ""}\n${output}`.trim()
@@ -39,6 +50,30 @@ export function cliError(err, args) {
       err?.message ?? err
     }\n${output}`.trim()
   );
+}
+
+/**
+ * The socket a running Obsidian listens on for the CLI. Without it, the
+ * `obsidian` binary starts the app itself instead of talking to it.
+ */
+export function cliSocketPath(env = process.env) {
+  return path.join(env.XDG_RUNTIME_DIR || os.homedir(), ".obsidian-cli.sock");
+}
+
+/** Fails fast, with the usual message, when Obsidian is not running. */
+export function assertAppReachable(socketPath = cliSocketPath()) {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection(socketPath);
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve();
+    });
+    socket.once("error", (e) => {
+      reject(
+        new Error(`${UNREACHABLE()}\n${socketPath}: ${e.code ?? e.message}`)
+      );
+    });
+  });
 }
 
 export function obsidian(args, { timeout = 20000 } = {}) {
@@ -119,14 +154,27 @@ export async function awaitAsync({ timeout = 30000 } = {}) {
   return state.value;
 }
 
+/**
+ * Uncaught errors (dev:errors) and console.error messages (dev:console; the
+ * plugin logs its own failures that way, and dev:errors does not see them)
+ * since the last clearErrors().
+ */
 export async function capturedErrors() {
-  const out = await obsidian(["dev:errors"]);
-  if (out === "" || out === "No errors captured.") return [];
-  return [out];
+  const errors = [];
+  const uncaught = await obsidian(["dev:errors"]);
+  if (uncaught !== "" && uncaught !== "No errors captured.") {
+    errors.push(uncaught);
+  }
+  const logged = await obsidian(["dev:console", "level=error", "limit=200"]);
+  if (logged !== "" && logged !== "No console messages captured.") {
+    errors.push(logged);
+  }
+  return errors;
 }
 
 export async function clearErrors() {
   await obsidian(["dev:errors", "clear"]);
+  await obsidian(["dev:console", "clear"]);
 }
 
 export async function screenshot(name) {

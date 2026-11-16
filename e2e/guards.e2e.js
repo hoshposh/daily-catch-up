@@ -83,7 +83,13 @@ test("backlog note cannot be today's note", async () => {
 test("a second rollover waits for the open dialog", async () => {
   await reset({
     notes: standardNotes({ withToday: true }),
-    settings: { ...CHECKLIST_PROFILE, reviewOnAutoRollover: "always" },
+    settings: {
+      ...CHECKLIST_PROFILE,
+      // with skip-existing on, a second rollover's todos would be deduped
+      // and the "rolled once" check below could never fail
+      skipExistingTodos: false,
+      reviewOnAutoRollover: "always",
+    },
   });
 
   await runCommand("review-and-rollover");

@@ -28,6 +28,7 @@ import {
   waitFor,
 } from "./obsidian";
 import { installNoticeRecorder } from "./rollover";
+import { assertAppReachable } from "./obsidian";
 
 export const MARKER = ".e2e-vault";
 export const PLUGIN_ID = "daily-catch-up";
@@ -89,6 +90,9 @@ export async function vaultPath() {
 /** Resolves and checks the vault; adopts a fresh one by writing the marker. */
 export async function guardVault() {
   if (checkedPath) return checkedPath;
+  // the first CLI call of a run: without a running app, `obsidian` would
+  // launch it and hang instead of answering
+  await assertAppReachable();
   const dir = await vaultPath();
   const name = await obsidian(["vault", "info=name"]);
   const entries = await readdir(dir);
@@ -171,6 +175,8 @@ export async function bootstrap() {
     await obsidian(["plugin:reload", `id=${PLUGIN_ID}`]);
   }
   await waitForPlugin(true);
+  // errors from before this run (an earlier run, or the window being used)
+  await clearErrors();
 }
 
 /** Dispatches Escape where Obsidian's keymap hears it (the focused element). */
@@ -204,8 +210,10 @@ async function vaultFiles() {
  */
 export async function reset({ notes, settings = {}, rawData } = {}) {
   const dir = await guardVault();
-  await closeModals();
+  // mobile emulation off first: switching it reloads the app, which also
+  // closes its dialogs (in mobile mode the settings dialog ignores Escape)
   await setMobile(false);
+  await closeModals();
   await setViewportWidth(null);
   await evalJs("app.changeTheme('moonstone')");
   // earlier tests' notices (their timers may not run in an unused window)
@@ -275,6 +283,7 @@ export async function readNote(notePath) {
   );
 }
 
+/** Fails when Obsidian captured an error since the last reset(). */
 export async function expectNoErrors() {
   const errors = await capturedErrors();
   if (errors.length > 0) {
