@@ -2,11 +2,13 @@
 // popout window in Obsidian 1.15, so the helpers query its own document.
 import { afterEach, expect, test } from "vitest";
 import {
+  awaitAsync,
   evalJs,
   evalJson,
   screenshot,
   setMobile,
   setViewportWidth,
+  startAsync,
   waitFor,
 } from "./helpers/obsidian";
 import {
@@ -28,6 +30,7 @@ import {
   ruleRows,
   scrollRulesIntoView,
   setTextSetting,
+  settingsMaxScrollTop,
   settingsScrollTop,
   toggleRule,
 } from "./helpers/settings-tab";
@@ -89,7 +92,13 @@ test("rule changes redraw only the Rules group", async () => {
   await waitFor(async () => (await ruleRows()).length === 8, {
     message: "a rule to be deleted",
   });
-  await unchanged();
+  // the page is one row shorter now: when it was scrolled near the bottom
+  // (a tall settings window), the browser has to lower the position by up
+  // to that much, which is not a jump
+  expect(await settingsScrollTop()).toBe(
+    Math.min(scrollTop, await settingsMaxScrollTop())
+  );
+  expect(await markStillThere()).toBe(true);
 });
 
 test("an invalid regex cannot be saved", async () => {
@@ -175,12 +184,26 @@ test("a rule added in the dialog is saved and used", async () => {
   const last = (await ruleRows()).at(-1);
   expect(last.summary).toBe('Heading "Errands" → Leave');
   expect(last.enabled).toBe(true);
-  expect(await evalJson(`${plugin}.settings.rules.at(-1)`)).toMatchObject({
+  const added = {
     enabled: true,
     match: "heading",
     value: "Errands",
     effect: "leave",
-  });
+  };
+  expect(await evalJson(`${plugin}.settings.rules.at(-1)`)).toMatchObject(
+    added
+  );
+  // saved, not only in memory: what the plugin reads back after a restart
+  await waitFor(
+    async () => {
+      await startAsync(
+        `return (await ${plugin}.loadData())?.rules?.at(-1) ?? null;`
+      );
+      const stored = await awaitAsync();
+      return stored?.value === "Errands" ? stored : null;
+    },
+    { message: "the new rule in data.json" }
+  ).then((stored) => expect(stored).toMatchObject(added));
 
   await evalJs("app.setting.close(); true");
   await runCommand("review-and-rollover");

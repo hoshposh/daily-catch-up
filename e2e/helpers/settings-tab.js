@@ -52,6 +52,11 @@ export async function settingsScrollTop() {
   return evalJson(`${PANE}.scrollTop`);
 }
 
+/** The furthest the settings pane can scroll down right now. */
+export async function settingsMaxScrollTop() {
+  return evalJson(`${PANE}.scrollHeight - ${PANE}.clientHeight`);
+}
+
 /** Scrolls the settings pane so the Rules group is at the top. */
 export async function scrollRulesIntoView() {
   await evalJs(
