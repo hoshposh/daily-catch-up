@@ -71,8 +71,17 @@ test("rules choose defaults and move todos", async () => {
 
   const today = (await readNote(`daily/${day()}.md`)).split("\n");
   const inbox = section(today, "## Inbox");
-  expect(inbox).toContain("- [ ] Ship release");
-  expect(inbox).toContain("- [ ] Call bank");
+  const count = (line) => today.filter((l) => l === line).length;
+  // moved todos are under ## Inbox and nowhere else (not also under the
+  // template heading, ## Tasks, where unmoved todos go)
+  for (const moved of ["- [ ] Ship release", "- [ ] Call bank"]) {
+    expect(inbox, moved).toContain(moved);
+    expect(count(moved), moved).toBe(1);
+  }
+  expect(count("- [ ] Write report")).toBe(1);
+  expect(inbox).not.toContain("- [ ] Write report");
+  // the backlog todo went to the backlog note only
+  expect(today.filter((l) => l.includes("Learn Rust"))).toEqual([]);
   expect((await readNote(BACKLOG)).split("\n")).toContain(
     `- [ ] Learn Rust #someday [from:: [[${day(-1)}]]]`
   );
