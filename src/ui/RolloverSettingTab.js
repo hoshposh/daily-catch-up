@@ -335,9 +335,10 @@ export default class RolloverSettingTab extends PluginSettingTab {
 
   // One row per rule (switch, summary, note, edit / up / down / delete), then
   // Add rule. Rebuilds only this.rulesEl, so the page does not jump. The rows
-  // are built off the page and swapped in at once: emptying the group first
-  // made the page shorter for a moment, and the browser pulled the scroll
-  // position up (the group is last on the page).
+  // are built off the page and swapped in at once: emptying the group and
+  // rebuilding it in place made the settings page jump when a rule was moved
+  // (e2e/settings.e2e.js saw the scroll position drop by about 500 px; the
+  // group is last on the page). Swapping the rows in at once keeps it.
   renderRules() {
     const target = this.rulesEl;
     if (!target) return;

@@ -186,9 +186,12 @@ export async function screenshot(name) {
 }
 
 /**
- * Obsidian's mobile emulation. It reloads the app and keeps the window's
- * width, so phone-width checks use setViewportWidth() instead; reset() only
- * makes sure it is off.
+ * Obsidian's mobile emulation. Switching it reloads the app (closing its
+ * dialogs) and keeps the window's width, and the setting survives restarts.
+ * On its own it does not give phone width: call setViewportWidth() first,
+ * then setMobile(true), and the reload picks the phone layout (the settings
+ * test does this, because the settings popout cannot be narrowed below
+ * 600 px). reset() and the global teardown switch it off again.
  */
 export async function setMobile(on) {
   if ((await evalJson("app.isMobile")) === on) return;
