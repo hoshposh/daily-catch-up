@@ -7,7 +7,8 @@
     "dev": "rollup -c -w",
     "build": "rollup -c --environment BUILD:production",
     "test": "vitest",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:e2e": "vitest run --config vitest.e2e.config.js"
   },
   "cspell": {
     "words": [
