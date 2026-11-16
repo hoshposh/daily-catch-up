@@ -334,11 +334,14 @@ export default class RolloverSettingTab extends PluginSettingTab {
   }
 
   // One row per rule (switch, summary, note, edit / up / down / delete), then
-  // Add rule. Rebuilds only this.rulesEl, so the page does not jump.
+  // Add rule. Rebuilds only this.rulesEl, so the page does not jump. The rows
+  // are built off the page and swapped in at once: emptying the group first
+  // made the page shorter for a moment, and the browser pulled the scroll
+  // position up (the group is last on the page).
   renderRules() {
-    const el = this.rulesEl;
-    if (!el) return;
-    el.empty();
+    const target = this.rulesEl;
+    if (!target) return;
+    const el = target.ownerDocument.createElement("div");
     this.ruleRows = [];
     const rules = this.rules();
 
@@ -418,6 +421,7 @@ export default class RolloverSettingTab extends PluginSettingTab {
       })
     );
 
+    target.replaceChildren(...el.childNodes);
     this.refreshRuleNotes();
   }
 
