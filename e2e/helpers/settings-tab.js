@@ -44,6 +44,20 @@ export async function clickRuleControl(index, label) {
   await clickInRow(index, `[aria-label="${label}"]`, `"${label}" button`);
 }
 
+/** Whether the row's button with this label is shown as disabled. */
+export async function ruleControlDisabled(index, label) {
+  const disabled = await evalJson(`(() => {
+    const el = ${ROWS}[${index}]?.querySelector(${JSON.stringify(
+    `[aria-label="${label}"]`
+  )});
+    return el ? el.classList.contains('is-disabled') : null;
+  })()`);
+  if (disabled === null) {
+    throw new Error(`Rule row ${index} has no "${label}" button`);
+  }
+  return disabled;
+}
+
 export async function toggleRule(index) {
   await clickInRow(index, ".checkbox-container", "switch");
 }
@@ -118,7 +132,18 @@ export async function ruleDialog() {
     const problem = dialog.querySelector('.rollover-rule-problem');
     const save = [...dialog.closest('.modal').querySelectorAll('button')].find(
       (b) => b.textContent.trim() === 'Save');
+    const item = (name) =>
+      [...dialog.querySelectorAll('.setting-item')]
+        .find((s) => s.querySelector('.setting-item-name')?.textContent === name);
+    const target = item('Target heading');
     return {
+      fields: {
+        match: item('Match')?.querySelector('select')?.value ?? null,
+        value: item('Value')?.querySelector('input')?.value ?? null,
+        effect: item('Effect')?.querySelector('select')?.value ?? null,
+        target: target?.querySelector('input')?.value ?? null,
+      },
+      targetVisible: Boolean(target) && target.style.display !== 'none',
       problem: problem?.textContent ?? '',
       problemVisible: Boolean(problem) && problem.style.display !== 'none',
       saveDisabled: Boolean(save?.disabled || save?.classList.contains('is-disabled')),
@@ -127,7 +152,7 @@ export async function ruleDialog() {
 }
 
 /** Sets the rule dialog's fields by their setting names. */
-export async function fillRuleDialog({ match, value, effect }) {
+export async function fillRuleDialog({ match, value, effect, target }) {
   await waitFor(async () => (await ruleDialog()) !== null, {
     message: "the rule dialog",
   });
@@ -149,6 +174,7 @@ export async function fillRuleDialog({ match, value, effect }) {
       set('Match', 'select', ${JSON.stringify(match)}, 'change'),
       set('Value', 'input', ${JSON.stringify(value)}, 'input'),
       set('Effect', 'select', ${JSON.stringify(effect)}, 'change'),
+      set('Target heading', 'input', ${JSON.stringify(target)}, 'input'),
     ];
   })()`);
   if (!result?.every(Boolean)) {

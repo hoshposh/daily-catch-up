@@ -26,6 +26,7 @@ import {
   markOutsideRules,
   markStillThere,
   openSettings,
+  ruleControlDisabled,
   ruleDialog,
   ruleRows,
   scrollRulesIntoView,
@@ -231,4 +232,86 @@ test("a rule added in the dialog is saved and used", async () => {
   expect(parcel?.badges).toContain('Heading "Errands"');
   await pressEscape();
   await waitForIdle();
+});
+
+test("the first rule cannot move up, the last cannot move down", async () => {
+  await freshSettings();
+  expect(await ruleControlDisabled(0, "Move up")).toBe(true);
+  expect(await ruleControlDisabled(0, "Move down")).toBe(false);
+  expect(await ruleControlDisabled(8, "Move down")).toBe(true);
+  expect(await ruleControlDisabled(8, "Move up")).toBe(false);
+
+  const summaries = async () => (await ruleRows()).map((r) => r.summary);
+  const before = await summaries();
+  await clickRuleControl(0, "Move up");
+  await clickRuleControl(8, "Move down");
+  expect(await summaries()).toEqual(before);
+
+  await clickRuleControl(0, "Move down");
+  await waitFor(
+    async () => (await ruleRows())[1]?.summary === "Tag #someday → Backlog",
+    { message: "#someday to move down" }
+  );
+  expect((await summaries()).slice(0, 2)).toEqual([
+    "Tag #maybe → Backlog",
+    "Tag #someday → Backlog",
+  ]);
+  expect(
+    await evalJson(`${plugin}.settings.rules.slice(0, 2).map((r) => r.id)`)
+  ).toEqual(["example-2", "example-1"]);
+  // the ends follow the new order
+  expect(await ruleControlDisabled(0, "Move up")).toBe(true);
+  expect(await ruleControlDisabled(1, "Move up")).toBe(false);
+});
+
+test("editing a rule shows its values and saves in place", async () => {
+  await freshSettings();
+  const stored = () => evalJson(`${plugin}.settings.rules[0]`);
+  const original = await stored();
+
+  await clickRuleControl(0, "Edit");
+  await waitFor(async () => (await ruleDialog()) !== null, {
+    message: "the rule dialog",
+  });
+  let dialog = await ruleDialog();
+  expect(dialog.fields).toMatchObject({
+    match: "tag",
+    value: "#someday",
+    effect: "backlog",
+  });
+  expect(dialog.targetVisible).toBe(false);
+
+  // Cancel keeps the rule as it was, even after typing
+  await fillRuleDialog({ value: "#later" });
+  await clickSettingsButton("Cancel");
+  await waitFor(async () => (await ruleDialog()) === null, {
+    message: "the rule dialog to close",
+  });
+  expect(await stored()).toEqual(original);
+  expect((await ruleRows())[0].summary).toBe("Tag #someday → Backlog");
+
+  // Move to heading asks for a target before it can be saved
+  await clickRuleControl(0, "Edit");
+  await fillRuleDialog({ value: "#later", effect: "move" });
+  dialog = await ruleDialog();
+  expect(dialog.targetVisible).toBe(true);
+  expect(dialog.problem).toBe("Enter the heading to move to.");
+  expect(dialog.saveDisabled).toBe(true);
+  await fillRuleDialog({ target: "Later" });
+  expect((await ruleDialog()).saveDisabled).toBe(false);
+  await clickSettingsButton("Save");
+  await waitFor(
+    async () =>
+      (await ruleRows())[0]?.summary === "Tag #later → Move to ## Later",
+    { message: "the edited rule's row" }
+  );
+  // same rule, same place, still switched off
+  expect(await ruleRows()).toHaveLength(9);
+  expect((await ruleRows())[0].enabled).toBe(false);
+  expect(await stored()).toEqual({
+    ...original,
+    value: "#later",
+    effect: "move",
+    target: "Later",
+  });
 });

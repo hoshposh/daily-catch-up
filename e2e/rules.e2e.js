@@ -6,7 +6,10 @@ import { evalJson } from "./helpers/obsidian";
 import {
   clickButton,
   openToday,
+  pressEscape,
   reviewRows,
+  runCommand,
+  setOutcome,
   waitForIdle,
   waitForNotice,
   waitForReview,
@@ -128,4 +131,91 @@ test("not-a-todo and no-stale-count rules reach the rollover", async () => {
     previous.filter((l) => l.includes("Write report") || l.includes("Chase"))
   ).toEqual([]);
   expect(section(previous, "## Log")).toContain("- [ ] Called the bank");
+});
+
+test("the move badge shows only while the todo rolls", async () => {
+  const rules = await examplesWith("example-8");
+  await reset({
+    notes: notesWith("rules-previous.md"),
+    settings: {
+      templateHeading: "## Tasks",
+      reviewOnAutoRollover: "always",
+      rules,
+    },
+  });
+  await openToday();
+  await waitForReview();
+  const badges = async (label) =>
+    (await reviewRows()).find((r) => r.label === label)?.badges;
+  const MOVE = "→ ## Inbox";
+
+  expect(await badges("Ship release")).toContain(MOVE);
+  await setOutcome("Ship release", "leave");
+  expect(await badges("Ship release")).not.toContain(MOVE);
+  expect(await badges("Call bank")).toContain(MOVE);
+  await setOutcome("Ship release", "roll");
+  expect(await badges("Ship release")).toContain(MOVE);
+
+  // the shortcuts for every todo (the dialog's first All leave / All roll)
+  await clickButton("All leave");
+  expect(await badges("Ship release")).not.toContain(MOVE);
+  expect(await badges("Call bank")).not.toContain(MOVE);
+  await clickButton("All roll");
+  expect(await badges("Ship release")).toContain(MOVE);
+  expect(await badges("Call bank")).toContain(MOVE);
+
+  await pressEscape();
+  await waitForIdle();
+});
+
+/** Rolls rules-previous.md into an existing today's note with Top 3 → Inbox on. */
+async function moveInto(todayNote) {
+  const rules = await examplesWith("example-8");
+  await reset({
+    notes: {
+      ...notesWith("rules-previous.md"),
+      [`daily/${day()}.md`]: todayNote,
+    },
+    settings: { templateHeading: "## Tasks", rules },
+  });
+  await runCommand("review-and-rollover");
+  await waitForReview();
+  await clickButton("Apply");
+  await waitForIdle();
+  return (await readNote(`daily/${day()}.md`)).split("\n");
+}
+
+test("moved todos use an existing target outside the template heading", async () => {
+  const today = await moveInto(
+    "# Work\n\n## Inbox\n\n- [ ] Existing\n\n## Tasks\n\n- [ ] Standup\n"
+  );
+  // one Inbox, the one above the template heading
+  expect(today.filter((line) => line === "## Inbox")).toHaveLength(1);
+  expect(section(today, "## Inbox")).toEqual(
+    expect.arrayContaining([
+      "- [ ] Existing",
+      "- [ ] Ship release",
+      "- [ ] Call bank",
+    ])
+  );
+  expect(today.indexOf("- [ ] Call bank")).toBeLessThan(
+    today.indexOf("## Tasks")
+  );
+  // todos without a move still go under the template heading
+  expect(section(today, "## Tasks")).toContain("- [ ] Write report");
+});
+
+test("a missing target goes at the end of the note, not under the template heading", async () => {
+  const today = await moveInto(
+    "# Work\n\n## Tasks\n\n- [ ] Standup\n\n## Notes\n\nSome notes\n"
+  );
+  expect(today.filter((line) => line === "## Inbox")).toHaveLength(1);
+  expect(today.indexOf("## Inbox")).toBeGreaterThan(
+    today.indexOf("Some notes")
+  );
+  expect(section(today, "## Inbox")).toEqual(
+    expect.arrayContaining(["- [ ] Ship release", "- [ ] Call bank"])
+  );
+  expect(section(today, "## Tasks")).toContain("- [ ] Write report");
+  expect(section(today, "## Tasks")).not.toContain("- [ ] Ship release");
 });
