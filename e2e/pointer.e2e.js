@@ -1,7 +1,8 @@
 // The demo pointer and window sizing.
 import { afterEach, expect, test } from "vitest";
-import { evalJson } from "./helpers/obsidian";
+import { evalJson, waitFor } from "./helpers/obsidian";
 import {
+  highlight,
   moveTo,
   prepareWindow,
   removePointer,
@@ -34,6 +35,9 @@ const windowState = () =>
   })()`);
 
 afterEach(async () => {
+  await evalJson(
+    "(document.querySelectorAll('.e2e-target').forEach((d) => d.remove()), true)"
+  );
   await stopRecording();
   await removePointer();
   await restoreWindow();
@@ -96,6 +100,35 @@ test("moveTo scrolls an element into view first", async () => {
   expect(await evalJson(visible)).toBe(true);
   await pressEscape();
   await waitForIdle();
+});
+
+test("highlight covers each matching element, then removes itself", async () => {
+  await reset({ notes: standardNotes() });
+  await resolveTarget("main");
+  await evalJson(`(() => {
+    document.querySelectorAll('.e2e-target').forEach((d) => d.remove());
+    for (const top of [100, 200]) {
+      const d = document.body.createDiv({ cls: 'e2e-target' });
+      d.style.cssText = 'position: fixed; left: 50px; width: 300px; height: 20px; top: ' + top + 'px;';
+    }
+    return true;
+  })()`);
+  expect(await highlight(".e2e-target", 600)).toBe(2);
+  const boxes = await evalJson(`(() => {
+    const at = (el) => { const r = el.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.height)]; };
+    return {
+      targets: [...document.querySelectorAll('.e2e-target')].map(at),
+      highlights: [...document.querySelectorAll('.demo-highlight')].map(at),
+    };
+  })()`);
+  expect(boxes.highlights).toEqual(boxes.targets);
+  await waitFor(
+    async () =>
+      (await evalJson(
+        "document.querySelectorAll('.demo-highlight').length"
+      )) === 0,
+    { message: "the highlights to go", timeout: 5000 }
+  );
 });
 
 test("removePointer leaves nothing behind", async () => {

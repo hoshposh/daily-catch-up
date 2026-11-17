@@ -181,11 +181,44 @@ export async function choose(label, outcome) {
   })()`);
 }
 
-/** Removes the pointer, any ripple and their styles. */
+const HIGHLIGHT_CSS = `
+.demo-highlight { position: fixed; pointer-events: none; z-index: 2147483645; border-radius: 4px; background: color-mix(in srgb, var(--interactive-accent) 22%, transparent); opacity: 0; animation-name: demo-highlight; animation-fill-mode: forwards; animation-timing-function: linear; }
+@keyframes demo-highlight { 0% { opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+`;
+
+/**
+ * Lays a soft accent band over every element in window.__demoDoc that the
+ * CSS `selector` matches, fading in and out over `ms`, and returns how many
+ * it covered. The bands are drawn over the page, so nothing in it changes.
+ * Resolves at once: the caller pauses for as long as viewers should look.
+ */
+export async function highlight(selector, ms = 2000) {
+  return evalJson(`(() => {
+    const doc = window.__demoDoc;
+    if (!doc.getElementById('demo-highlight-style')) {
+      const style = doc.createElement('style');
+      style.id = 'demo-highlight-style';
+      style.textContent = ${JSON.stringify(HIGHLIGHT_CSS)};
+      doc.head.appendChild(style);
+    }
+    const targets = [...doc.querySelectorAll(${JSON.stringify(selector)})];
+    for (const target of targets) {
+      const r = target.getBoundingClientRect();
+      const band = doc.createElement('div');
+      band.className = 'demo-highlight';
+      band.style.cssText = 'left: ' + r.left + 'px; top: ' + r.top + 'px; width: ' + r.width + 'px; height: ' + r.height + 'px; animation-duration: ${ms}ms;';
+      doc.body.appendChild(band);
+      doc.defaultView.setTimeout(() => band.remove(), ${ms});
+    }
+    return targets.length;
+  })()`);
+}
+
+/** Removes the pointer, any ripple and highlight, and their styles. */
 export async function removePointer() {
   await evalJs(`(() => {
     for (const doc of new Set([document, window.__demoDoc].filter(Boolean))) {
-      doc.querySelectorAll('#demo-pointer, .demo-ripple, #demo-pointer-style').forEach((n) => n.remove());
+      doc.querySelectorAll('#demo-pointer, .demo-ripple, #demo-pointer-style, .demo-highlight, #demo-highlight-style').forEach((n) => n.remove());
     }
     return true;
   })()`);
