@@ -23,7 +23,7 @@ Use cases for each item: [roadmap-phase-3-use-cases.md](roadmap-phase-3-use-case
 - [ ] A "gather from the last N days" mode. Today only the single previous note is read, so todos are stranded whenever a note is created without a rollover (a closed review dialog, a device without the plugin, Templater overwriting the todos), or added to an older note after a newer one exists. Phase 4's snoozing needs this to find a todo that sits in an older note.
 - [ ] Pull from an inbox note as a source, such as a capture inbox that the Delete source action empties.
 - [ ] Pull from the backlog note as a source, with a "bring back" outcome in the review dialog, so parked todos can return.
-- [ ] Pull next actions from project notes as a source. Needs a tag or marker rule from Phase 4 to avoid pulling every todo.
+- [ ] Pull next actions from project notes as a source. Needs a tag or marker rule from Phase 4 to avoid pulling every todo. Phase 4's rules now exist, but they only act on todos already read from the previous note (`isIgnoredByRules()` in the parser, `ruleResult()` per item). Choosing which todos a source contributes needs a new hook, for example a rule effect or a per-source match evaluated before items are formed.
 
 ## Phase 4: Smart filtering
 
@@ -31,11 +31,27 @@ Use cases for each item: [roadmap-phase-4-use-cases.md](roadmap-phase-4-use-case
 
 Rules first: they mostly set an item's default outcome, which `defaultDecisions()` already does, and the review dialog still lets the user override them. They also stop the stale counter flagging todos that are not really slipping.
 
-Rules shipped as one rule list in a Rules settings section, designed in `docs/superpowers/specs/2026-11-12-rules-design.md`. Each rule matches by tag, heading or regex and sets the default outcome, marks the line as not a todo, exempts it from the stale counter, or moves it to another heading in today's note.
+Rules are built, not yet released: merged to `main` on 2026-11-16 (the latest release is still 1.3.1, and `main` was not pushed then). They are one rule list in a Rules settings section, designed in `docs/superpowers/specs/2026-11-12-rules-design.md` and planned in `docs/superpowers/plans/2026-11-12-rules.md`, with unit tests in `src/rules.test.js` and e2e tests in `e2e/rules.e2e.js` and `e2e/settings.e2e.js`. Each rule matches by tag, heading or regex and sets the default outcome, marks the line as not a todo, exempts it from the stale counter, or moves it to another heading in today's note.
 
 - [x] Tag rules. Examples: `#someday` / `#maybe` go to the backlog note; `#waiting` doesn't count toward staleness; `#habit` never rolls; `@errands` goes to its own heading. Moving to another note was left out: it needs a second write target with its own undo snapshot.
 - [x] Per-heading rules. Examples: never roll `## Meetings` (agenda points and attendance) or `## Log`; always roll `## Inbox`; roll `## Top 3 today` into `## Inbox` instead of recreating its heading.
 - [x] A regex exclude for custom conventions, such as checkbox lines used as data (`- [ ] @Alice`) or a personal `idea:` prefix. A regex rule can have any effect, not only exclude.
+
+Follow-ups from the final review of the rules branch (graded minor, none blocks a release):
+
+- [ ] Moved todos keep their indentation. A todo that sat under a plain bullet (`- Garden` / `    - [ ] buy soil #errands`) lands indented under another moved todo, and the next rollover treats the two as one item. The cause predates rules (within one section, `- [ ] a` / `- Garden` / `    - [ ] soil` already lands `soil` under `a`), but Move to heading makes it reachable across sections. A possible fix is re-basing each moved item's indentation to its head's.
+- [ ] Tag values are not fully normalised: `##someday` is kept as typed and never matches `#someday`, and a bare `#` or `@`, or a tag with spaces (`#some day`), passes validation. A bare `#` then matches any line with a lone `# `. Strip all leading `#`s and reject an empty or space-containing tag body with "Enter a tag." in `ruleProblem()`.
+- [ ] A hand-edited effect such as `"toString"` shows function source in its settings row, because `EFFECT_LABELS[rule.effect]` reads the prototype chain. The rule itself stays inert. Guard with `EFFECTS.includes()` in `ruleSummary()`.
+- [ ] Editing a hand-edited, malformed rule in `RuleModal` is confusing: `value: 42` shows "42" but Save stays disabled with "Enter a tag." until retyped, and a missing `match` leaves the dropdown without a valid choice. Coerce the draft when the dialog opens.
+- [ ] Add unit flow tests (`src/rollover-flow.test.js`) for delete and mark on a moved item with skipped completed or dropped empty children, and for skip-existing on a moved section. The reviewer checked both by hand and they behave correctly; the tests would keep it that way.
+
+Known limitations, accepted on purpose:
+
+- No badge names a No stale count rule in the review, even when it turns a would-be Backlog default into Roll. The spec only has badges for outcome and move rules. The `[rolled:: n]` counter is still visible on the line.
+- Deleting a rule in settings does not ask for confirmation.
+- A tag right after `(`, as in `(#someday)`, is not matched. Tag rules use the same tag start as `hasRolledMarker()`.
+- A move target heading inside a fenced code block in today's note is still found, like the existing heading lookup.
+- A hand-typed `"enabled": "false"` (a string) counts as switched on.
 
 Then Obsidian Tasks dates and recurrence, which build on Phase 3's multi-note sourcing. Tasks users already list scheduled todos with query blocks, so the value here is keeping old notes and the stale counter clean.
 
@@ -47,6 +63,7 @@ Then Obsidian Tasks dates and recurrence, which build on Phase 3's multi-note so
 - [ ] Replace the 3-second Templater wait with a proper "template finished" check.
 - [ ] A persistent rollover log, with a summary note or notice such as "rolled 7, skipped 2, dropped 1".
 - [ ] Undo that survives an app restart. It currently lives in memory for 2 minutes.
+- [ ] Check whether Delete loses nested lines with skip-existing. When a todo is skipped because today's note already has it (`skipExistingTodos`), its nested lines are not carried over. Under Mark they stay in the previous note under the marked todo, so nothing is lost (the `checklist` e2e baseline encodes this). The 2026-11-08 manual checklist recorded that under Delete, a plain nested note under such a todo was deleted with it, which would lose it from both notes. Write an e2e test for Delete with skip-existing first, to see whether that happens. Confirm with the maintainer before starting a fix branch: the follow-up was first agreed on a wrong claim that Mark loses the lines too. If a fix changes an e2e baseline, show the diff before regenerating `e2e/fixtures/expected/`.
 
 ## Not planned
 
