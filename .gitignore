@@ -22,3 +22,7 @@ deployLocally.js
 
 # e2e screenshots
 e2e/screenshots/
+
+# e2e demos
+e2e/demos/private/
+e2e/demos/out/
