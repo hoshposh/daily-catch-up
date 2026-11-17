@@ -97,8 +97,29 @@ export async function showPointer() {
   })()`);
 }
 
-/** Glides the pointer's tip to the element's centre over `ms`. */
+/**
+ * Glides the pointer's tip to the element's centre over `ms`, after
+ * scrolling the element into view when it is not.
+ */
 export async function moveTo(el, ms = 400) {
+  const scrolled = await evalJson(`(() => {
+    const target = (${el});
+    if (!target) return false;
+    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    return true;
+  })()`);
+  if (!scrolled) throw new Error(`moveTo: nothing at ${el}`);
+  // smooth scrolling runs for a few hundred ms; wait until it has stopped
+  let last = null;
+  await waitFor(
+    async () => {
+      const top = await evalJson(`(${el}).getBoundingClientRect().top`);
+      const settled = top === last;
+      last = top;
+      return settled;
+    },
+    { message: "the scroll to finish", interval: 120 }
+  );
   const found = await evalJson(`(() => {
     const doc = window.__demoDoc;
     const pointer = doc.getElementById('demo-pointer');

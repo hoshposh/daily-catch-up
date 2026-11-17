@@ -6,8 +6,15 @@ import {
   prepareWindow,
   removePointer,
   restoreWindow,
+  reviewSelect,
   showPointer,
 } from "./helpers/pointer";
+import {
+  pressEscape,
+  runCommand,
+  waitForIdle,
+  waitForReview,
+} from "./helpers/rollover";
 import {
   resolveTarget,
   startRecording,
@@ -68,6 +75,27 @@ test("the pointer moves to an element's centre while recording", async () => {
   })()`);
   expect(Math.abs(tip[0] - centre[0])).toBeLessThanOrEqual(2);
   expect(Math.abs(tip[1] - centre[1])).toBeLessThanOrEqual(2);
+});
+
+test("moveTo scrolls an element into view first", async () => {
+  await reset({ notes: standardNotes({ withToday: true }) });
+  await prepareWindow({ width: 960, height: 600 });
+  await runCommand("review-and-rollover");
+  await waitForReview();
+  const el = reviewSelect("Call plumber");
+  const visible = `(() => {
+    const r = (${el}).getBoundingClientRect();
+    const box = document.querySelector('.modal').getBoundingClientRect();
+    return r.top >= box.top && r.bottom <= box.bottom;
+  })()`;
+  expect(await evalJson(visible)).toBe(false);
+  await resolveTarget("main");
+  await showPointer();
+  await startRecording({ name: "e2e-pointer" });
+  await moveTo(el);
+  expect(await evalJson(visible)).toBe(true);
+  await pressEscape();
+  await waitForIdle();
 });
 
 test("removePointer leaves nothing behind", async () => {
