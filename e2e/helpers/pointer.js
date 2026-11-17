@@ -97,34 +97,30 @@ export async function showPointer() {
   })()`);
 }
 
+/** In-app JS that shows a ripple at the pointer's tip. */
+const RIPPLE_JS = `(() => {
+    const doc = window.__demoDoc;
+    const r = doc.getElementById('demo-pointer').getBoundingClientRect();
+    const ring = doc.createElement('div');
+    ring.className = 'demo-ripple';
+    ring.style.left = r.left + 'px';
+    ring.style.top = r.top + 'px';
+    doc.body.appendChild(ring);
+    doc.defaultView.setTimeout(() => ring.remove(), 500);
+  })()`;
+
 /**
  * Glides the pointer's tip to the element's centre over `ms`, after
- * scrolling the element into view when it is not.
+ * scrolling the element into view when it is not. Every call into the app
+ * takes about 0.4 s, so this makes as few as it can: the scroll is instant,
+ * since a smooth one would need polling until it settles.
  */
 export async function moveTo(el, ms = 400) {
-  const scrolled = await evalJson(`(() => {
-    const target = (${el});
-    if (!target) return false;
-    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    return true;
-  })()`);
-  if (!scrolled) throw new Error(`moveTo: nothing at ${el}`);
-  // smooth scrolling runs for a few hundred ms; wait until it has stopped
-  let last = null;
-  await waitFor(
-    async () => {
-      const top = await evalJson(`(${el}).getBoundingClientRect().top`);
-      const settled = top === last;
-      last = top;
-      return settled;
-    },
-    { message: "the scroll to finish", interval: 120 }
-  );
   const found = await evalJson(`(() => {
-    const doc = window.__demoDoc;
-    const pointer = doc.getElementById('demo-pointer');
+    const pointer = window.__demoDoc.getElementById('demo-pointer');
     const target = (${el});
     if (!pointer || !target) return false;
+    target.scrollIntoView({ block: 'nearest' });
     const r = target.getBoundingClientRect();
     pointer.style.transitionDuration = '${ms}ms';
     pointer.style.left = (r.left + r.width / 2) + 'px';
@@ -146,30 +142,18 @@ export async function moveTo(el, ms = 400) {
   );
 }
 
-async function ripple() {
-  await evalJs(`(() => {
-    const doc = window.__demoDoc;
-    const pointer = doc.getElementById('demo-pointer');
-    const r = pointer.getBoundingClientRect();
-    const ring = doc.createElement('div');
-    ring.className = 'demo-ripple';
-    ring.style.left = r.left + 'px';
-    ring.style.top = r.top + 'px';
-    doc.body.appendChild(ring);
-    doc.defaultView.setTimeout(() => ring.remove(), 500);
-    return true;
-  })()`);
-}
-
-/** Moves to the element, shows a click, then clicks it. */
+/** Moves to the element, shows a ripple, then clicks it 150 ms later. */
 export async function click(el) {
   await moveTo(el);
-  await ripple();
-  await pause(150);
-  const clicked = await evalJson(
-    `(() => { const t = (${el}); t?.click(); return Boolean(t); })()`
-  );
-  if (!clicked) throw new Error(`click: nothing at ${el}`);
+  const found = await evalJson(`(() => {
+    const target = (${el});
+    if (!target) return false;
+    ${RIPPLE_JS};
+    window.setTimeout(() => target.click(), 150);
+    return true;
+  })()`);
+  if (!found) throw new Error(`click: nothing at ${el}`);
+  await pause(200);
 }
 
 /** The review dialog's dropdown for the row with this label, as an `el`. */
@@ -186,8 +170,7 @@ export function reviewSelect(label) {
 export async function choose(label, outcome) {
   const el = reviewSelect(label);
   await moveTo(el);
-  await ripple();
-  await pause(150);
+  await evalJs(`${RIPPLE_JS}; true`);
   await setOutcome(label, outcome);
   await evalJs(`(() => {
     const select = (${el});
