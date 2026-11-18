@@ -68,11 +68,12 @@ function reviewedRollover({
   rules = [],
   backlogEnabled = true,
   cancelEnabled = true,
+  children = true,
 }) {
   const lines = splitLines(yesterday);
   const sections = getSections({
     lines,
-    withChildren: true,
+    withChildren: children,
     doneStatusMarkers: "xX-",
     skipCompletedChildren: skipCompleted,
     isIgnored: (line, path) => isIgnoredByRules(line, path, rules),
@@ -82,7 +83,7 @@ function reviewedRollover({
     lines,
     settings: {
       removeEmptyTodos: removeEmpty,
-      rolloverChildren: true,
+      rolloverChildren: children,
       trackRolloverCount: track,
       staleAfterRollovers: 5,
       staleBehavior: "keep",
@@ -96,9 +97,10 @@ function reviewedRollover({
   const toInsert = planInsert({
     sections: decided.rolledSections,
     todayContent: today,
+    lines,
     settings: {
       skipExistingTodos: skipExisting,
-      rolloverChildren: true,
+      rolloverChildren: children,
       trackRolloverCount: track,
       doneStatusMarkers: "xX-",
     },
@@ -727,6 +729,68 @@ describe("rules", () => {
     expect(result.yesterday).toBe("## Top 3 today\n- [>] a\n- [>] b\n");
   });
 
+  describe("a moved item with a completed child and an empty child", () => {
+    const yesterday = [
+      "## Errands",
+      "- [ ] Buy stamps @errands",
+      "    - [x] Find post office",
+      "    - [ ] ",
+      "- [ ] Call plumber",
+      "",
+    ].join("\n");
+    const moveErrands = [rule("tag", "@errands", "move", { target: "Shopping" })];
+
+    test("delete removes the moved item with its skipped and dropped children", () => {
+      const result = reviewedRollover({
+        yesterday,
+        action: "delete",
+        removeEmpty: true,
+        rules: moveErrands,
+      });
+      expect(result.today).toBe(
+        "## Errands\n\n- [ ] Call plumber\n## Shopping\n\n- [ ] Buy stamps @errands\n"
+      );
+      expect(result.yesterday).toBe("");
+    });
+
+    test("mark marks the moved item and leaves its children in place", () => {
+      const result = reviewedRollover({
+        yesterday,
+        action: "mark",
+        removeEmpty: true,
+        rules: moveErrands,
+      });
+      expect(result.today).toBe(
+        "## Errands\n\n- [ ] Call plumber\n## Shopping\n\n- [ ] Buy stamps @errands\n"
+      );
+      expect(result.yesterday).toBe(
+        [
+          "## Errands",
+          "- [>] Buy stamps @errands",
+          "    - [x] Find post office",
+          "    - [ ] ",
+          "- [>] Call plumber",
+          "",
+        ].join("\n")
+      );
+    });
+  });
+
+  test("skip-existing finds a moved todo already under the target heading", () => {
+    const result = reviewedRollover({
+      yesterday: "## Errands\n- [ ] Buy stamps @errands\n- [ ] Call plumber\n",
+      today: "## Shopping\n- [ ] Buy stamps @errands\n",
+      action: "delete",
+      skipExisting: true,
+      rules: [rule("tag", "@errands", "move", { target: "Shopping" })],
+    });
+    expect(result.today).toBe(
+      "## Shopping\n- [ ] Buy stamps @errands\n\n## Errands\n\n- [ ] Call plumber\n"
+    );
+    // a duplicate still counts as rolled, so delete removes it
+    expect(result.yesterday).toBe("");
+  });
+
   test("no stale count end to end", () => {
     const result = reviewedRollover({
       yesterday: "- [ ] Call Bob #waiting [rolled:: 9]\n- [ ] Other [rolled:: 9]\n",
@@ -736,6 +800,87 @@ describe("rules", () => {
     });
     expect(result.today).toBe(
       "- [ ] Call Bob #waiting [rolled:: 9]\n- [ ] Other [rolled:: 10]\n"
+    );
+  });
+});
+
+describe("todos whose parent does not go with them", () => {
+  test("a todo under a plain bullet lands at column 0 with its notes", () => {
+    const result = reviewedRollover({
+      yesterday: "## Home\n- [ ] Laundry\n- Garden\n    - [ ] buy soil\n        - peat free\n",
+      action: "none",
+    });
+    expect(result.today).toBe(
+      "## Home\n\n- [ ] Laundry\n- [ ] buy soil\n    - peat free\n"
+    );
+    // the next rollover sees two items, not one
+    const next = reviewedRollover({ yesterday: result.today, action: "none" });
+    expect(next.items.map((item) => item.lines[0])).toEqual([
+      "- [ ] Laundry",
+      "- [ ] buy soil",
+    ]);
+  });
+
+  test("a moved todo from under a plain bullet does not nest under another moved todo", () => {
+    const result = reviewedRollover({
+      yesterday: [
+        "## Errands",
+        "- [ ] Stamps @errands",
+        "## Home",
+        "- Garden",
+        "    - [ ] buy soil @errands",
+        "",
+      ].join("\n"),
+      action: "none",
+      rules: [
+        {
+          id: "m",
+          enabled: true,
+          match: "tag",
+          value: "@errands",
+          effect: "move",
+          target: "Shopping",
+        },
+      ],
+    });
+    expect(result.today).toBe(
+      "## Shopping\n\n- [ ] Stamps @errands\n- [ ] buy soil @errands\n"
+    );
+  });
+
+  test("without children, a todo keeps its place under a parent that rolls too", () => {
+    const result = reviewedRollover({
+      yesterday: [
+        "- [ ] Ship release",
+        "  - [ ] Generate Escrow",
+        "- [x] Fix flaky test",
+        "  - [ ] Add retry",
+        "",
+      ].join("\n"),
+      action: "none",
+      children: false,
+    });
+    expect(result.today).toBe(
+      "- [ ] Ship release\n  - [ ] Generate Escrow\n- [ ] Add retry\n"
+    );
+  });
+
+  test("a backlogged todo from under a plain bullet lands at column 0", () => {
+    const result = reviewedRollover({
+      yesterday: "- Ideas\n  - [ ] Learn Rust #someday\n    - start with the book\n",
+      action: "none",
+      rules: [
+        {
+          id: "b",
+          enabled: true,
+          match: "tag",
+          value: "#someday",
+          effect: "backlog",
+        },
+      ],
+    });
+    expect(result.backlog).toContain(
+      "- [ ] Learn Rust #someday [from:: [[2026-11-06]]]\n  - start with the book"
     );
   });
 });

@@ -12,6 +12,7 @@ import {
   isStale,
   itemLabel,
   needsReview,
+  rebaseSections,
   skippedLinesToDelete,
   summarizeDecisions,
   toItems,
@@ -623,6 +624,93 @@ describe("rules", () => {
     expect(insert(plan, decided).sections[0].incompleteTodos).toEqual([
       "- [ ] a [rolled:: 1]",
       "  - [ ] b",
+    ]);
+  });
+});
+
+describe("re-basing indentation", () => {
+  // the section for the lines at `indices` of `note`, as getSections() has it
+  const sectionOf = (note, indices, extra = {}) => ({
+    headingPath: [],
+    incompleteTodos: indices.map((i) => note[i]),
+    incompleteLineIndices: indices,
+    ...extra,
+  });
+
+  test("a todo under a plain bullet starts at column 0, its nested lines with it", () => {
+    const note = [
+      "- [ ] Laundry",
+      "- Garden",
+      "    - [ ] buy soil",
+      "        - peat free",
+    ];
+    const [section] = rebaseSections([sectionOf(note, [0, 2, 3])], note);
+    expect(section.incompleteTodos).toEqual([
+      "- [ ] Laundry",
+      "- [ ] buy soil",
+      "    - peat free",
+    ]);
+    expect(section.incompleteLineIndices).toEqual([0, 2, 3]);
+  });
+
+  test("a todo nested under one that goes to the same place keeps its indentation", () => {
+    const note = [
+      "- [ ] Ship release",
+      "  - [x] Tag version",
+      "  - [ ] Generate Escrow",
+    ];
+    const sections = [sectionOf(note, [0, 2])];
+    expect(rebaseSections(sections, note)[0].incompleteTodos).toEqual([
+      "- [ ] Ship release",
+      "  - [ ] Generate Escrow",
+    ]);
+  });
+
+  test("a nested line follows its head when the head is re-based", () => {
+    const note = [
+      "- Garden",
+      "\t- [ ] buy soil",
+      "\t\t- [x] measure beds",
+      "\t\t\t- [ ] water",
+    ];
+    const sections = [sectionOf(note, [1, 3])];
+    expect(rebaseSections(sections, note)[0].incompleteTodos).toEqual([
+      "- [ ] buy soil",
+      "\t\t- [ ] water",
+    ]);
+  });
+
+  test("a todo whose parent goes somewhere else is a head where it lands", () => {
+    const note = [
+      "## Work",
+      "- [ ] Plan offsite",
+      "  - [ ] Book room @errands",
+    ];
+    const rebased = rebaseSections(
+      [sectionOf(note, [1]), sectionOf(note, [2], { moveTo: "## Errands" })],
+      note
+    );
+    expect(rebased[1].incompleteTodos).toEqual(["- [ ] Book room @errands"]);
+  });
+
+  test("blank lines, blockquotes and lines already at column 0 are kept", () => {
+    const note = [
+      "- [ ] a",
+      "",
+      "  - [ ] b",
+      "> - [ ] quoted",
+      ">   - [ ] nested quote",
+    ];
+    const sections = [sectionOf(note, [0, 1, 2, 3, 4])];
+    expect(rebaseSections(sections, note)[0].incompleteTodos).toEqual(note);
+  });
+
+  test("the rolled text is re-based, not the note's line", () => {
+    const note = ["- Garden", "    - [ ] buy soil"];
+    const section = sectionOf(note, [1]);
+    section.incompleteTodos = ["    - [ ] buy soil [rolled:: 1]"];
+    expect(rebaseSections([section], note)[0].incompleteTodos).toEqual([
+      "- [ ] buy soil [rolled:: 1]",
     ]);
   });
 });

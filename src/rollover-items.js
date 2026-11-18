@@ -357,6 +357,65 @@ export function bumpRolledCounts(
 }
 
 
+// How much indentation to remove from the line at `index` of the note, when
+// the lines at `destination` (positions in the note) all go to one place. A
+// line nested under a line that goes there too (through any lines that do
+// not) moves with it; any other line is a head and starts at column 0. Blank
+// lines and lines at column 0 stay as they are.
+function shiftOf(index, destination, lines, memo) {
+  if (memo.has(index)) return memo.get(index);
+  const own = indentationOf(lines[index] ?? "");
+  let shift = Math.max(own, 0);
+  let depth = own;
+  for (let j = index - 1; j >= 0 && depth > 0; j--) {
+    const indentation = indentationOf(lines[j]);
+    // a blank line, a sibling or a deeper line is not a parent
+    if (indentation < 0 || indentation >= depth) continue;
+    if (destination.has(j)) {
+      shift = shiftOf(j, destination, lines, memo);
+      break;
+    }
+    // a parent that stays behind: look for one of its own parents
+    depth = indentation;
+  }
+  memo.set(index, shift);
+  return shift;
+}
+
+// `texts` (the lines at `indices` of the note, maybe with a counter changed)
+// re-based so each head starts at column 0
+function rebased(texts, indices, lines) {
+  const destination = new Set(indices);
+  const memo = new Map();
+  return texts.map((text, i) => {
+    const shift = shiftOf(indices[i], destination, lines, memo);
+    const leading = Math.max(indentationOf(text), 0);
+    return text.slice(Math.min(shift, leading));
+  });
+}
+
+/**
+ * The sections with their lines re-based: a todo whose parent stays in the
+ * previous note or goes elsewhere (a plain bullet, a done todo, a Leave or
+ * Cancel item, a todo moved to another heading) starts at column 0, with its
+ * nested lines shifted by as much. Otherwise it would land nested under
+ * whichever todo comes before it, and the next rollover would take the two for
+ * one item. A todo nested under one in the same section keeps its indentation.
+ *
+ * @param {object[]} sections - with incompleteTodos and incompleteLineIndices
+ * @param {string[]} lines - the previous note's lines the sections came from
+ */
+export function rebaseSections(sections, lines) {
+  return sections.map((section) => ({
+    ...section,
+    incompleteTodos: rebased(
+      section.incompleteTodos,
+      section.incompleteLineIndices,
+      lines
+    ),
+  }));
+}
+
 export function itemLabel(item) {
   const text = stripRolledCount(item.lines[0]).replace(LIST_PREFIX, "").trim();
   const nested = item.lines.length - 1;

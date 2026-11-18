@@ -219,3 +219,54 @@ test("a missing target goes at the end of the note, not under the template headi
   expect(section(today, "## Tasks")).toContain("- [ ] Write report");
   expect(section(today, "## Tasks")).not.toContain("- [ ] Ship release");
 });
+
+test("todos from under a plain bullet land at column 0, moved or not", async () => {
+  await reset({
+    notes: {
+      "templates/daily.md": fixture("daily-template.md"),
+      [`daily/${day(-1)}.md`]: [
+        "## Errands",
+        "",
+        "- [ ] Stamps @errands",
+        "",
+        "## Home",
+        "",
+        "- [ ] Laundry",
+        "- Garden",
+        "    - [ ] Buy soil @errands",
+        "- Kitchen",
+        "    - [ ] Descale kettle",
+        "        - vinegar works",
+        "",
+      ].join("\n"),
+    },
+    settings: {
+      rolloverChildren: true,
+      rules: [
+        {
+          id: "errands",
+          enabled: true,
+          match: "tag",
+          value: "@errands",
+          effect: "move",
+          target: "Shopping",
+        },
+      ],
+    },
+  });
+
+  await openToday();
+  await waitForNotice("rolled over");
+  await waitForIdle();
+
+  const today = (await readNote(`daily/${day()}.md`)).split("\n");
+  expect(section(today, "## Shopping").filter((l) => l !== "")).toEqual([
+    "- [ ] Stamps @errands",
+    "- [ ] Buy soil @errands",
+  ]);
+  expect(section(today, "## Home").filter((l) => l !== "")).toEqual([
+    "- [ ] Laundry",
+    "- [ ] Descale kettle",
+    "    - vinegar works",
+  ]);
+});

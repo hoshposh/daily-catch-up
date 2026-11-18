@@ -13,6 +13,7 @@ import {
   bumpRolledCounts,
   countOutcomes,
   defaultDecisions,
+  rebaseSections,
   skippedLinesToDelete,
   toItems,
 } from "./rollover-items";
@@ -136,12 +137,16 @@ export function applyPlan({ plan, decisions }) {
  *   trackRolloverCount, and doneStatusMarkers (the effective ones)
  * @param {number[]} [args.noStaleLineIndices] - from applyPlan(): items whose
  *   counter is not raised
+ * @param {string[]} [args.lines] - the previous note's lines (plan.lines);
+ *   with them, a todo whose parent does not come along starts at column 0
+ *   (rebaseSections)
  */
 export function planInsert({
   sections,
   todayContent,
   settings,
   noStaleLineIndices = [],
+  lines,
 }) {
   let todosAlreadyPresent = 0;
   const duplicateTodos = [];
@@ -184,6 +189,9 @@ export function planInsert({
       skipHeadLineIndices: new Set(noStaleLineIndices),
     });
   }
+
+  // last, so the counters above group items by the note's own indentation
+  if (lines) toInsert = rebaseSections(toInsert, lines);
 
   return {
     sections: toInsert,

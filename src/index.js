@@ -437,6 +437,7 @@ export default class RolloverTodosPlugin extends Plugin {
               doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
             },
             noStaleLineIndices: decided.noStaleLineIndices,
+            lines: plan.lines,
           });
           if (toInsert.sections.length === 0) return content;
           inserted = insertSections({
