@@ -315,3 +315,42 @@ test("editing a rule shows its values and saves in place", async () => {
     target: "Later",
   });
 });
+
+test("a hand-edited, malformed rule opens as something Save can store", async () => {
+  // no match, and a number for a value, as a hand edit of data.json can leave
+  await reset({
+    notes: standardNotes(),
+    settings: {
+      backlogNotePath: BACKLOG,
+      rules: [{ id: "hand", enabled: false, value: 42, effect: "leave" }],
+    },
+  });
+  await openSettings();
+  expect((await ruleRows())[0].summary).toBe("Unknown rule → Leave");
+
+  await clickRuleControl(0, "Edit");
+  await waitFor(async () => (await ruleDialog()) !== null, {
+    message: "the rule dialog",
+  });
+  const dialog = await ruleDialog();
+  expect(dialog.fields).toMatchObject({
+    match: "tag",
+    value: "42",
+    effect: "leave",
+  });
+  expect(dialog.problemVisible).toBe(false);
+  expect(dialog.saveDisabled).toBe(false);
+
+  await clickSettingsButton("Save");
+  await waitFor(
+    async () => (await ruleRows())[0]?.summary === "Tag #42 → Leave",
+    { message: "the saved rule's row" }
+  );
+  expect(await evalJson(`${plugin}.settings.rules[0]`)).toEqual({
+    id: "hand",
+    enabled: false,
+    match: "tag",
+    value: "42",
+    effect: "leave",
+  });
+});

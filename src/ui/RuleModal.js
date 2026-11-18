@@ -4,6 +4,7 @@ import {
   EFFECTS,
   MATCH_LABELS,
   MATCH_TYPES,
+  ruleDraft,
   ruleProblem,
 } from "../rules";
 
@@ -17,8 +18,9 @@ const VALUE_PLACEHOLDERS = {
 export default class RuleModal extends Modal {
   constructor(app, { rule, title = "Edit rule" }) {
     super(app);
-    // a copy: the caller's rule stays as it was if the user cancels
-    this.draft = { ...rule };
+    // a copy: the caller's rule stays as it was if the user cancels. A
+    // hand-edited rule is coerced, so the fields show what Save stores.
+    this.draft = ruleDraft(rule);
     this.title = title;
     this.resolve = null;
     this.settled = false;
@@ -77,7 +79,7 @@ export default class RuleModal extends Modal {
         valueText = text;
         text
           .setPlaceholder(VALUE_PLACEHOLDERS[this.draft.match] ?? "")
-          .setValue(this.draft.value ?? "")
+          .setValue(this.draft.value)
           .onChange((value) => {
             this.draft.value = value;
             this.validate();

@@ -67,6 +67,23 @@ export function sanitizeRules(rules) {
   );
 }
 
+const asText = (value) => (value === null || value === undefined ? "" : String(value));
+
+/**
+ * A copy of `rule` that the rule dialog can show as it is: a value or target
+ * that is not text becomes text, and an unknown match or effect becomes the
+ * first choice of its dropdown (the defaults of a new rule), so what the
+ * dialog shows is what Save stores.
+ */
+export function ruleDraft(rule) {
+  const draft = { ...rule };
+  draft.value = asText(draft.value);
+  if ("target" in draft) draft.target = asText(draft.target);
+  if (!MATCH_TYPES.includes(draft.match)) draft.match = MATCH_TYPES[0];
+  if (!EFFECTS.includes(draft.effect)) draft.effect = EFFECTS[0];
+  return draft;
+}
+
 const isBlank = (value) => typeof value !== "string" || value.trim() === "";
 
 const VALUE_PROMPTS = {
@@ -90,6 +107,9 @@ export function ruleProblem(rule) {
     return "Unknown rule.";
   }
   if (isBlank(rule.value)) return VALUE_PROMPTS[rule.match];
+  if (rule.match === "tag" && !/^[#@]\S+$/u.test(normalizeTag(rule.value))) {
+    return VALUE_PROMPTS.tag;
+  }
   if (rule.match === "regex") {
     try {
       new RegExp(rule.value, "u");
@@ -108,7 +128,7 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 // The tag a Tag rule looks for: "@word" as is, anything else with one "#"
 export function normalizeTag(value) {
   const trimmed = value.trim();
-  return trimmed.startsWith("@") ? trimmed : `#${trimmed.replace(/^#/, "")}`;
+  return trimmed.startsWith("@") ? trimmed : `#${trimmed.replace(/^#+/, "")}`;
 }
 
 // Text in inline code is not a tag (as in hasRolledMarker)
@@ -140,7 +160,8 @@ export function ruleSummary(rule) {
     const target = isBlank(rule.target) ? "(empty)" : normalizeHeading(rule.target);
     return `${ruleLabel(rule)} → Move to ${target}`;
   }
-  return `${ruleLabel(rule)} → ${EFFECT_LABELS[rule?.effect] ?? "?"}`;
+  const effect = EFFECTS.includes(rule?.effect) ? EFFECT_LABELS[rule.effect] : "?";
+  return `${ruleLabel(rule)} → ${effect}`;
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   newRuleId,
   ruleLabel,
   ruleNote,
+  ruleDraft,
   ruleResult,
   ruleSummary,
   sanitizeRules,
@@ -40,6 +41,22 @@ describe("rule matching", () => {
         []
       )
     ).toBe(true);
+  });
+
+  test("tag values with extra leading #s match the plain tag", () => {
+    const r = rule("tag", "##someday", "backlog");
+    expect(ruleProblem(r)).toBe("");
+    expect(ruleMatches(r, "- [ ] Learn Rust #someday", [])).toBe(true);
+    expect(ruleLabel(r)).toBe("Tag #someday");
+  });
+
+  test("a tag with no name or with spaces is not a tag", () => {
+    for (const value of ["#", "##", "@", " # ", "#some day", "@two words"]) {
+      expect(ruleProblem(rule("tag", value, "leave"))).toBe("Enter a tag.");
+    }
+    expect(ruleMatches(rule("tag", "#", "leave"), "- [ ] a # b", [])).toBe(
+      false
+    );
   });
 
   test("heading matches any heading in the path by text", () => {
@@ -182,6 +199,14 @@ test("summaries", () => {
   );
 });
 
+test("a summary never shows an inherited property as the effect", () => {
+  for (const effect of ["toString", "constructor", "__proto__"]) {
+    expect(ruleSummary({ match: "tag", value: "a", effect })).toBe(
+      "Tag #a → ?"
+    );
+  }
+});
+
 test("notes", () => {
   const settings = {
     backlogNotePath: "Backlog.md",
@@ -228,4 +253,30 @@ test("sanitizeRules keeps rule objects and drops what is not one", () => {
   expect(sanitizeRules([null, 42, "x", odd, [1]])).toEqual([odd]);
   expect(sanitizeRules(undefined)).toEqual([]);
   expect(sanitizeRules({ 0: odd })).toEqual([]);
+});
+
+describe("ruleDraft", () => {
+  test("keeps a well-formed rule as it is, as a copy", () => {
+    const r = rule("heading", "Top", "move", { target: "## Inbox" });
+    const draft = ruleDraft(r);
+    expect(draft).toEqual(r);
+    expect(draft).not.toBe(r);
+  });
+
+  test("turns a hand-edited value or target into the text the dialog shows", () => {
+    expect(ruleDraft(rule("tag", 42, "leave")).value).toBe("42");
+    expect(ruleDraft(rule("tag", undefined, "leave")).value).toBe("");
+    expect(ruleDraft(rule("tag", null, "leave")).value).toBe("");
+    const move = ruleDraft(rule("tag", "a", "move", { target: 7 }));
+    expect(move.target).toBe("7");
+    expect(ruleProblem(ruleDraft(rule("tag", 42, "leave")))).toBe("");
+  });
+
+  test("an unknown match or effect becomes the first dropdown choice", () => {
+    const draft = ruleDraft({ id: "x", enabled: true, value: "a", effect: "nope" });
+    expect(draft.match).toBe("tag");
+    expect(draft.effect).toBe("roll");
+    expect(ruleDraft(rule("tag", "a", "toString")).effect).toBe("roll");
+    expect(ruleDraft(rule("constructor", "a", "leave")).match).toBe("tag");
+  });
 });
