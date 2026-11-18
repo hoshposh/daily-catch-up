@@ -129,3 +129,68 @@ export function insertSources({ content, entries, settings }) {
   });
   return { content: current, templateHeadingNotFound, perSource };
 }
+
+const plural = (count) => (count > 1 ? "s" : "");
+
+/**
+ * The notice shown after a rollover: one line per thing that happened, blank
+ * ones left out. The rolled and empty-todo lines end in a space, as they
+ * always have.
+ *
+ * @param {object} args
+ * @param {boolean} args.templateHeadingNotFound
+ * @param {string} args.templateHeading
+ * @param {number} args.todosAdded - rolled todos, all sources
+ * @param {number} args.todosAlreadyPresent - lines skipped, all sources
+ * @param {number} args.backlogCount
+ * @param {string} args.backlogPath
+ * @param {number} args.cancelledCount - 0 when the cancel marks were not applied
+ * @param {{ name: string, sourceAction: string, removedEmptyTodos: number, leftCount: number }[]} args.sources
+ * @returns {string} "" when there is nothing to say
+ */
+export function rolloverNotice({
+  templateHeadingNotFound,
+  templateHeading,
+  todosAdded,
+  todosAlreadyPresent,
+  backlogCount,
+  backlogPath,
+  cancelledCount,
+  sources,
+}) {
+  const lines = [];
+  if (templateHeadingNotFound) {
+    lines.push(
+      `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`
+    );
+  }
+  if (todosAdded > 0) {
+    lines.push(`- ${todosAdded} todo${plural(todosAdded)} rolled over. `);
+  }
+  for (const { sourceAction, removedEmptyTodos } of sources) {
+    if (removedEmptyTodos > 0 && sourceAction === "delete") {
+      lines.push(
+        `- ${removedEmptyTodos} empty todo${plural(
+          removedEmptyTodos
+        )} removed. `
+      );
+    }
+  }
+  if (todosAlreadyPresent > 0) {
+    lines.push(
+      `- ${todosAlreadyPresent} line${plural(
+        todosAlreadyPresent
+      )} skipped (already in today's note).`
+    );
+  }
+  if (backlogCount > 0) {
+    lines.push(`- ${backlogCount} moved to backlog (${backlogPath}).`);
+  }
+  if (cancelledCount > 0) {
+    lines.push(`- ${cancelledCount} cancelled.`);
+  }
+  for (const { name, leftCount } of sources) {
+    if (leftCount > 0) lines.push(`- ${leftCount} left in ${name}.`);
+  }
+  return lines.join("\n");
+}

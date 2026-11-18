@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { getSections } from "./get-todos";
-import { insertSources, applySources, planSources } from "./rollover-sources";
+import {
+  insertSources,
+  applySources,
+  planSources,
+  rolloverNotice,
+} from "./rollover-sources";
 
 const PLAN_SETTINGS = {
   removeEmptyTodos: false,
@@ -158,5 +163,109 @@ describe("insertSources", () => {
       settings: insertSettings(true),
     });
     expect(result.content).toBe(alone.content);
+  });
+});
+
+describe("rolloverNotice", () => {
+  const SOURCE = {
+    name: "2026-11-16",
+    sourceAction: "delete",
+    removedEmptyTodos: 0,
+    leftCount: 0,
+  };
+  const NOTICE = {
+    templateHeadingNotFound: false,
+    templateHeading: "none",
+    todosAdded: 0,
+    todosAlreadyPresent: 0,
+    backlogCount: 0,
+    backlogPath: "",
+    cancelledCount: 0,
+    sources: [SOURCE],
+  };
+
+  test("rolled todos", () => {
+    expect(rolloverNotice({ ...NOTICE, todosAdded: 3 })).toBe(
+      "- 3 todos rolled over. "
+    );
+    expect(rolloverNotice({ ...NOTICE, todosAdded: 1 })).toBe(
+      "- 1 todo rolled over. "
+    );
+  });
+
+  test("every line, in order", () => {
+    const message = rolloverNotice({
+      templateHeadingNotFound: true,
+      templateHeading: "## Tasks",
+      todosAdded: 2,
+      todosAlreadyPresent: 1,
+      backlogCount: 1,
+      backlogPath: "Backlog.md",
+      cancelledCount: 1,
+      sources: [{ ...SOURCE, removedEmptyTodos: 2, leftCount: 1 }],
+    });
+    expect(message).toBe(
+      [
+        "Rollover couldn't find '## Tasks' in today's daily note. Rolling todos to end of file.",
+        "- 2 todos rolled over. ",
+        "- 2 empty todos removed. ",
+        "- 1 line skipped (already in today's note).",
+        "- 1 moved to backlog (Backlog.md).",
+        "- 1 cancelled.",
+        "- 1 left in 2026-11-16.",
+      ].join("\n")
+    );
+  });
+
+  test("empty todos are only reported when they were deleted", () => {
+    const sources = [{ ...SOURCE, sourceAction: "mark", removedEmptyTodos: 2 }];
+    expect(rolloverNotice({ ...NOTICE, sources })).toBe("");
+  });
+
+  test("singular empty todo and skipped line", () => {
+    const message = rolloverNotice({
+      ...NOTICE,
+      todosAlreadyPresent: 1,
+      sources: [{ ...SOURCE, removedEmptyTodos: 1 }],
+    });
+    expect(message).toBe(
+      "- 1 empty todo removed. \n- 1 line skipped (already in today's note)."
+    );
+  });
+
+  test("each source reports its own empty todos and left todos", () => {
+    const message = rolloverNotice({
+      ...NOTICE,
+      todosAdded: 2,
+      sources: [
+        { ...SOURCE, removedEmptyTodos: 1, leftCount: 2 },
+        {
+          name: "Inbox",
+          sourceAction: "mark",
+          removedEmptyTodos: 3,
+          leftCount: 0,
+        },
+        {
+          name: "Ideas",
+          sourceAction: "delete",
+          removedEmptyTodos: 2,
+          leftCount: 1,
+        },
+      ],
+    });
+    expect(message).toBe(
+      [
+        "- 2 todos rolled over. ",
+        "- 1 empty todo removed. ",
+        "- 2 empty todos removed. ",
+        "- 2 left in 2026-11-16.",
+        "- 1 left in Ideas.",
+      ].join("\n")
+    );
+  });
+
+  test("nothing to say", () => {
+    expect(rolloverNotice(NOTICE)).toBe("");
+    expect(rolloverNotice({ ...NOTICE, sources: [] })).toBe("");
   });
 });
