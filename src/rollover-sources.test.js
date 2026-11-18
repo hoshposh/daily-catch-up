@@ -100,6 +100,22 @@ describe("planSources", () => {
     expect(items.map((i) => i.id)).toEqual(ids);
     expect(Object.keys(decisions)).toEqual(ids);
   });
+
+  test("throws when two sources' ids collide", () => {
+    // "1" + "0:0" and "" + "10:0" are both "10:0": a key must end in a
+    // non-digit separator
+    const lines = Array.from({ length: 11 }, (_, i) => [
+      `## H${i}`,
+      `- [ ] t${i}`,
+    ]).flat();
+    const sources = [
+      source("", "2026-11-16", lines),
+      source("1", "Other", ["- [ ] x"]),
+    ];
+    expect(() => planSources({ sources, settings: PLAN_SETTINGS })).toThrow(
+      'planSources: duplicate item id "10:0"'
+    );
+  });
 });
 
 describe("writeSource", () => {

@@ -1,5 +1,5 @@
-// The Obsidian-free decision stage of rollover(), shared by index.js and the
-// end-to-end tests. index.js only reads and writes notes, shows the review
+// The Obsidian-free decision stage of rollover(), shared by index.js (through
+// rollover-sources.js) and the unit flow test. index.js only reads and writes notes, shows the review
 // dialog and the notices around these three steps:
 //
 // 1. planDecisions: before the dialog, the items and their default outcomes
@@ -78,7 +78,6 @@ export function planDecisions({ sections, lines, settings, idPrefix = "" }) {
     items,
     decisions,
     withChildren,
-    idPrefix,
     foundLineIndices,
     skippedLineIndices,
     removedEmptyTodos,

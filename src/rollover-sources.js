@@ -28,11 +28,19 @@ const OUTCOMES = ["roll", "backlog", "cancel", "leave"];
 /**
  * Plans every source and joins their items and default decisions.
  *
+ * A source's `key` is put in front of its item ids, which are
+ * `{section}:{line}`. It must be "" or end in a non-digit separator such as
+ * "/" ("inbox/"): a key ending in a digit could make two sources' ids equal
+ * ("1" + "0:0" and "" + "10:0"). The decisions of all sources share one map,
+ * so a duplicate id throws instead of one item silently taking another's
+ * outcome.
+ *
  * @param {object} args
  * @param {object[]} args.sources
  * @param {object} args.settings - what planDecisions() takes
  * @returns {{ plans: object[], items: object[], decisions: Record<string, string> }}
  *   `plans[i]` belongs to `sources[i]`; `items` and `decisions` cover all of them
+ * @throws {Error} when two items, of the same or different sources, share an id
  */
 export function planSources({ sources, settings }) {
   const plans = sources.map((source) =>
@@ -43,9 +51,17 @@ export function planSources({ sources, settings }) {
       idPrefix: source.key ?? "",
     })
   );
+  const items = plans.flatMap((plan) => plan.items);
+  const seen = new Set();
+  for (const { id } of items) {
+    if (seen.has(id)) {
+      throw new Error(`planSources: duplicate item id "${id}"`);
+    }
+    seen.add(id);
+  }
   return {
     plans,
-    items: plans.flatMap((plan) => plan.items),
+    items,
     decisions: Object.assign({}, ...plans.map((plan) => plan.decisions)),
   };
 }
