@@ -52,7 +52,7 @@ function itemEnd(section, start, withChildren) {
   return end;
 }
 
-export function toItems(sections, withChildren) {
+export function toItems(sections, withChildren, idPrefix = "") {
   const items = [];
   sections.forEach((section, sectionIndex) => {
     const todos = section.incompleteTodos;
@@ -60,7 +60,7 @@ export function toItems(sections, withChildren) {
       const end = itemEnd(section, start, withChildren);
       const lines = todos.slice(start, end);
       items.push({
-        id: `${sectionIndex}:${start}`,
+        id: `${idPrefix}${sectionIndex}:${start}`,
         sectionIndex,
         headingPath: section.headingPath,
         start,

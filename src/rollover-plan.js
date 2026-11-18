@@ -31,8 +31,10 @@ import { ruleResult } from "./rules";
  *   trackRolloverCount, staleAfterRollovers, staleBehavior, backlogEnabled
  *   (whether a backlog note is set), cancelEnabled (whether Cancel is offered)
  *   and rules (the rule list; each item gets its ruleResult() as `rule`)
+ * @param {string} [args.idPrefix] - put in front of every item id, so items
+ *   from several source notes stay apart
  */
-export function planDecisions({ sections, lines, settings }) {
+export function planDecisions({ sections, lines, settings, idPrefix = "" }) {
   const withChildren = settings.rolloverChildren;
   // positions of every todo line found, including empty ones that may not be
   // rolled over
@@ -54,7 +56,7 @@ export function planDecisions({ sections, lines, settings }) {
     backlogEnabled: settings.backlogEnabled,
     cancelEnabled: settings.cancelEnabled,
   };
-  const items = toItems(reviewSections, withChildren).map((item) => ({
+  const items = toItems(reviewSections, withChildren, idPrefix).map((item) => ({
     ...item,
     rule: ruleResult(
       item.lines[0],
@@ -76,6 +78,7 @@ export function planDecisions({ sections, lines, settings }) {
     items,
     decisions,
     withChildren,
+    idPrefix,
     foundLineIndices,
     skippedLineIndices,
     removedEmptyTodos,

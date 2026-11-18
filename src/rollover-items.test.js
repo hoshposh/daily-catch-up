@@ -42,6 +42,12 @@ describe("rollover items", () => {
     expect(OUTCOMES).toEqual(["roll", "backlog", "cancel", "leave"]);
   });
 
+  test("item ids carry the prefix", () => {
+    const ids = toItems(sections, true, "inbox/").map((item) => item.id);
+    expect(ids.every((id) => id.startsWith("inbox/"))).toBe(true);
+    expect(toItems(sections, true).map((item) => item.id)[0]).toBe("0:0");
+  });
+
   test("groups heads with their nested lines", () => {
     const items = toItems(sections, true);
     expect(items.map((i) => [i.id, i.lines.length, i.count])).toEqual([

@@ -14,11 +14,12 @@ function dedent(line, width) {
 
 /**
  * The lines to write for `items`: each item dedented by its head's indentation,
- * with the head's rolled counter removed and `[from:: [[sourceNoteName]]]` added.
+ * with the head's rolled counter removed and `[from:: [[sourceNoteName]]]` added
+ * (or the item's own `sourceName`, when it has one).
  */
 export function backlogLines(items, sourceNoteName) {
-  const origin = `[from:: [[${sourceNoteName}]]]`;
-  return items.flatMap(({ lines }) => {
+  return items.flatMap(({ lines, sourceName }) => {
+    const origin = `[from:: [[${sourceName ?? sourceNoteName}]]]`;
     const width = leadingWhitespace(lines[0]).length;
     const [head, ...rest] = lines.map((line) => dedent(line, width));
     return [insertField(stripRolledCount(head), origin), ...rest];

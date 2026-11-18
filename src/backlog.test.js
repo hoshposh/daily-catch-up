@@ -13,6 +13,17 @@ describe("backlogLines", () => {
     ).toEqual(["- [ ] Ship [from:: [[2026-11-06]]] ^id", "  - [ ] Tag"]);
   });
 
+  test("an item's own source name wins", () => {
+    const lines = backlogLines(
+      [{ lines: ["- [ ] a"], sourceName: "Inbox" }, { lines: ["- [ ] b"] }],
+      "2026-11-16"
+    );
+    expect(lines).toEqual([
+      "- [ ] a [from:: [[Inbox]]]",
+      "- [ ] b [from:: [[2026-11-16]]]",
+    ]);
+  });
+
   test("dedents a nested head", () => {
     expect(backlogLines([item(["    - [ ] Tag"])], "d")).toEqual([
       "- [ ] Tag [from:: [[d]]]",
