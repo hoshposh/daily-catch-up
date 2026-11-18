@@ -20,9 +20,7 @@ export default class ReviewModal extends Modal {
   constructor(
     app,
     {
-      sourceName,
-      sections,
-      items,
+      sources,
       decisions,
       staleSettings,
       backlogEnabled,
@@ -30,9 +28,10 @@ export default class ReviewModal extends Modal {
     }
   ) {
     super(app);
-    this.sourceName = sourceName;
-    this.sections = sections;
-    this.items = items;
+    // [{ name, sections, items }]: each item's sectionIndex is within its
+    // own source's sections
+    this.sources = sources;
+    this.items = sources.flatMap((source) => source.items);
     // a copy: the caller's defaults stay as they were if the user cancels
     this.decisions = { ...decisions };
     this.staleSettings = staleSettings;
@@ -105,21 +104,45 @@ export default class ReviewModal extends Modal {
 
   onOpen() {
     const { contentEl, titleEl } = this;
-    titleEl.setText(`Roll over from ${this.sourceName}`);
+    titleEl.setText(
+      `Roll over from ${this.sources.map((source) => source.name).join(", ")}`
+    );
     contentEl.addClass("rollover-review");
 
     this.addShortcuts(new Setting(contentEl).setName("All todos"), this.items);
 
-    // sections in note order, each with its own items
-    const sectionIndices = [
-      ...new Set(this.items.map((item) => item.sectionIndex)),
-    ];
+    // one source after the other, each with its sections in note order
+    for (const source of this.sources) {
+      this.renderSource(contentEl, source);
+    }
+
+    this.summaryEl = contentEl.createDiv({ cls: "rollover-review-summary" });
+    this.updateSummary();
+
+    new Setting(contentEl)
+      .addButton((button) =>
+        button
+          .setButtonText("Apply")
+          .setCta()
+          .onClick(() => {
+            this.finish({ ...this.decisions });
+            this.close();
+          })
+      )
+      .addButton((button) =>
+        button.setButtonText("Cancel").onClick(() => this.close())
+      );
+  }
+
+  // a source's sections in note order, each with its own items
+  renderSource(contentEl, { sections, items }) {
+    const sectionIndices = [...new Set(items.map((item) => item.sectionIndex))];
     for (const sectionIndex of sectionIndices) {
-      const sectionItems = this.items.filter(
+      const sectionItems = items.filter(
         (item) => item.sectionIndex === sectionIndex
       );
       const heading = new Setting(contentEl)
-        .setName(headingLabel(this.sections[sectionIndex].headingPath))
+        .setName(headingLabel(sections[sectionIndex].headingPath))
         .setHeading();
       this.addShortcuts(heading, sectionItems);
 
@@ -163,23 +186,6 @@ export default class ReviewModal extends Modal {
         });
       }
     }
-
-    this.summaryEl = contentEl.createDiv({ cls: "rollover-review-summary" });
-    this.updateSummary();
-
-    new Setting(contentEl)
-      .addButton((button) =>
-        button
-          .setButtonText("Apply")
-          .setCta()
-          .onClick(() => {
-            this.finish({ ...this.decisions });
-            this.close();
-          })
-      )
-      .addButton((button) =>
-        button.setButtonText("Cancel").onClick(() => this.close())
-      );
   }
 
   onClose() {

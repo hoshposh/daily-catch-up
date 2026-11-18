@@ -41,8 +41,9 @@ export default class UndoModal extends Modal {
     if (undoHistoryInstance.today.file != undefined) {
       await this.restore(undoHistoryInstance.today)
     }
-    if (undoHistoryInstance.previousDay.file != undefined) {
-      await this.restore(undoHistoryInstance.previousDay)
+    // each source note the rollover changed
+    for (const source of undoHistoryInstance.sources) {
+      await this.restore(source)
     }
     const backlog = undoHistoryInstance.backlog
     if (backlog?.file != undefined) {
@@ -76,8 +77,8 @@ export default class UndoModal extends Modal {
     } else {
       modTextArray.push("- Today's note will not be changed. Remove the rolled over todos from it yourself if you want them gone.")
     }
-    if (undoHistoryInstance.previousDay.file != undefined) {
-      modTextArray.push(await this.parseDay(undoHistoryInstance.previousDay))
+    for (const source of undoHistoryInstance.sources) {
+      modTextArray.push(await this.parseDay(source))
     }
     const backlog = undoHistoryInstance.backlog
     if (backlog?.file != undefined) {

@@ -30,7 +30,7 @@ Every item below reads todos from a second note, and the rollover is written aro
 4. **Backlog as a source with "bring back" (M).** The backlog note is then written twice in one rollover (append parked items, remove returning ones), so both belong in one `vault.process()`. Also: a new outcome defaulting to "stay", a long list in the review dialog, stripping `[from:: …]` on the way back, and probably only offered by the review command.
 5. **Next actions from project notes (L+).** Needs a filtering hook that runs before items are formed (rules only act on items already read), a source action that suits project notes (Delete and Mark don't; None re-pulls the same todo every day unless deduped across sources), and reading many notes per rollover. Obsidian Tasks query blocks already list next actions from project notes and complete the original; copies in the daily note lose that link. Decide whether it is still worth it, or belongs under [Not planned](#not-planned), before designing it.
 
-- [ ] Multi-source foundation (see above).
+- [x] Multi-source foundation (see above).
 - [ ] A "gather from the last N days" mode. Today only the single previous note is read, so todos are stranded whenever a note is created without a rollover (a closed review dialog, a device without the plugin, Templater overwriting the todos), or added to an older note after a newer one exists. Phase 4's snoozing needs this to find a todo that sits in an older note.
 - [ ] Pull from an inbox note as a source, such as a capture inbox that the Delete source action empties. Designed for the QuickAdd capture scenario (see the spec above).
 - [ ] Pull from the backlog note as a source, with a "bring back" outcome in the review dialog, so parked todos can return.
