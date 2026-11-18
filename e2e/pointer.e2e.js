@@ -1,6 +1,6 @@
 // The demo pointer and window sizing.
 import { afterEach, expect, test } from "vitest";
-import { evalJson, waitFor } from "./helpers/obsidian";
+import { evalJs, evalJson, waitFor } from "./helpers/obsidian";
 import {
   highlight,
   moveTo,
@@ -23,16 +23,32 @@ import {
 } from "./helpers/recorder";
 import { expectNoErrors, reset, standardNotes } from "./helpers/vault";
 
-const windowState = () =>
-  evalJson(`(() => {
+/**
+ * The size the page really has. Electron's getContentSize() reports the size
+ * it asked for; on Wayland a window behind others draws no frames, so the
+ * resize only lands once something (here, a capture) makes it draw.
+ */
+export async function realSize() {
+  for (let i = 0; i < 3; i++) {
+    await evalJs(
+      "require('@electron/remote').getCurrentWebContents().capturePage().then(() => true)"
+    );
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return evalJson("[innerWidth, innerHeight]");
+}
+
+const windowState = async () => ({
+  size: await realSize(),
+  ...(await evalJson(`(() => {
     const win = require('@electron/remote').getCurrentWindow();
     return {
-      content: win.getContentSize(),
       maximized: win.isMaximized(),
       left: app.workspace.leftSplit.collapsed,
       right: app.workspace.rightSplit.collapsed,
     };
-  })()`);
+  })()`)),
+});
 
 afterEach(async () => {
   await evalJson(
@@ -52,6 +68,8 @@ test("prepareWindow sizes the window and restoreWindow puts it back", async () =
   expect(await evalJson("app.workspace.leftSplit.collapsed")).toBe(true);
   expect(await evalJson("app.workspace.rightSplit.collapsed")).toBe(true);
   await restoreWindow();
+  // landed by the time restoreWindow returns, without a capture's help
+  expect(await evalJson("[innerWidth, innerHeight]")).toEqual(before.size);
   expect(await windowState()).toEqual(before);
 });
 

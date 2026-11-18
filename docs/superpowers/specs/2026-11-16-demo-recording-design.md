@@ -93,7 +93,7 @@ Each demo file is one test: `reset()` with its notes and settings, prepare the w
 
 ### Window
 
-Before recording, the demo sizes the real window with `BrowserWindow.setSize()` (logical pixels) and restores its original bounds afterwards, so captured frames are exactly what is shown. The device-metrics override used by `setViewportWidth()` is not used for demos, since it is unknown whether `capturePage()` honours it. The public demo collapses the side panels so the note and dialog fill the frame, which also keeps the vault switcher (showing `e2e-vault`) out of view.
+Before recording, the demo lays the page out at the demo's size with the DevTools device-metrics override (the one `setViewportWidth()` uses), and clears it afterwards. _Changed during the build:_ the design first resized the real window with `BrowserWindow.setSize()`, because it was unknown whether `capturePage()` honours the override. It does (an 880×720 override captures as 1100×900 at a 1.25 scale factor, laid out at that size). Resizing turned out to be unreliable on KDE Wayland: the compositor can refuse a resize, and a resize of a window behind others only lands once it draws a frame, so a demo could leave Obsidian at the demo's size. The override never touches the real window, and the e2e global teardown clears it even after an interrupted run. The public demo collapses the side panels so the note and dialog fill the frame, which also keeps the vault switcher (showing `e2e-vault`) out of view.
 
 ### Pointer and pacing (`pointer.js`)
 

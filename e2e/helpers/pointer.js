@@ -3,7 +3,7 @@
 // it shows in whichever window is being recorded. Every `el` argument is a JS
 // expression, evaluated in the main window, that returns an element in that
 // document.
-import { evalJs, evalJson, waitFor } from "./obsidian";
+import { evalJs, evalJson, obsidian, waitFor } from "./obsidian";
 import { resolveTarget } from "./recorder";
 import { setOutcome } from "./rollover";
 
@@ -17,63 +17,70 @@ const ARROW = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="30" vi
 
 export const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Gives the main window a content area of `width` × `height` CSS pixels and,
- * when asked, collapses the side panels. restoreWindow() undoes it.
- */
-export async function prepareWindow({ width, height, collapsePanels = false }) {
-  await resolveTarget("main");
-  await evalJs(`(() => {
-    const win = window.__demoTarget;
-    if (!window.__demoSaved) {
-      window.__demoSaved = {
-        bounds: win.getBounds(),
-        maximized: win.isMaximized(),
-        left: app.workspace.leftSplit.collapsed,
-        right: app.workspace.rightSplit.collapsed,
-      };
-    }
-    if (win.isMaximized()) win.unmaximize();
-    const zoom = require('electron').webFrame.getZoomFactor();
-    win.setContentSize(Math.round(${width} * zoom), Math.round(${height} * zoom));
-    if (${collapsePanels}) {
-      app.workspace.leftSplit.collapse();
-      app.workspace.rightSplit.collapse();
-    }
-    return true;
-  })()`);
+async function waitForPageSize([width, height], message) {
   await waitFor(
     async () =>
       JSON.stringify(await evalJson("[innerWidth, innerHeight]")) ===
       JSON.stringify([width, height]),
-    { message: `a ${width}×${height} window` }
+    { message }
   );
+}
+
+/**
+ * Lays the main window's page out at `width` × `height` CSS pixels and, when
+ * asked, collapses the side panels. restoreWindow() undoes it.
+ *
+ * The real window is never resized: on KDE Wayland the compositor decides a
+ * window's size, and a resize only lands once a window behind others draws a
+ * frame, so resizing and restoring were unreliable. DevTools viewport
+ * emulation sizes the page instead, capturePage() records it at that size,
+ * and the e2e global teardown clears it even after an interrupted run.
+ */
+export async function prepareWindow({ width, height, collapsePanels = false }) {
+  await resolveTarget("main");
+  await evalJs(`(() => {
+    if (!window.__demoSaved) {
+      window.__demoSaved = {
+        page: [innerWidth, innerHeight],
+        left: app.workspace.leftSplit.collapsed,
+        right: app.workspace.rightSplit.collapsed,
+      };
+    }
+    return true;
+  })()`);
+  await obsidian([
+    "dev:cdp",
+    "method=Emulation.setDeviceMetricsOverride",
+    `params=${JSON.stringify({
+      width,
+      height,
+      deviceScaleFactor: 0,
+      mobile: false,
+    })}`,
+  ]);
+  if (collapsePanels) {
+    await evalJs(
+      "app.workspace.leftSplit.collapse(); app.workspace.rightSplit.collapse(); true"
+    );
+  }
+  await waitForPageSize([width, height], `a ${width}×${height} page`);
 }
 
 /** Puts back what prepareWindow() changed; nothing when it was not called. */
 export async function restoreWindow() {
-  const restored = await evalJson(`(() => {
-    const saved = window.__demoSaved;
-    if (!saved) return false;
-    const win = require('@electron/remote').getCurrentWindow();
-    win.setBounds(saved.bounds);
-    if (saved.maximized) win.maximize();
+  const saved = await evalJson("window.__demoSaved ?? null");
+  if (!saved) return;
+  await obsidian(["dev:cdp", "method=Emulation.clearDeviceMetricsOverride"]);
+  await evalJs(`(() => {
     const split = (s, collapsed) => {
       if (s.collapsed !== collapsed) collapsed ? s.collapse() : s.expand();
     };
-    split(app.workspace.leftSplit, saved.left);
-    split(app.workspace.rightSplit, saved.right);
+    split(app.workspace.leftSplit, ${saved.left});
+    split(app.workspace.rightSplit, ${saved.right});
     delete window.__demoSaved;
-    return saved.bounds;
+    return true;
   })()`);
-  if (!restored) return;
-  await waitFor(
-    async () =>
-      evalJson(
-        `(() => { const b = require('@electron/remote').getCurrentWindow().getBounds(); return b.width === ${restored.width} && b.height === ${restored.height}; })()`
-      ),
-    { message: "the window's size to be restored" }
-  );
+  await waitForPageSize(saved.page, "the page's size to be restored");
 }
 
 /** Adds the pointer to window.__demoDoc, in the middle of its window. */

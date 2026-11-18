@@ -56,7 +56,7 @@ Each run builds the plugin straight into the vault's `.obsidian/plugins/daily-ca
 2. With Obsidian running and `e2e-vault` open, as for the end-to-end tests, run `pnpm demo readme`. It prints the GIF's path, length and size: `e2e/demos/out/readme.gif`.
 3. Watch it. Only when it looks right, copy it over `demo.gif` and commit that. The GIF must stay under 2 MB; the run warns when it is over.
 
-Obsidian draws nothing while its window is hidden behind other windows, except while the recorder runs, so a recording works in the background. The recording resizes the window and collapses its side panels, and puts both back afterwards.
+Obsidian draws nothing while its window is hidden behind other windows, except while the recorder runs, so a recording works in the background. The demo lays the page out at its own size (with DevTools viewport emulation, so the real window never changes size) and collapses the side panels, and puts both back afterwards.
 
 `e2e/demos/out/` and `e2e/demos/private/` (for throwaway clips) are not committed.
 
