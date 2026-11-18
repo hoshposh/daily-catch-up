@@ -108,14 +108,18 @@ export function insertSources({ content, entries, settings }) {
       noStaleLineIndices: entry.noStaleLineIndices,
       lines: entry.lines,
     });
-    const inserted = insertSections({
-      content: current,
-      sections: planned.sections,
-      templateHeading: settings.templateHeading,
-      leadingNewLine: settings.leadingNewLine,
-    });
-    current = inserted.content;
-    if (inserted.templateHeadingNotFound) templateHeadingNotFound = true;
+    // nothing left after skip-existing: leave the note exactly as it is
+    // (insertSections() would normalise its line endings)
+    if (planned.sections.length > 0) {
+      const inserted = insertSections({
+        content: current,
+        sections: planned.sections,
+        templateHeading: settings.templateHeading,
+        leadingNewLine: settings.leadingNewLine,
+      });
+      current = inserted.content;
+      if (inserted.templateHeadingNotFound) templateHeadingNotFound = true;
+    }
     return {
       todosAlreadyPresent: planned.todosAlreadyPresent,
       duplicateTodos: planned.duplicateTodos,

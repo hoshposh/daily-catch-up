@@ -121,6 +121,25 @@ describe("insertSources", () => {
     expect(lines.filter((l) => l === "- [ ] Call")).toHaveLength(2);
   });
 
+  test("an entry whose todos are all deduped leaves the note untouched", () => {
+    const { sources, plans, decisions } = setup();
+    const applied = applySources({ plans, sources, decisions });
+    // mostly CRLF with one bare LF: insertSections() would make them all CRLF
+    const today = "- [ ] Call\r\n- [ ] Buy milk\r\n- [ ] Ship\r\nnote\n";
+    const result = insertSources({
+      content: today,
+      entries: entriesOf(sources, applied),
+      settings: {
+        ...insertSettings(true),
+        templateHeading: "## Missing",
+      },
+    });
+    expect(result.content).toBe(today);
+    expect(result.templateHeadingNotFound).toBe(false);
+    expect(result.perSource[1].todosAlreadyPresent).toBe(2);
+    expect(result.perSource[1].insertedTodos).toEqual([]);
+  });
+
   test("a source with nothing to insert is skipped", () => {
     const decisions = { "inbox/0:0": "leave", "inbox/0:1": "leave" };
     const result = rolloverInto({ skipExistingTodos: true, decisions });
