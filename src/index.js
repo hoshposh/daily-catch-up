@@ -373,9 +373,13 @@ export default class RolloverTodosPlugin extends Plugin {
       let backlogPath = null;
       if (backlogEnabled) {
         backlogPath = this.getBacklogPath();
+        // Compare with the previous daily note itself, not with the sources:
+        // a previous note without open todos is not a source, but it must
+        // still never become the backlog (once other sources can run a
+        // rollover without it)
         if (
           backlogPath === file.path ||
-          sources.some((source) => backlogPath === source.file.path)
+          backlogPath === lastDailyNote.path
         ) {
           new Notice(
             "The backlog note can't be today's or the previous daily note. Change it in settings.",
