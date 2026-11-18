@@ -73,10 +73,21 @@ export async function startRecording({
   maxMs = 60000,
 }) {
   await guardVault();
-  if (await evalJson("Boolean(window.__demoRecorder)")) {
+  if (await isRecording()) {
     throw new Error("A recording is already running");
   }
+  // one that stopped on its own and was never collected (an interrupted run)
+  await stopRecording().catch(() => {});
   await resolveTarget(target);
+  if (
+    await evalJson(
+      "window.__demoTarget.isMinimized() || !window.__demoTarget.isVisible()"
+    )
+  ) {
+    throw new Error(
+      "The Obsidian window is minimised or hidden, so it can't be recorded. Bring it back and run again."
+    );
+  }
   const dir = path.join(OUT_DIR, name, "frames");
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
@@ -102,6 +113,8 @@ export async function startRecording({
       stop: false,
       frames: [],
       error: null,
+      timedOut: false,
+      maxMs: ${maxMs},
       throttling,
       start: performance.now(),
     });
@@ -113,6 +126,9 @@ export async function startRecording({
         while (!r.stop && performance.now() - r.start < ${maxMs}) {
           const began = performance.now();
           const image = await wc.capturePage();
+          if (image.isEmpty()) {
+            throw new Error('an empty frame: is the Obsidian window minimised or hidden?');
+          }
           const file = 'frame-' + String(r.frames.length).padStart(6, '0') + '.png';
           await fs.promises.writeFile(path.join(r.dir, file), image.toPNG());
           r.frames.push({ file, t: Math.round(began - r.start) });
@@ -120,8 +136,9 @@ export async function startRecording({
           await new Promise((resolve) => setTimeout(resolve, wait));
         }
       } catch (e) {
-        r.error = String(e?.stack ?? e);
+        r.error = String(e?.message ?? e);
       }
+      r.timedOut = !r.stop && r.error === null;
       r.endT = Math.round(performance.now() - r.start);
       r.running = false;
     })();
@@ -138,6 +155,8 @@ export async function isRecording() {
 /**
  * Stops the loop (or collects one that stopped itself), writes frames.json
  * and undoes what startRecording changed. Null when there is no recording.
+ * Throws, after undoing, when capturing failed or the recording reached its
+ * maxMs before this was called (its GIF would be missing the end).
  */
 export async function stopRecording() {
   if (!(await evalJson("Boolean(window.__demoRecorder)"))) return null;
@@ -151,9 +170,14 @@ export async function stopRecording() {
     r.throttling.forEach(([wc, on]) => { if (!wc.isDestroyed()) wc.setBackgroundThrottling(on); });
     window.__demoDoc?.getElementById('${NO_BLINK_ID}')?.remove();
     delete window.__demoRecorder;
-    return { dir: r.dir, frames: r.frames, endT: r.endT, error: r.error };
+    return { dir: r.dir, frames: r.frames, endT: r.endT, error: r.error, timedOut: r.timedOut, maxMs: r.maxMs };
   })()`);
   if (result.error) throw new Error(`Recording failed: ${result.error}`);
+  if (result.timedOut) {
+    throw new Error(
+      `The recording reached its ${result.maxMs} ms limit before the demo finished; pass a larger maxMs`
+    );
+  }
   const { dir, frames, endT } = result;
   await writeFile(
     path.join(dir, "frames.json"),

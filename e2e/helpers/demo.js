@@ -32,6 +32,7 @@ export async function record(
     outputWidth,
     maxBytes = null,
     fps,
+    maxMs,
   },
   steps
 ) {
@@ -44,14 +45,12 @@ export async function record(
       await resolveTarget(target);
     }
     await showPointer();
-    ({ dir } = await startRecording({ name, target, fps }));
+    ({ dir } = await startRecording({ name, target, fps, maxMs }));
     await steps();
     await pause(HOLD_END_MS);
     await stopRecording();
   } finally {
-    await stopRecording();
-    await removePointer();
-    await restoreWindow();
+    await undoAll();
   }
   const result = await assemble({
     dir,
@@ -64,10 +63,22 @@ export async function record(
   return result;
 }
 
+/**
+ * Runs every clean-up step even when one fails, so one failure can't leave
+ * the window resized; failures are logged, not thrown, so they never hide
+ * the error that made the demo stop.
+ */
+async function undoAll(...extra) {
+  for (const step of [stopRecording, removePointer, restoreWindow, ...extra]) {
+    try {
+      await step();
+    } catch (e) {
+      console.warn(`Demo clean-up (${step.name}) failed: ${e?.message ?? e}`);
+    }
+  }
+}
+
 /** Safe to call when nothing is running. */
 export async function cleanupDemo() {
-  await stopRecording();
-  await removePointer();
-  await restoreWindow();
-  await closeModals();
+  await undoAll(closeModals);
 }

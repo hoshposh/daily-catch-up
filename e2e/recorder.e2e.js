@@ -2,7 +2,7 @@
 // else. Meant to pass while Obsidian is behind other windows, as it usually
 // is while the suite runs.
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { evalJs, evalJson, waitFor } from "./helpers/obsidian";
@@ -62,13 +62,52 @@ test("starts from an empty frames folder", async () => {
   expect(listed.frames).toEqual(frames);
 });
 
-test("stops on its own after maxMs", async () => {
+test("stops on its own after maxMs, and says so", async () => {
   await reset({ notes: standardNotes() });
   await startRecording({ name: "e2e-recorder", maxMs: 500 });
   await waitFor(async () => !(await isRecording()), {
     message: "the recorder to stop itself",
     timeout: 5000,
   });
+  await expect(stopRecording()).rejects.toThrow(/500 ms limit/);
+  expect(await evalJson("Boolean(window.__demoRecorder)")).toBe(false);
+});
+
+test("starts after a recording that stopped on its own", async () => {
+  await reset({ notes: standardNotes() });
+  await startRecording({ name: "e2e-recorder", maxMs: 300 });
+  await waitFor(async () => !(await isRecording()), {
+    message: "the recorder to stop itself",
+    timeout: 5000,
+  });
+  await startRecording({ name: "e2e-recorder" });
+  expect(await isRecording()).toBe(true);
+});
+
+test("refuses to record a hidden window", async () => {
+  await reset({ notes: standardNotes() });
+  rmSync(path.join(OUT_DIR, "e2e-hidden"), { recursive: true, force: true });
+  await evalJs("require('@electron/remote').getCurrentWindow().hide(); true");
+  try {
+    await waitFor(
+      async () =>
+        !(await evalJson(
+          "require('@electron/remote').getCurrentWindow().isVisible()"
+        )),
+      { message: "the window to hide", timeout: 3000 }
+    );
+    await expect(startRecording({ name: "e2e-hidden" })).rejects.toThrow(
+      /minimised or hidden/
+    );
+    expect(existsSync(path.join(OUT_DIR, "e2e-hidden", "frames"))).toBe(false);
+  } finally {
+    await evalJs("require('@electron/remote').getCurrentWindow().show(); true");
+    await waitFor(
+      async () =>
+        evalJson("require('@electron/remote').getCurrentWindow().isVisible()"),
+      { message: "the window to come back" }
+    );
+  }
 });
 
 test("records the settings window", async () => {
