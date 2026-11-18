@@ -3,7 +3,7 @@ import { getSections, splitLines } from "./get-todos";
 import { insertSections } from "./insert-sections";
 import { dedupeAgainstExisting } from "./insert-todos";
 import { appendToBacklog } from "./backlog";
-import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
+import { applySources, insertSources, planSources } from "./rollover-sources";
 import { applySourceAction, markCancelled } from "./source-action";
 import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
 
@@ -78,9 +78,18 @@ function reviewedRollover({
     skipCompletedChildren: skipCompleted,
     isIgnored: (line, path) => isIgnoredByRules(line, path, rules),
   });
-  const plan = planDecisions({
-    sections,
-    lines,
+  const sources = [
+    {
+      key: "",
+      kind: "previous",
+      name: "2026-11-06",
+      lines,
+      sections,
+      sourceAction: action,
+    },
+  ];
+  const planned = planSources({
+    sources,
     settings: {
       removeEmptyTodos: removeEmpty,
       rolloverChildren: children,
@@ -92,32 +101,38 @@ function reviewedRollover({
       rules,
     },
   });
+  const plan = { items: planned.items };
   // without decisions, the defaults apply as when no review is shown
-  const decided = applyPlan({ plan, decisions: decisions ?? plan.decisions });
-  const toInsert = planInsert({
-    sections: decided.rolledSections,
-    todayContent: today,
-    lines,
+  const applied = applySources({
+    plans: planned.plans,
+    sources,
+    decisions: decisions ?? planned.decisions,
+  });
+  const decided = applied.perSource[0];
+  const inserted = insertSources({
+    content: today,
+    entries: [
+      {
+        sections: decided.rolledSections,
+        lines,
+        noStaleLineIndices: decided.noStaleLineIndices,
+      },
+    ],
     settings: {
       skipExistingTodos: skipExisting,
       rolloverChildren: children,
       trackRolloverCount: track,
       doneStatusMarkers: "xX-",
+      templateHeading: "none",
+      leadingNewLine: true,
     },
-    noStaleLineIndices: decided.noStaleLineIndices,
-  });
-  const inserted = insertSections({
-    content: today,
-    sections: toInsert.sections,
-    templateHeading: "none",
-    leadingNewLine: true,
   });
   const backlog =
-    decided.backlogItems.length > 0
+    applied.backlogItems.length > 0
       ? appendToBacklog({
           content: "",
           heading: "",
-          items: decided.backlogItems,
+          items: applied.backlogItems,
           sourceNoteName: "2026-11-06",
           leadingNewLine: true,
         })
@@ -130,13 +145,13 @@ function reviewedRollover({
   });
   const source = applySourceAction({
     content: cancelled.content,
-    action,
+    action: sources[0].sourceAction,
     rolledLineIndices: decided.movedLineIndices,
     deletedLineIndices: decided.deleteLineIndices,
     skippedLineIndices: decided.skippedLineIndices,
     marker: ">",
     doneStatusMarkers: "xX-",
-    retainLineIndices: toInsert.retainedLineIndices,
+    retainLineIndices: inserted.perSource[0].retainedLineIndices,
   });
   return {
     today: inserted.content,
