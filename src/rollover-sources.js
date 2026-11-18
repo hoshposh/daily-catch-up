@@ -1,19 +1,27 @@
 // The Obsidian-free orchestration of a rollover over several source notes,
-// shared by index.js and the end-to-end tests. It loops the steps of
-// rollover-plan.js over a list of sources (the previous day's note, and later
-// others). A source is `{ key, kind, name, lines, sections, sourceAction }`;
-// `key` is put in front of its item ids ("" for the previous day's note, so
-// its ids stay as they were) and `name` is what its backlog items say they
-// came from.
+// shared by index.js and the unit flow test (src/rollover-flow.test.js). It
+// loops the steps of rollover-plan.js over a list of sources (the previous
+// day's note, and later others). A source is
+// `{ key, kind, name, lines, sections, sourceAction }`; `key` is put in front
+// of its item ids ("" for the previous day's note, so its ids stay as they
+// were) and `name` is what its backlog items say they came from.
 //
 // 1. planSources: every source's items and default outcomes
 // 2. applySources: the decisions turned into what each source and the backlog
 //    get
 // 3. insertSources: the rolled sections of every source put into today's
 //    note, one source after the other
+// 4. writeSource: what one source note becomes (Cancel marks, then its
+//    source action), once today's note and the backlog are written
 
 import { insertSections } from "./insert-sections";
 import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
+import {
+  applySourceAction,
+  effectiveDoneStatusMarkers,
+  markCancelled,
+  normalizeMarker,
+} from "./source-action";
 
 const OUTCOMES = ["roll", "backlog", "cancel", "leave"];
 
@@ -128,6 +136,68 @@ export function insertSources({ content, entries, settings }) {
     };
   });
   return { content: current, templateHeadingNotFound, perSource };
+}
+
+/**
+ * What one source note becomes after the rollover: its Cancel items marked
+ * first, then the source's action ("delete" | "mark") on its Roll and Backlog
+ * items. Leave items are untouched. Line positions refer to the note as it
+ * was parsed, so `content` must be exactly that note (index.js checks that it
+ * was not edited meanwhile before calling this).
+ *
+ * @param {object} args
+ * @param {string} args.content - the source note as it was parsed
+ * @param {{ sourceAction: "none"|"delete"|"mark" }} args.source
+ * @param {object} args.decided - the source's entry in applySources().perSource
+ *   (cancelledLineIndices, movedLineIndices, deleteLineIndices,
+ *   skippedLineIndices)
+ * @param {number[]} [args.retainedLineIndices] - the source's
+ *   insertSources().perSource[i].retainedLineIndices: duplicates skip existing
+ *   kept out of today's note, which "mark" with moveNested must not remove
+ * @param {object} args.settings - the plugin settings: cancelMarker,
+ *   rolloverSourceMarker, doneStatusMarkers, onRolloverSourceAction (with the
+ *   two before it, for effectiveDoneStatusMarkers()), ignoreBlockquotes,
+ *   moveNestedItemsOnMark and rolloverChildren
+ * @returns {{ content: string, changed: boolean }} the new content, and
+ *   whether it differs from `content`
+ */
+export function writeSource({
+  content,
+  source,
+  decided,
+  retainedLineIndices = [],
+  settings,
+}) {
+  // Cancel only rewrites checkboxes, so the positions stay valid for the
+  // source action below
+  const cancelled = markCancelled({
+    content,
+    lineIndices: decided.cancelledLineIndices,
+    marker: normalizeMarker(settings.cancelMarker, "-"),
+    doneStatusMarkers: effectiveDoneStatusMarkers(settings),
+    ignoreBlockquotes: settings.ignoreBlockquotes,
+  }).content;
+  if (source.sourceAction === "none") {
+    return { content: cancelled, changed: cancelled !== content };
+  }
+  const result = applySourceAction({
+    content: cancelled,
+    action: source.sourceAction,
+    // Roll and Backlog items moved; Cancel and Leave items did not
+    rolledLineIndices: decided.movedLineIndices,
+    // delete also removes empty todos that were not rolled over, but never
+    // Cancel or Leave items
+    deletedLineIndices: decided.deleteLineIndices,
+    skippedLineIndices: decided.skippedLineIndices,
+    marker: normalizeMarker(settings.rolloverSourceMarker),
+    // the raw setting, as it has always been passed here
+    doneStatusMarkers: settings.doneStatusMarkers,
+    ignoreBlockquotes: settings.ignoreBlockquotes,
+    // nested items only moved when children were rolled over
+    moveNested: settings.moveNestedItemsOnMark && settings.rolloverChildren,
+    retainLineIndices: retainedLineIndices,
+  });
+  return { content: result.content, changed: result.content !== content };
 }
 
 const plural = (count) => (count > 1 ? "s" : "");

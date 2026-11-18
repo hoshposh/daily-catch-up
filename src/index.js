@@ -10,12 +10,9 @@ import RolloverSettingTab from "./ui/RolloverSettingTab";
 import { getSections, splitLines } from "./get-todos";
 import { verifyTodosPresent } from "./insert-todos";
 import {
-  applySourceAction,
   effectiveDoneStatusMarkers,
   isCancelAvailable,
-  markCancelled,
   migrateSourceActionSettings,
-  normalizeMarker,
   resolveSourceAction,
 } from "./source-action";
 import { needsReview } from "./rollover-items";
@@ -24,6 +21,7 @@ import {
   insertSources,
   planSources,
   rolloverNotice,
+  writeSource,
 } from "./rollover-sources";
 import { appendToBacklog } from "./backlog";
 import { EXAMPLE_RULES, isIgnoredByRules, sanitizeRules } from "./rules";
@@ -569,9 +567,10 @@ export default class RolloverTodosPlugin extends Plugin {
       let cancelledCount = 0;
       for (const [i, source] of sources.entries()) {
         const decided = perSource[i];
-        const { sourceAction } = source;
-        const { cancelledLineIndices } = decided;
-        if (sourceAction === "none" && cancelledLineIndices.length === 0) {
+        if (
+          source.sourceAction === "none" &&
+          decided.cancelledLineIndices.length === 0
+        ) {
           continue;
         }
         // Read, check and write in one atomic step: the line positions refer
@@ -585,38 +584,14 @@ export default class RolloverTodosPlugin extends Plugin {
             editedMeanwhile = true;
             return currentContent;
           }
-          // Cancel only rewrites checkboxes, so the positions stay valid for
-          // the source action below
-          let content = markCancelled({
+          const result = writeSource({
             content: currentContent,
-            lineIndices: cancelledLineIndices,
-            marker: normalizeMarker(this.settings.cancelMarker, "-"),
-            doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
-            ignoreBlockquotes: this.settings.ignoreBlockquotes,
-          }).content;
-          if (sourceAction === "none") {
-            changed = content !== currentContent;
-            return content;
-          }
-          const result = applySourceAction({
-            content,
-            action: sourceAction,
-            // Roll and Backlog items moved; Cancel and Leave items did not
-            rolledLineIndices: decided.movedLineIndices,
-            // delete also removes empty todos that were not rolled over, but
-            // never Cancel or Leave items
-            deletedLineIndices: decided.deleteLineIndices,
-            skippedLineIndices: decided.skippedLineIndices,
-            marker: normalizeMarker(this.settings.rolloverSourceMarker),
-            doneStatusMarkers: this.settings.doneStatusMarkers,
-            ignoreBlockquotes: this.settings.ignoreBlockquotes,
-            // nested items only moved when children were rolled over
-            moveNested:
-              this.settings.moveNestedItemsOnMark &&
-              this.settings.rolloverChildren,
-            retainLineIndices: insertedPerSource[i].retainedLineIndices,
+            source,
+            decided,
+            retainedLineIndices: insertedPerSource[i].retainedLineIndices,
+            settings: this.settings,
           });
-          changed = result.content !== currentContent;
+          changed = result.changed;
           return result.content;
         });
         if (editedMeanwhile) {

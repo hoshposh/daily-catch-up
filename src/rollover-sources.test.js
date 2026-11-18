@@ -1,11 +1,24 @@
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { getSections } from "./get-todos";
 import {
   insertSources,
   applySources,
   planSources,
   rolloverNotice,
+  writeSource,
 } from "./rollover-sources";
+import { applySourceAction, markCancelled } from "./source-action";
+
+// the real functions, wrapped so a test can see the arguments writeSource()
+// passes them
+vi.mock("./source-action", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    applySourceAction: vi.fn(actual.applySourceAction),
+    markCancelled: vi.fn(actual.markCancelled),
+  };
+});
 
 const PLAN_SETTINGS = {
   removeEmptyTodos: false,
@@ -86,6 +99,145 @@ describe("planSources", () => {
     const ids = ["0:0", "0:1", "inbox/0:0", "inbox/0:1"];
     expect(items.map((i) => i.id)).toEqual(ids);
     expect(Object.keys(decisions)).toEqual(ids);
+  });
+});
+
+describe("writeSource", () => {
+  const SETTINGS = {
+    onRolloverSourceAction: "delete",
+    rolloverSourceMarker: ">",
+    cancelMarker: "-",
+    doneStatusMarkers: "xX-",
+    ignoreBlockquotes: false,
+    moveNestedItemsOnMark: false,
+    rolloverChildren: true,
+  };
+
+  // one source, planned and decided: `override` changes default outcomes
+  function decide(lines, sourceAction, override = {}) {
+    const src = { ...source("", "2026-11-16", lines), sourceAction };
+    const { plans, decisions } = planSources({
+      sources: [src],
+      settings: PLAN_SETTINGS,
+    });
+    const applied = applySources({
+      plans,
+      sources: [src],
+      decisions: { ...decisions, ...override },
+    });
+    return { source: src, decided: applied.perSource[0] };
+  }
+
+  function write(lines, sourceAction, override, settings = {}) {
+    return writeSource({
+      content: lines.join("\n"),
+      ...decide(lines, sourceAction, override),
+      settings: {
+        ...SETTINGS,
+        onRolloverSourceAction: sourceAction,
+        ...settings,
+      },
+    });
+  }
+
+  beforeEach(() => {
+    applySourceAction.mockClear();
+    markCancelled.mockClear();
+  });
+
+  test("delete removes moved items and the headings they emptied", () => {
+    const lines = [
+      "## Work",
+      "- [ ] Ship",
+      "- [ ] Call",
+      "## Home",
+      "- [ ] Rest",
+    ];
+    const result = write(lines, "delete", { "0:1": "leave" });
+    expect(result).toEqual({ content: "## Work\n- [ ] Call", changed: true });
+  });
+
+  test("mark, with and without moving nested items", () => {
+    const lines = ["- [ ] Ship", "  - [ ] Tag", "- [ ] Call"];
+    // ids are {section}:{first line of the item in the section}
+    const override = { "0:2": "leave" };
+    expect(write(lines, "mark", override).content).toBe(
+      "- [>] Ship\n  - [>] Tag\n- [ ] Call"
+    );
+    const moved = write(lines, "mark", override, {
+      moveNestedItemsOnMark: true,
+    });
+    expect(moved).toEqual({ content: "- [>] Ship\n- [ ] Call", changed: true });
+    // nested items only moved when children were rolled over
+    const kept = write(lines, "mark", override, {
+      moveNestedItemsOnMark: true,
+      rolloverChildren: false,
+    });
+    expect(kept.content).toBe("- [>] Ship\n  - [>] Tag\n- [ ] Call");
+  });
+
+  test("with action none only the cancel marks are written", () => {
+    const lines = ["- [ ] Ship", "- [ ] Call"];
+    expect(write(lines, "none", { "0:0": "cancel" })).toEqual({
+      content: "- [-] Ship\n- [ ] Call",
+      changed: true,
+    });
+    expect(applySourceAction).not.toHaveBeenCalled();
+    expect(write(lines, "none")).toEqual({
+      content: lines.join("\n"),
+      changed: false,
+    });
+  });
+
+  test("cancel marks come first, then the action on the other items", () => {
+    const lines = ["- [ ] Ship", "- [ ] Call", "- [ ] Rest"];
+    const result = write(lines, "delete", { "0:0": "cancel", "0:2": "leave" });
+    expect(result.content).toBe("- [-] Ship\n- [ ] Rest");
+  });
+
+  test("passes the settings as index.js always has", () => {
+    const lines = ["> - [ ] Quoted", "- [ ] Ship", "  - [ ] Tag", "- [ ] Call"];
+    const { source: src, decided } = decide(lines, "mark", {
+      "0:3": "cancel",
+    });
+    expect(decided.cancelledLineIndices).toEqual([3]);
+    writeSource({
+      content: lines.join("\n"),
+      source: src,
+      decided,
+      retainedLineIndices: [2],
+      settings: {
+        onRolloverSourceAction: "mark",
+        // blank markers fall back to "-" for cancel and ">" for mark
+        rolloverSourceMarker: "",
+        cancelMarker: "",
+        doneStatusMarkers: "xX",
+        ignoreBlockquotes: true,
+        moveNestedItemsOnMark: true,
+        rolloverChildren: true,
+      },
+    });
+    expect(markCancelled).toHaveBeenCalledWith({
+      content: lines.join("\n"),
+      lineIndices: decided.cancelledLineIndices,
+      marker: "-",
+      // the effective markers: mark's own marker counts as done
+      doneStatusMarkers: "xX>",
+      ignoreBlockquotes: true,
+    });
+    expect(applySourceAction).toHaveBeenCalledWith({
+      content: markCancelled.mock.results[0].value.content,
+      action: "mark",
+      rolledLineIndices: decided.movedLineIndices,
+      deletedLineIndices: decided.deleteLineIndices,
+      skippedLineIndices: decided.skippedLineIndices,
+      marker: ">",
+      // the raw setting
+      doneStatusMarkers: "xX",
+      ignoreBlockquotes: true,
+      moveNested: true,
+      retainLineIndices: [2],
+    });
   });
 });
 

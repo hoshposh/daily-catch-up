@@ -3,8 +3,13 @@ import { getSections, splitLines } from "./get-todos";
 import { insertSections } from "./insert-sections";
 import { dedupeAgainstExisting } from "./insert-todos";
 import { appendToBacklog } from "./backlog";
-import { applySources, insertSources, planSources } from "./rollover-sources";
-import { applySourceAction, markCancelled } from "./source-action";
+import {
+  applySources,
+  insertSources,
+  planSources,
+  writeSource,
+} from "./rollover-sources";
+import { applySourceAction } from "./source-action";
 import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
 
 // The parts of rollover() that do not need Obsidian, run end to end
@@ -137,21 +142,21 @@ function reviewedRollover({
           leadingNewLine: true,
         })
       : "";
-  const cancelled = markCancelled({
+  // the same call, with the same plugin settings, as index.js
+  const source = writeSource({
     content: yesterday,
-    lineIndices: decided.cancelledLineIndices,
-    marker: "-",
-    doneStatusMarkers: "xX-",
-  });
-  const source = applySourceAction({
-    content: cancelled.content,
-    action: sources[0].sourceAction,
-    rolledLineIndices: decided.movedLineIndices,
-    deletedLineIndices: decided.deleteLineIndices,
-    skippedLineIndices: decided.skippedLineIndices,
-    marker: ">",
-    doneStatusMarkers: "xX-",
-    retainLineIndices: inserted.perSource[0].retainedLineIndices,
+    source: sources[0],
+    decided,
+    retainedLineIndices: inserted.perSource[0].retainedLineIndices,
+    settings: {
+      onRolloverSourceAction: action,
+      rolloverSourceMarker: ">",
+      cancelMarker: "-",
+      doneStatusMarkers: "xX-",
+      ignoreBlockquotes: false,
+      moveNestedItemsOnMark: false,
+      rolloverChildren: children,
+    },
   });
   return {
     today: inserted.content,
