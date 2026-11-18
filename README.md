@@ -11,7 +11,7 @@ Catch up on the unfinished todos from your previous daily note, whether that was
 
 The rollover runs automatically when today's daily note is created with the core `Daily notes` plugin or with `Periodic Notes`, and whenever you run one of its commands from the command palette. The last rollover can be undone for 2 minutes.
 
-![A demo of the plugin working](./demo.gif)
+![Daily Catch-Up rolling over yesterday's todos: the review dialog flags a stale todo and a #someday todo for the backlog, one todo is cancelled, and today's note gets the rest under their headings](./demo.gif)
 
 ## Origins and status
 

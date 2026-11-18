@@ -13,6 +13,7 @@ pnpm build                  # production build -> main.js
 pnpm test -- --run          # run the unit tests once (plain `pnpm test` watches)
 pnpm test -- -t "some name" # run tests whose name matches
 pnpm test:e2e               # end-to-end tests in Obsidian (see "Testing in Obsidian")
+pnpm demo readme            # record the README demo (see "Recording demos")
 ```
 
 `pnpm format` runs Prettier over the whole repository. Some existing files are not Prettier-clean, so it creates noisy diffs; format the files you create instead (`npx prettier --write <file>`).
@@ -46,6 +47,18 @@ The unit tests cannot cover `rollover()`, the dialogs or the settings tab. The e
 3. Don't use that Obsidian window while the tests run: they open dialogs, press keys and change the theme in it.
 
 Each run builds the plugin straight into the vault's `.obsidian/plugins/daily-catch-up/` (a real folder, not a symlink) and never touches the repo's own `main.js` or `data.json`. Tests that check a layout save screenshots in `e2e/screenshots/`, and the run lists them at the end for you to look at.
+
+### Recording demos
+
+`demo.gif` in the README is recorded from a script, `e2e/demos/readme.demo.js`, so it can be re-recorded when the UI changes. The script drives Obsidian with the end-to-end helpers while a recorder inside Obsidian captures the window. It shows a fake pointer and highlights, since screen captures don't include the mouse.
+
+1. Install ffmpeg. gifsicle is optional but makes the GIF noticeably smaller.
+2. With Obsidian running and `e2e-vault` open, as for the end-to-end tests, run `pnpm demo readme`. It prints the GIF's path, length and size: `e2e/demos/out/readme.gif`.
+3. Watch it. Only when it looks right, copy it over `demo.gif` and commit that. The GIF must stay under 2 MB; the run warns when it is over.
+
+Obsidian draws nothing while its window is hidden behind other windows, except while the recorder runs, so a recording works in the background. The recording resizes the window and collapses its side panels, and puts both back afterwards.
+
+`e2e/demos/out/` and `e2e/demos/private/` (for throwaway clips) are not committed.
 
 ### Exploring by hand
 

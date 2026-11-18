@@ -11,6 +11,8 @@ pnpm test         # run all tests (vitest)
 pnpm test -- --reporter=verbose   # run tests with details
 pnpm format       # prettier format
 pnpm test:e2e     # end-to-end tests in Obsidian (needs Obsidian open with e2e-vault)
+pnpm test:e2e e2e/rules.e2e.js   # one e2e file (`pnpm test:e2e -- <file>` runs them all)
+pnpm demo <name>  # record e2e/demos/**/<name>.demo.js as e2e/demos/out/<name>.gif (needs Obsidian open with e2e-vault)
 ```
 
 Run a single test by name:
@@ -81,7 +83,18 @@ This is Daily Catch-Up (plugin id `daily-catch-up`), an [Obsidian](https://obsid
 - `e2e/fixtures/notes/` — the previous-day fixture and today's template. `e2e/fixtures/expected/` — the baseline outputs, generated from `main`'s code with `E2E_UPDATE_EXPECTED=1` and reviewed by hand; never regenerate them to make a failing baseline pass.
 - Tests: `e2e/cli.e2e.js`, `e2e/vault.e2e.js` (the helpers themselves), `e2e/guards.e2e.js` (cancelled and refused rollovers change nothing), `e2e/baseline.e2e.js` (output matches `main` with newer features off), `e2e/outcomes.e2e.js` (the four outcomes, undo), `e2e/aging.e2e.js` (stale todos, counter placement), `e2e/layout.e2e.js` (review dialog at phone width), `e2e/rules.e2e.js` (rule defaults, badges and moves in the review, the move badge hiding when the todo won't roll, moves ignoring the template heading; Not a todo and No stale count in a real rollover; examples reseeded), `e2e/settings.e2e.js` (the Rules settings group and rule dialog: adding, editing and reordering rules, disabled move buttons at the ends, and that the page keeps its scroll position when rules change). The pure helper parts have unit tests in `e2e/helpers/*.test.js`, which run with `pnpm test`.
 
+**Demos:** `pnpm demo <name>` (`vitest.demo.config.js`, same global setup as the e2e tests) runs `e2e/demos/**/<name>.demo.js`, which drives Obsidian with the e2e helpers while a recorder inside the app captures the window, and builds `e2e/demos/out/<name>.gif`. Each CLI call into the app takes about 0.4 s, so the demo helpers make as few as they can.
+
+- `e2e/helpers/recorder.js` — `resolveTarget()` (the main window, or the settings popout found by giving its document a one-off title: windows are only ever found through the e2e vault's own documents, because one Obsidian app also runs the user's own vaults), `startRecording()` / `stopRecording()` / `isRecording()` (a `capturePage()` loop in the main window, about 10 fps, PNG frames plus `frames.json` in `e2e/demos/out/<name>/frames/`, stops itself after `maxMs`; turns caret blinking and background throttling off while it runs), `OUT_DIR`. While Obsidian is behind other windows it draws no frames, so CSS transitions only run while the recorder captures it.
+- `e2e/helpers/pointer.js` — `prepareWindow()` / `restoreWindow()` (content size in CSS pixels, side panels), the fake pointer (`showPointer()`, `moveTo()` which scrolls the element into view, `click()`, `choose()` for a review row's outcome, outlined since the native dropdown can't be captured, `removePointer()`), `highlight(selector, ms)` (fading accent bands over matching elements), `reviewSelect()`, `pause()` (the only fixed wait, for viewers).
+- `e2e/helpers/demo.js` — `record(name, options, steps)` (window, pointer, recording, then the GIF; cleans up even when a step fails) and `cleanupDemo()` for `afterEach`.
+- `e2e/helpers/frames.js` (pure: merge repeated frames, durations, ffmpeg concat list, size check) and `e2e/helpers/gif.js` (`assemble()`: ffmpeg, then gifsicle when installed), with unit tests that skip without ffmpeg.
+- `e2e/demos/readme.demo.js` — the README's `demo.gif`, with its fixtures `demo-previous.md` / `demo-template.md` (only demos use them). Re-record after a UI change it shows; the user watches `e2e/demos/out/readme.gif` before it is copied over `demo.gif`, and it must stay under 2 MB.
+- `e2e/demos/private/` (throwaway clips) and `e2e/demos/out/` are gitignored. Tests for the demo helpers: `e2e/recorder.e2e.js`, `e2e/pointer.e2e.js`, `e2e/demo.e2e.js`.
+
 Plans write an e2e test where they would have written a manual check in the test vault. Keep a manual step only for judging a screenshot.
+
+When a feature is visual or interactive (dialogs, settings, layout), offer the user a private review clip: a throwaway `e2e/demos/private/<feature>.demo.js`, recorded with `pnpm demo <feature>`, handing over the GIF's absolute path. Never commit these.
 
 ## Origins and upstream
 
