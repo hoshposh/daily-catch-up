@@ -85,6 +85,16 @@ describe("restoreKeepingNewLines", () => {
     ).toBe("- [ ] a\n- [ ] b\n");
   });
 
+  test("a capture between lines the rollover marked is restored after them", () => {
+    expect(
+      restoreKeepingNewLines({
+        before: "- [ ] a\n- [ ] b\n",
+        after: "- [>] a\n- [>] b\n",
+        current: "- [>] a\n- [ ] c\n- [>] b\n",
+      })
+    ).toBe("- [ ] a\n- [ ] b\n- [ ] c\n");
+  });
+
   test("a carriage return stays part of its line", () => {
     expect(
       restoreKeepingNewLines({

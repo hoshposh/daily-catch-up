@@ -60,36 +60,17 @@ test("the inbox and backlog settings follow a folder rename", async () => {
     },
   });
 
-  // what the vault reports for a folder rename (printed, not asserted)
-  await evalJs(`(() => {
-    window.__renameLog = [];
-    window.__renameRef = app.vault.on('rename', (file, oldPath) => {
-      window.__renameLog.push(oldPath + ' -> ' + file.path);
-    });
-    return true;
-  })()`);
-  try {
-    await rename("Notes", "Capture");
-    await waitFor(
-      async () => {
-        const live = await liveSettings();
-        return (
-          live.inbox === "Capture/Inbox.md" &&
-          live.backlog === "Capture/Backlog.md"
-        );
-      },
-      { message: "the settings to follow the folder rename" }
-    );
-    // eslint-disable-next-line no-console
-    console.log(
-      "rename events:",
-      JSON.stringify(await evalJson("window.__renameLog"))
-    );
-  } finally {
-    await evalJs(
-      "if (window.__renameRef) { app.vault.offref(window.__renameRef); delete window.__renameRef; } true"
-    );
-  }
+  await rename("Notes", "Capture");
+  await waitFor(
+    async () => {
+      const live = await liveSettings();
+      return (
+        live.inbox === "Capture/Inbox.md" &&
+        live.backlog === "Capture/Backlog.md"
+      );
+    },
+    { message: "the settings to follow the folder rename" }
+  );
 
   await waitFor(
     async () => {

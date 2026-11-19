@@ -764,7 +764,12 @@ export default class RolloverTodosPlugin extends Plugin {
 
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
-        void this.followRenamedNote(file.path, oldPath);
+        void this.followRenamedNote(file.path, oldPath).catch((error) =>
+          console.error(
+            "Daily Catch-Up: could not save the renamed note path",
+            error
+          )
+        );
       })
     );
 

@@ -2,7 +2,8 @@
 // capture can sync in during the undo window). A three-way line merge: the
 // snapshot from before the rollover, the note as the rollover left it, and
 // the note as it is now. Pure, so it is unit tested. Lines are split on "\n"
-// only, so a "\r" stays part of its line.
+// only, so a "\r" stays part of its line. A capture placed between lines the
+// rollover changed (Mark) is restored after them.
 
 /**
  * Line diff by longest common subsequence. Returns, for each line of `a`, the

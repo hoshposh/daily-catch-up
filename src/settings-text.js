@@ -45,7 +45,7 @@ export const SETTING_GROUPS = [
     help: [
       "An inbox is a note where quick captures land during the day. Every rollover pulls its open todos into today's note, along with the ones from the previous day's note.",
       "To fill it, set QuickAdd's Capture to this note with Task turned on, and optionally Insert after a heading so captures land under one heading. Only checkbox lines are pulled; other text in the inbox stays where it is.",
-      "**Delete them** removes the pulled todos and keeps the headings and the note itself. **Mark them** changes each pulled todo's checkbox to the marker character set above under the previous day's note. There is no \"leave them\" choice, because they would be pulled again every day.",
+      "**Delete them** removes the pulled todos and keeps the headings and the note itself. **Mark them** changes each pulled todo's checkbox to the marker character set above under the previous day's note, and follows Move nested items when marking. There is no \"leave them\" choice, because they would be pulled again every day.",
       "Heading for inbox todos works like a Move to heading rule: the pulled todos go under that heading in today's note, created at the end when missing. Left empty, they go where the rolled todos go.",
     ],
   },
