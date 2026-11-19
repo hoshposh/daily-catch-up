@@ -104,15 +104,28 @@ export default class ReviewModal extends Modal {
 
   onOpen() {
     const { contentEl, titleEl } = this;
+    // a source whose todos were all dropped (empty todos) has nothing to show
+    const sources = this.sources.filter((source) => source.items.length > 0);
+    const several = sources.length > 1;
     titleEl.setText(
-      `Roll over from ${this.sources.map((source) => source.name).join(", ")}`
+      several
+        ? "Roll over todos"
+        : `Roll over from ${sources.map((source) => source.name).join(", ")}`
     );
     contentEl.addClass("rollover-review");
 
     this.addShortcuts(new Setting(contentEl).setName("All todos"), this.items);
 
-    // one source after the other, each with its sections in note order
-    for (const source of this.sources) {
+    // one source after the other, each with its sections in note order;
+    // with several, each starts with a row of its own
+    for (const source of sources) {
+      if (several) {
+        const row = new Setting(contentEl)
+          .setName(`From ${source.name}`)
+          .setHeading();
+        row.settingEl.addClass("rollover-review-source");
+        this.addShortcuts(row, source.items);
+      }
       this.renderSource(contentEl, source);
     }
 

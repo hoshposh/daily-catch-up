@@ -14,6 +14,16 @@
   flex-wrap: wrap;
 }
 
+/* With several source notes, the row that starts each one's sections */
+.rollover-review .rollover-review-source {
+  margin-top: var(--size-4-4);
+  border-top: 2px solid var(--background-modifier-border);
+}
+
+.rollover-review .rollover-review-source .setting-item-name {
+  font-size: var(--font-ui-large);
+}
+
 .rollover-stale-badge {
   margin-inline-start: var(--size-4-2);
   color: var(--text-warning);

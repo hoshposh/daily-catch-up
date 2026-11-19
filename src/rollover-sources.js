@@ -1,7 +1,7 @@
 // The Obsidian-free orchestration of a rollover over several source notes,
 // shared by index.js and the unit flow test (src/rollover-flow.test.js). It
 // loops the steps of rollover-plan.js over a list of sources (the previous
-// day's note, and later others). A source is
+// day's note and the inbox note). A source is
 // `{ key, kind, name, lines, sections, sourceAction }`; `key` is put in front
 // of its item ids ("" for the previous day's note, so its ids stay as they
 // were) and `name` is what its backlog items say they came from.
@@ -14,6 +14,7 @@
 // 4. writeSource: what one source note becomes (Cancel marks, then its
 //    source action), once today's note and the backlog are written
 
+import { normalizeHeading } from "./backlog";
 import { insertSections } from "./insert-sections";
 import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import {
@@ -24,6 +25,73 @@ import {
 } from "./source-action";
 
 const OUTCOMES = ["roll", "backlog", "cancel", "leave"];
+
+/**
+ * What happens to the todos pulled from the inbox: "mark", or "delete" for
+ * any other stored value. There is no "none": the inbox would then be pulled
+ * again by every rollover.
+ *
+ * @param {{ inboxSourceAction?: string }} settings
+ * @returns {"delete"|"mark"}
+ */
+export function inboxSourceAction(settings) {
+  return settings.inboxSourceAction === "mark" ? "mark" : "delete";
+}
+
+/**
+ * The inbox note as a source, after the previous day's note. Delete keeps its
+ * headings (QuickAdd's Insert after needs them), its todos' counters are not
+ * raised, and with an inbox heading its items are moved under that heading.
+ *
+ * @param {object} args
+ * @param {{ basename: string }} args.file - the inbox note
+ * @param {string} args.content - as read
+ * @param {string[]} args.lines - splitLines(content)
+ * @param {object[]} args.sections - getSections() of `lines`, with the same
+ *   options as the previous note
+ * @param {object} args.settings - inboxSourceAction and inboxHeading
+ */
+export function inboxSource({ file, content, lines, sections, settings }) {
+  const heading = settings.inboxHeading ?? "";
+  return {
+    key: "inbox/",
+    kind: "inbox",
+    name: file.basename,
+    file,
+    content,
+    lines,
+    sections,
+    sourceAction: inboxSourceAction(settings),
+    keepHeadings: true,
+    countRollover: false,
+    placement: heading.trim() ? normalizeHeading(heading) : null,
+  };
+}
+
+export const INBOX_GUARD_NOTICE =
+  "The inbox note can't be today's note, the previous daily note or the backlog note. Change it in settings.";
+
+/**
+ * Whether the inbox note is a note it must never be: today's note, the
+ * previous daily note or the backlog note. A missing previous note or backlog
+ * note (null or undefined) is not compared.
+ *
+ * @param {object} args
+ * @param {string} args.inboxPath
+ * @param {string} args.todayPath
+ * @param {string} [args.previousPath]
+ * @param {string|null} [args.backlogPath]
+ */
+export function inboxPathConflicts({
+  inboxPath,
+  todayPath,
+  previousPath,
+  backlogPath,
+}) {
+  return [todayPath, previousPath, backlogPath].some(
+    (path) => path != null && path === inboxPath
+  );
+}
 
 /**
  * Plans every source and joins their items and default decisions.

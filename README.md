@@ -52,7 +52,7 @@ Run `Review and roll over todos…` to see the todos that are about to move befo
 | **Cancel**  | Not added                                                         | The checkbox is set to the **Cancel marker**, even if **After rollover** is **Leave them alone**; never deleted |
 | **Leave**   | Not added                                                         | Not changed                                                                                                     |
 
-Every todo defaults to **Roll**. **All roll** and **All leave** buttons set a whole section, or all todos, at once, and a summary line counts the outcomes as you go. A todo moves together with its nested items as one unit: a nested empty todo left out by **Remove empty todos**, or a completed one left out by **Skip completed children**, belongs to the todo it is indented under, so it stays when that todo is cancelled or left. **Backlog** is only offered when a **Backlog note** is set, and **Cancel** only when the **Cancel marker** is one of your **Done status markers**. Todos that have rolled over too often show a "rolled 5×" badge (see **Aging** below).
+Every todo defaults to **Roll**. **All roll** and **All leave** buttons set a whole section, or all todos, at once (when todos come from both the previous day's note and the **Inbox note**, the dialog is titled "Roll over todos" and each note's todos come under a row of their own, such as "From Inbox", with its own buttons), and a summary line counts the outcomes as you go. A todo moves together with its nested items as one unit: a nested empty todo left out by **Remove empty todos**, or a completed one left out by **Skip completed children**, belongs to the todo it is indented under, so it stays when that todo is cancelled or left. **Backlog** is only offered when a **Backlog note** is set, and **Cancel** only when the **Cancel marker** is one of your **Done status markers**. Todos that have rolled over too often show a "rolled 5×" badge (see **Aging** below).
 
 **Apply** carries out the choices. Closing the dialog any other way (**Cancel** button, Escape, clicking outside) abandons the rollover and changes nothing. The dialog only opens when there is something to roll; otherwise it behaves like `Roll over todos now`. `Roll over todos now` never asks, and automatic rollovers only ask if you set **Review automatic rollovers**. While a rollover is running, for example with the dialog open, no second one starts: running a command then says a rollover is already in progress.
 
@@ -66,15 +66,16 @@ Todos sent to the backlog are added to the **Backlog note** with their nested it
 
 Run `Undo last rollover` from the command palette within **2 minutes** of a rollover to fully reverse it. Only the most recent rollover can be undone.
 
-The undo works by restoring complete snapshots of the files the rollover changed — today's note, the previous day's note and the backlog note — to their exact state before the rollover ran. This means:
+The undo works by restoring complete snapshots of the files the rollover changed — today's note, the previous day's note, the inbox note and the backlog note — to their exact state before the rollover ran. This means:
 
 - All inserted todos and headings are removed from today's note
 - If **After rollover** changed the previous note (**Mark them** or **Delete them**), the marked or deleted todos, and any headings removed with them, are restored
+- Todos pulled from the **Inbox note** are put back in it
 - If the rollover added to the backlog note, those todos are removed again; a backlog note the rollover created is deleted
 - The restoration is complete regardless of how many todos or sub-headings were involved
 - Anything you typed into those notes after the rollover is overwritten too, so use undo right away
 
-If the Templater plugin is enabled, `Undo last rollover` only restores the previous day's note and the backlog note, and leaves today's note as it is, because Templater rewrites a new note after the todos are added and restoring an earlier version would replace its output. Remove the rolled over todos from today's note yourself in that case. There is nothing to undo if the rollover changed neither of them.
+If the Templater plugin is enabled, `Undo last rollover` only restores the previous day's note, the inbox note and the backlog note, and leaves today's note as it is, because Templater rewrites a new note after the todos are added and restoring an earlier version would replace its output. Remove the rolled over todos from today's note yourself in that case. There is nothing to undo if the rollover changed neither of them.
 
 Note that if you create a daily note in the future, and you try to run this command, todos will not be rolled into a future date. They will always be rolled to today's note (if it doesn't exist, nothing will happen), from the chronologically closest (in the past) daily note.
 
@@ -88,7 +89,7 @@ Note that if you create a daily note in the future, and you try to run this comm
 
 ## Settings
 
-The settings are in six groups, in the order a rollover runs. A setting that depends on another sits indented under it, and is greyed out with a note saying what turns it on while it doesn't apply; its value is kept. The `?` button on each group heading opens a short explanation of that group.
+The settings are in eight groups, in the order a rollover runs. A setting that depends on another sits indented under it, and is greyed out with a note saying what turns it on while it doesn't apply; its value is kept. The `?` button on each group heading opens a short explanation of that group.
 
 ### When it runs
 
@@ -174,6 +175,28 @@ If you use the `Undo last rollover` command, marked or deleted todos will be res
 Off by default. Only applies when **After rollover** is set to mark and **Roll over children of todos** is on. The marked todo stays in the previous day's note as a single line, while everything that was rolled over beneath it (plain bullets, notes and nested todos) moves to today's note and is removed from the previous one. This keeps the hierarchy from being shown in both notes.
 
 Whether completed nested todos move is decided by **Skip completed children**. With **Skip completed children** on they are not rolled over, so they stay in the previous day's note under the marked todo. With it off they are rolled over with the hierarchy and move with it. Nested items that were not moved, for example under a todo that was skipped by **Skip todos already in today's note**, stay where they are.
+
+### Inbox
+
+An inbox is a note where quick captures land during the day, for example from your phone. With an **Inbox note** set, every rollover (automatic, `Roll over todos now` and `Review and roll over todos…`) also pulls the inbox's open todos into today's note, with their nested items as **Roll over children of todos** says, and then removes them from the inbox. It does so even when there is no previous daily note, or it has no open todos.
+
+A typical setup uses the [QuickAdd](https://github.com/chhoumann/quickadd) plugin: a Capture choice with **Capture to** set to the inbox note, **Task** turned on (so each capture is written as `- [ ] …`), and optionally **Insert after** a heading such as `## Captured`. Only checkbox lines are pulled; plain bullets and other text stay in the inbox where they are.
+
+The rules, the review dialog (where the inbox's todos get a group of their own, such as **From Inbox**, when the previous day's note has todos too), **Leave** and **Undo last rollover** work for inbox todos as for the previous day's note. A todo pulled from the inbox does not get its rollover counter raised, since it was not rolled over.
+
+#### Inbox note
+
+The path of the inbox note, for example `Inbox.md`. Leave it empty (the default) to turn the inbox off. A missing inbox note is skipped without a word, since it may not exist until your first capture. It cannot be today's note, the previous daily note or the **Backlog note**: the rollover stops with a notice if it is.
+
+#### After rollover, in the inbox
+
+**Delete them** (default) removes the pulled todos from the inbox, but keeps its headings (QuickAdd's **Insert after** needs its heading) and the note itself, even when nothing else is left. **Mark them** changes each pulled todo's checkbox to the same marker as the previous day's note (default `>`), and follows **Move nested items when marking** too. There is no "leave them alone": the same todos would then be pulled again every day.
+
+If the inbox is edited while the rollover runs (a sync client delivering a new capture, for example), it is left unchanged, with a notice: its todos are still in today's note, so remove them from the inbox yourself.
+
+#### Heading for inbox todos
+
+A heading in today's note to put inbox todos under, for example `## Inbox`. It works like a **Move to heading** rule: the todos go under the first heading with that text anywhere in today's note, or under a new one at the end, and the **Template heading** plays no part. A **Move to heading** rule that matches a todo wins. Text that is not already a heading becomes a level 2 heading. Leave it empty to put inbox todos where rolled todos go: under the template heading, or under the headings they had in the inbox.
 
 ### Review and backlog
 

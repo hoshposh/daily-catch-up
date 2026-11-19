@@ -18,9 +18,16 @@ import {
 import { needsReview } from "./rollover-items";
 import {
   applySources,
+  backlogFailedNotice,
+  INBOX_GUARD_NOTICE,
+  inboxPathConflicts,
+  inboxSource,
   insertSources,
   planSources,
   rolloverNotice,
+  sourceUnchangedNotice,
+  sourceWriteFailedNotice,
+  templaterNotice,
   writeSource,
 } from "./rollover-sources";
 import { appendToBacklog } from "./backlog";
@@ -168,10 +175,21 @@ export default class RolloverTodosPlugin extends Plugin {
     return folder;
   }
 
+  // A note path setting as a vault path, with ".md" added when missing
+  getNotePath(setting) {
+    const path = normalizePath(setting.trim());
+    return path.toLowerCase().endsWith(".md") ? path : `${path}.md`;
+  }
+
   // The backlog note's path as a vault path, with ".md" added when missing
   getBacklogPath() {
-    const path = normalizePath(this.settings.backlogNotePath.trim());
-    return path.toLowerCase().endsWith(".md") ? path : `${path}.md`;
+    return this.getNotePath(this.settings.backlogNotePath);
+  }
+
+  // The inbox note's path as a vault path, or null when no inbox is set
+  getInboxPath() {
+    const setting = this.settings.inboxNotePath ?? "";
+    return setting.trim() === "" ? null : this.getNotePath(setting);
   }
 
   // Appends the items to the backlog note, creating it (and its folder) when
@@ -291,40 +309,81 @@ export default class RolloverTodosPlugin extends Plugin {
       const { templateHeading, removeEmptyTodos, leadingNewLine, skipExistingTodos } =
         this.settings;
 
-      // check if there is a daily note from yesterday
+      // check if there is a daily note from yesterday; without one, only an
+      // inbox note can still give todos
       const lastDailyNote = this.getLastDailyNote();
-      if (!lastDailyNote) return;
+      const inboxPath = this.getInboxPath();
+      if (!lastDailyNote && inboxPath == null) return;
 
-      // get unfinished todos from yesterday grouped by their parent heading
-      const lastDailyNoteContent = await this.app.vault.read(lastDailyNote);
-      const lastDailyNoteLines = splitLines(lastDailyNoteContent);
       const rules = this.settings.rules ?? [];
+      // unfinished todos grouped by their parent heading, with the same
+      // options for every source note
+      const parse = (lines) =>
+        getSections({
+          lines,
+          withChildren: this.settings.rolloverChildren,
+          doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
+          ignoreBlockquotes: this.settings.ignoreBlockquotes,
+          skipCompletedChildren: this.settings.skipCompletedChildren,
+          // "Not a todo" rules: such a line and what is nested under it stay
+          // put
+          isIgnored: (line, headingPath) =>
+            isIgnoredByRules(line, headingPath, rules),
+        });
 
-      const sections_yesterday = getSections({
-        lines: lastDailyNoteLines,
-        withChildren: this.settings.rolloverChildren,
-        doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
-        ignoreBlockquotes: this.settings.ignoreBlockquotes,
-        skipCompletedChildren: this.settings.skipCompletedChildren,
-        // "Not a todo" rules: such a line and what is nested under it stay put
-        isIgnored: (line, headingPath) =>
-          isIgnoredByRules(line, headingPath, rules),
-      });
-
-      // the notes todos are rolled over from, in order: for now only the
-      // previous daily note, and only when it has unfinished todos
-      const sources = [
-        {
+      // the notes todos are rolled over from, in order: the previous daily
+      // note, then the inbox note
+      const candidates = [];
+      if (lastDailyNote) {
+        const lastDailyNoteContent = await this.app.vault.read(lastDailyNote);
+        const lastDailyNoteLines = splitLines(lastDailyNoteContent);
+        candidates.push({
           key: "",
           kind: "previous",
           name: lastDailyNote.basename,
           file: lastDailyNote,
           content: lastDailyNoteContent,
           lines: lastDailyNoteLines,
-          sections: sections_yesterday,
+          sections: parse(lastDailyNoteLines),
           sourceAction: resolveSourceAction(this.settings),
-        },
-      ].filter((source) =>
+        });
+      }
+      if (inboxPath != null) {
+        // before the backlog guard below, so an inbox that is also the
+        // backlog note gets this notice
+        if (
+          inboxPathConflicts({
+            inboxPath,
+            todayPath: file.path,
+            previousPath: lastDailyNote?.path,
+            backlogPath:
+              (this.settings.backlogNotePath || "").trim() !== ""
+                ? this.getBacklogPath()
+                : null,
+          })
+        ) {
+          new Notice(INBOX_GUARD_NOTICE, 10000);
+          return;
+        }
+        // a missing inbox is skipped silently: it may not exist until the
+        // first capture
+        const inboxFile = this.app.vault.getAbstractFileByPath(inboxPath);
+        if (inboxFile instanceof TFile) {
+          const content = await this.app.vault.read(inboxFile);
+          const lines = splitLines(content);
+          candidates.push(
+            inboxSource({
+              file: inboxFile,
+              content,
+              lines,
+              sections: parse(lines),
+              settings: this.settings,
+            })
+          );
+        }
+      }
+      // only notes with unfinished todos
+      const sources = candidates.filter((source) =>
         source.sections.some((s) => s.incompleteTodos.length > 0)
       );
 
@@ -379,11 +438,11 @@ export default class RolloverTodosPlugin extends Plugin {
         backlogPath = this.getBacklogPath();
         // Compare with the previous daily note itself, not with the sources:
         // a previous note without open todos is not a source, but it must
-        // still never become the backlog (once other sources can run a
-        // rollover without it)
+        // still never become the backlog (the inbox can run a rollover
+        // without it)
         if (
           backlogPath === file.path ||
-          backlogPath === lastDailyNote.path
+          (lastDailyNote != null && backlogPath === lastDailyNote.path)
         ) {
           new Notice(
             "The backlog note can't be today's or the previous daily note. Change it in settings.",
@@ -528,10 +587,7 @@ export default class RolloverTodosPlugin extends Plugin {
             // state before Templater rendered it. An earlier rollover must not
             // stay undoable as if it were the latest one.
             this.undoHistory = [];
-            new Notice(
-              "Rollover left the previous day's note unchanged: today's note was modified by another plugin (likely Templater) after the todos were added, and they may be missing. Run 'Roll over todos now' to try again.",
-              15000
-            );
+            new Notice(templaterNotice(sources), 15000);
             return;
           }
         }
@@ -551,16 +607,13 @@ export default class RolloverTodosPlugin extends Plugin {
             "Daily Catch-Up: could not write the backlog note",
             error
           );
-          const todaysPart =
-            insertedTodos.length > 0
-              ? ` ${todosAdded} todo${
-                  todosAdded > 1 ? "s were" : " was"
-                } rolled over to today's note.`
-              : "";
           new Notice(
-            `Rollover couldn't write the backlog note '${backlogPath}' (${
-              error?.message ?? error
-            }), so the previous day's note was left unchanged.${todaysPart}`,
+            backlogFailedNotice({
+              backlogPath,
+              error,
+              todosAdded: insertedTodos.length > 0 ? todosAdded : 0,
+              sources,
+            }),
             15000
           );
           this.recordUndo(undoHistoryInstance);
@@ -569,74 +622,89 @@ export default class RolloverTodosPlugin extends Plugin {
       }
 
       // Cancel marks and the configured action ("delete" | "mark") on each
-      // source note, in order
+      // source note, in order. Whatever throws, today's note, the backlog
+      // note and the source notes already written stay undoable.
       let cancelledCount = 0;
-      for (const [i, source] of sources.entries()) {
-        const decided = perSource[i];
-        if (
-          source.sourceAction === "none" &&
-          decided.cancelledLineIndices.length === 0
-        ) {
-          continue;
-        }
-        // Read, check and write in one atomic step: the line positions refer
-        // to the content we parsed, and the note may have been edited since
-        // (by the user, a sync client or another plugin, e.g. during the
-        // Templater wait). Only change it when it is still exactly that.
-        let editedMeanwhile = false;
-        let changed = false;
-        await this.app.vault.process(source.file, (currentContent) => {
-          if (currentContent !== source.content) {
-            editedMeanwhile = true;
-            return currentContent;
+      try {
+        for (const [i, source] of sources.entries()) {
+          const decided = perSource[i];
+          if (
+            source.sourceAction === "none" &&
+            decided.cancelledLineIndices.length === 0
+          ) {
+            continue;
           }
-          const result = writeSource({
-            content: currentContent,
-            source,
-            decided,
-            retainedLineIndices: insertedPerSource[i].retainedLineIndices,
-            settings: this.settings,
-          });
-          changed = result.changed;
-          return result.content;
-        });
-        if (editedMeanwhile) {
-          new Notice(
-            "Rollover left the previous day's note unchanged: it was edited while the rollover was running.",
-            10000
-          );
-        } else {
-          // the cancel marks were applied
-          cancelledCount += decided.outcomeCounts.cancel;
-          if (changed) {
-            undoHistoryInstance.sources.push({
-              file: source.file,
-              oldContent: `${source.content}`,
+          // Read, check and write in one atomic step: the line positions
+          // refer to the content we parsed, and the note may have been edited
+          // since (by the user, a sync client or another plugin, e.g. during
+          // the Templater wait). Only change it when it is still exactly that.
+          let editedMeanwhile = false;
+          let changed = false;
+          try {
+            await this.app.vault.process(source.file, (currentContent) => {
+              if (currentContent !== source.content) {
+                editedMeanwhile = true;
+                return currentContent;
+              }
+              const result = writeSource({
+                content: currentContent,
+                source,
+                decided,
+                retainedLineIndices: insertedPerSource[i].retainedLineIndices,
+                settings: this.settings,
+              });
+              changed = result.changed;
+              return result.content;
             });
+          } catch (error) {
+            // this note stays as it was; the next one is still written
+            console.error(
+              "Daily Catch-Up: could not write the source note",
+              source.file.path,
+              error
+            );
+            new Notice(sourceWriteFailedNotice(source, error), 15000);
+            continue;
+          }
+          if (editedMeanwhile) {
+            new Notice(sourceUnchangedNotice(source), 10000);
+          } else {
+            // the cancel marks were applied
+            cancelledCount += decided.outcomeCounts.cancel;
+            if (changed) {
+              undoHistoryInstance.sources.push({
+                file: source.file,
+                oldContent: `${source.content}`,
+              });
+            }
           }
         }
-      }
 
-      // Let user know rollover has been successful with X todos
-      const message = rolloverNotice({
-        templateHeadingNotFound,
-        templateHeading,
-        todosAdded,
-        todosAlreadyPresent,
-        backlogCount: outcomeCounts.backlog,
-        backlogPath,
-        cancelledCount,
-        sources: sources.map((source, i) => ({
-          name: source.name,
-          sourceAction: source.sourceAction,
-          removedEmptyTodos: plans[i].removedEmptyTodos,
-          leftCount: perSource[i].outcomeCounts.leave,
-        })),
-      });
-      if (message.length > 0) {
-        new Notice(message, 4000 + message.length * 3);
+        // Let user know rollover has been successful with X todos
+        const message = rolloverNotice({
+          templateHeadingNotFound,
+          templateHeading,
+          todosAdded,
+          todosAlreadyPresent,
+          backlogCount: outcomeCounts.backlog,
+          backlogPath,
+          cancelledCount,
+          sources: sources.map((source, i) => ({
+            kind: source.kind,
+            name: source.name,
+            sourceAction: source.sourceAction,
+            removedEmptyTodos: plans[i].removedEmptyTodos,
+            leftCount: perSource[i].outcomeCounts.leave,
+            // the todos of this source actually inserted into today's note
+            rolledCount: insertedPerSource[i].insertedTodos.length,
+          })),
+        });
+        if (message.length > 0) {
+          new Notice(message, 4000 + message.length * 3);
+        }
+      } finally {
+        this.recordUndo(undoHistoryInstance);
       }
-      this.recordUndo(undoHistoryInstance);
     }
   }
 

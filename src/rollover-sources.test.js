@@ -5,6 +5,10 @@ import {
   applySources,
   planSources,
   backlogFailedNotice,
+  INBOX_GUARD_NOTICE,
+  inboxPathConflicts,
+  inboxSource,
+  inboxSourceAction,
   rolloverNotice,
   sourceLabel,
   sourceUnchangedNotice,
@@ -667,6 +671,80 @@ describe("source notices", () => {
     );
     expect(sourceWriteFailedNotice(PREVIOUS, new Error("locked"))).toContain(
       "the previous day's note"
+    );
+  });
+});
+
+describe("the inbox source", () => {
+  const FILE = { path: "Inbox.md", basename: "Inbox" };
+  const parsed = { content: "- [ ] a\n", lines: ["- [ ] a", ""], sections: [] };
+  const build = (settings) => inboxSource({ file: FILE, ...parsed, settings });
+
+  test("the inbox action is mark or delete, never anything else", () => {
+    expect(inboxSourceAction({ inboxSourceAction: "mark" })).toBe("mark");
+    expect(inboxSourceAction({ inboxSourceAction: "delete" })).toBe("delete");
+    // a hand-edited "none" would pull the same todos every day
+    expect(inboxSourceAction({ inboxSourceAction: "none" })).toBe("delete");
+    expect(inboxSourceAction({})).toBe("delete");
+  });
+
+  test("the source object", () => {
+    expect(build({ inboxSourceAction: "delete", inboxHeading: "" })).toEqual({
+      key: "inbox/",
+      kind: "inbox",
+      name: "Inbox",
+      file: FILE,
+      ...parsed,
+      sourceAction: "delete",
+      keepHeadings: true,
+      countRollover: false,
+      placement: null,
+    });
+  });
+
+  test("the inbox heading becomes the placement", () => {
+    expect(build({ inboxHeading: "Captured" }).placement).toBe("## Captured");
+    expect(build({ inboxHeading: "### Captured" }).placement).toBe(
+      "### Captured"
+    );
+    expect(build({ inboxHeading: "   " }).placement).toBe(null);
+    expect(build({}).placement).toBe(null);
+    expect(build({ inboxSourceAction: "mark" }).sourceAction).toBe("mark");
+  });
+
+  test("the inbox guard", () => {
+    const paths = {
+      inboxPath: "Inbox.md",
+      todayPath: "Daily/2026-11-18.md",
+      previousPath: "Daily/2026-11-17.md",
+      backlogPath: "Backlog.md",
+    };
+    expect(inboxPathConflicts(paths)).toBe(false);
+    expect(inboxPathConflicts({ ...paths, inboxPath: paths.todayPath })).toBe(
+      true
+    );
+    expect(
+      inboxPathConflicts({ ...paths, inboxPath: paths.previousPath })
+    ).toBe(true);
+    expect(inboxPathConflicts({ ...paths, inboxPath: "Backlog.md" })).toBe(
+      true
+    );
+    // no previous note, no backlog note: only today's note is compared
+    expect(
+      inboxPathConflicts({
+        ...paths,
+        previousPath: undefined,
+        backlogPath: null,
+      })
+    ).toBe(false);
+    expect(
+      inboxPathConflicts({
+        inboxPath: paths.todayPath,
+        todayPath: paths.todayPath,
+      })
+    ).toBe(true);
+    expect(INBOX_GUARD_NOTICE).toBe(
+      "The inbox note can't be today's note, the previous daily note or the backlog note. Change it in settings."
     );
   });
 });
