@@ -172,9 +172,9 @@ If you use the `Undo last rollover` command, marked or deleted todos will be res
 
 #### Move nested items when marking
 
-Off by default. Only applies when **After rollover** is set to mark and **Roll over children of todos** is on. The marked todo stays in the previous day's note as a single line, while everything that was rolled over beneath it (plain bullets, notes and nested todos) moves to today's note and is removed from the previous one. This keeps the hierarchy from being shown in both notes.
+Off by default. Only applies to a note that is set to mark (the previous day's note with **After rollover** set to mark, and the inbox with **After rollover, in the inbox** set to mark) and when **Roll over children of todos** is on. The marked todo stays in its note as a single line, while everything that was rolled over beneath it (plain bullets, notes and nested todos) moves to today's note and is removed from the note it came from. This keeps the hierarchy from being shown in both notes.
 
-Whether completed nested todos move is decided by **Skip completed children**. With **Skip completed children** on they are not rolled over, so they stay in the previous day's note under the marked todo. With it off they are rolled over with the hierarchy and move with it. Nested items that were not moved, for example under a todo that was skipped by **Skip todos already in today's note**, stay where they are.
+Whether completed nested todos move is decided by **Skip completed children**. With **Skip completed children** on they are not rolled over, so they stay in their note under the marked todo. With it off they are rolled over with the hierarchy and move with it. Nested items that were not moved, for example under a todo that was skipped by **Skip todos already in today's note**, stay where they are.
 
 ### Inbox
 
@@ -186,7 +186,7 @@ The rules, the review dialog (where the inbox's todos get a group of their own, 
 
 #### Inbox note
 
-The path of the inbox note, for example `Inbox.md`. Leave it empty (the default) to turn the inbox off. A missing inbox note is skipped without a word, since it may not exist until your first capture. It cannot be today's note, the previous daily note or the **Backlog note**: the rollover stops with a notice if it is.
+The path of the inbox note, for example `Inbox.md`. Leave it empty (the default) to turn the inbox off. A missing inbox note is skipped without a word, since it may not exist until your first capture. It cannot be today's note, the previous daily note or the **Backlog note**: the rollover stops with a notice if it is. If you rename or move the inbox note, or a folder that holds it, the setting follows.
 
 #### After rollover, in the inbox
 
@@ -206,7 +206,7 @@ The checkbox character a todo gets when you choose **Cancel** in the review (def
 
 #### Backlog note
 
-The path of the note that receives todos you send to the backlog, for example `Backlog.md` (the plugin creates the note, and any missing folder, if needed). Leave it empty to turn the **Backlog** outcome off. It cannot be today's note or the previous daily note.
+The path of the note that receives todos you send to the backlog, for example `Backlog.md` (the plugin creates the note, and any missing folder, if needed). Leave it empty to turn the **Backlog** outcome off. It cannot be today's note or the previous daily note. If you rename or move the backlog note, or a folder that holds it, the setting follows.
 
 #### Backlog heading
 

@@ -31,6 +31,7 @@ import {
   writeSource,
 } from "./rollover-sources";
 import { appendToBacklog } from "./backlog";
+import { followRename } from "./note-paths";
 import { EXAMPLE_RULES, isIgnoredByRules, sanitizeRules } from "./rules";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
@@ -190,6 +191,21 @@ export default class RolloverTodosPlugin extends Plugin {
   getInboxPath() {
     const setting = this.settings.inboxNotePath ?? "";
     return setting.trim() === "" ? null : this.getNotePath(setting);
+  }
+
+  // Points the inbox and backlog settings at their notes' new paths after the
+  // vault renamed or moved a note or a folder holding it
+  async followRenamedNote(newPath, oldPath) {
+    let changed = false;
+    for (const key of ["inboxNotePath", "backlogNotePath"]) {
+      const setting = this.settings[key] ?? "";
+      if (setting.trim() === "") continue;
+      const moved = followRename(this.getNotePath(setting), oldPath, newPath);
+      if (moved === null) continue;
+      this.settings[key] = moved;
+      changed = true;
+    }
+    if (changed) await this.saveSettings();
   }
 
   // Appends the items to the backlog note, creating it (and its folder) when
@@ -743,6 +759,12 @@ export default class RolloverTodosPlugin extends Plugin {
         // Check if automatic daily note creation is enabled
         if (!this.settings.rolloverOnFileCreate) return;
         void this.rollover(file);
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        void this.followRenamedNote(file.path, oldPath);
       })
     );
 
