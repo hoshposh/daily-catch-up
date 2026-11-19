@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { getSections, splitLines } from "./get-todos";
 import { insertSections } from "./insert-sections";
 import { dedupeAgainstExisting } from "./insert-todos";
-import { appendToBacklog } from "./backlog";
+import { appendToBacklog, normalizeHeading } from "./backlog";
 import {
   applySources,
   insertSources,
@@ -74,25 +74,42 @@ function reviewedRollover({
   backlogEnabled = true,
   cancelEnabled = true,
   children = true,
+  templateHeading = "none",
+  inbox,
 }) {
-  const lines = splitLines(yesterday);
-  const sections = getSections({
-    lines,
-    withChildren: children,
-    doneStatusMarkers: "xX-",
-    skipCompletedChildren: skipCompleted,
-    isIgnored: (line, path) => isIgnoredByRules(line, path, rules),
-  });
+  const parse = (content) => {
+    const lines = splitLines(content);
+    const sections = getSections({
+      lines,
+      withChildren: children,
+      doneStatusMarkers: "xX-",
+      skipCompletedChildren: skipCompleted,
+      isIgnored: (line, path) => isIgnoredByRules(line, path, rules),
+    });
+    return { lines, sections };
+  };
   const sources = [
     {
       key: "",
       kind: "previous",
       name: "2026-11-06",
-      lines,
-      sections,
+      ...parse(yesterday),
       sourceAction: action,
     },
   ];
+  if (inbox) {
+    const { content, action: inboxAction = "delete", heading = "" } = inbox;
+    sources.push({
+      key: "inbox/",
+      kind: "inbox",
+      name: "Inbox",
+      ...parse(content),
+      sourceAction: inboxAction,
+      keepHeadings: true,
+      countRollover: false,
+      placement: heading ? normalizeHeading(heading) : null,
+    });
+  }
   const planned = planSources({
     sources,
     settings: {
@@ -107,28 +124,30 @@ function reviewedRollover({
     },
   });
   const plan = { items: planned.items };
-  // without decisions, the defaults apply as when no review is shown
+  // without decisions, the defaults apply as when no review is shown; a
+  // function gets the planned items and the defaults and returns the decisions
+  const decided =
+    typeof decisions === "function"
+      ? decisions(planned.items, planned.decisions)
+      : decisions ?? planned.decisions;
   const applied = applySources({
     plans: planned.plans,
     sources,
-    decisions: decisions ?? planned.decisions,
+    decisions: decided,
   });
-  const decided = applied.perSource[0];
   const inserted = insertSources({
     content: today,
-    entries: [
-      {
-        sections: decided.rolledSections,
-        lines,
-        noStaleLineIndices: decided.noStaleLineIndices,
-      },
-    ],
+    entries: sources.map((source, i) => ({
+      sections: applied.perSource[i].rolledSections,
+      lines: source.lines,
+      noStaleLineIndices: applied.perSource[i].noStaleLineIndices,
+    })),
     settings: {
       skipExistingTodos: skipExisting,
       rolloverChildren: children,
       trackRolloverCount: track,
       doneStatusMarkers: "xX-",
-      templateHeading: "none",
+      templateHeading,
       leadingNewLine: true,
     },
   });
@@ -143,24 +162,27 @@ function reviewedRollover({
         })
       : "";
   // the same call, with the same plugin settings, as index.js
-  const source = writeSource({
-    content: yesterday,
-    source: sources[0],
-    decided,
-    retainedLineIndices: inserted.perSource[0].retainedLineIndices,
-    settings: {
-      onRolloverSourceAction: action,
-      rolloverSourceMarker: ">",
-      cancelMarker: "-",
-      doneStatusMarkers: "xX-",
-      ignoreBlockquotes: false,
-      moveNestedItemsOnMark: false,
-      rolloverChildren: children,
-    },
-  });
+  const written = sources.map((source, i) =>
+    writeSource({
+      content: i === 0 ? yesterday : inbox.content,
+      source,
+      decided: applied.perSource[i],
+      retainedLineIndices: inserted.perSource[i].retainedLineIndices,
+      settings: {
+        onRolloverSourceAction: source.sourceAction,
+        rolloverSourceMarker: ">",
+        cancelMarker: "-",
+        doneStatusMarkers: "xX-",
+        ignoreBlockquotes: false,
+        moveNestedItemsOnMark: false,
+        rolloverChildren: children,
+      },
+    })
+  );
   return {
     today: inserted.content,
-    yesterday: source.content,
+    yesterday: written[0].content,
+    inbox: written[1]?.content,
     backlog,
     items: plan.items,
   };
@@ -902,5 +924,133 @@ describe("todos whose parent does not go with them", () => {
     expect(result.backlog).toContain(
       "- [ ] Learn Rust #someday [from:: [[2026-11-06]]]\n  - start with the book"
     );
+  });
+});
+
+describe("inbox", () => {
+  const captured = "## Captured\n- [ ] Buy milk\n- [ ] Call Sam\n";
+  // every item rolls, except the inbox item whose first line is `line`
+  const decide = (line, outcome) => (items, defaults) => {
+    const item = items.find(
+      (i) => i.id.startsWith("inbox/") && i.lines[0] === line
+    );
+    return { ...defaults, [item.id]: outcome };
+  };
+
+  test("inbox only", () => {
+    const r = reviewedRollover({
+      yesterday: "## Work\n- [x] done\n",
+      inbox: { content: captured },
+    });
+    expect(r.today).toContain("- [ ] Buy milk");
+    expect(r.today).toContain("- [ ] Call Sam");
+    expect(r.inbox).toBe("## Captured\n");
+  });
+
+  test("both sources, skip existing dedupes the inbox", () => {
+    const r = reviewedRollover({
+      yesterday: "- [ ] Call Sam\n",
+      skipExisting: true,
+      inbox: { content: captured },
+    });
+    expect(r.today.split("\n").filter((l) => l === "- [ ] Call Sam")).toHaveLength(1);
+    expect(r.today.split("\n").filter((l) => l === "- [ ] Buy milk")).toHaveLength(1);
+    // the duplicate is still removed
+    expect(r.inbox).toBe("## Captured\n");
+  });
+
+  test("inbox heading", () => {
+    const r = reviewedRollover({
+      yesterday: "",
+      today: "# Day\n\n## Inbox\n",
+      inbox: { content: captured, heading: "Inbox" },
+    });
+    expect(r.today).toContain("## Inbox\n\n- [ ] Buy milk\n- [ ] Call Sam");
+
+    const tasks = reviewedRollover({
+      yesterday: "",
+      today: "## Tasks\n",
+      templateHeading: "## Tasks",
+      inbox: { content: captured, heading: "Inbox" },
+    });
+    // a new heading at the end, not under the template heading
+    expect(tasks.today.indexOf("## Tasks")).toBeLessThan(tasks.today.indexOf("## Inbox"));
+    expect(tasks.today.slice(tasks.today.indexOf("## Inbox"))).toContain(
+      "- [ ] Buy milk"
+    );
+    expect(tasks.today.slice(0, tasks.today.indexOf("## Inbox"))).not.toContain(
+      "Buy milk"
+    );
+  });
+
+  test("a move rule wins over the inbox heading", () => {
+    const r = reviewedRollover({
+      yesterday: "",
+      inbox: {
+        content: "## Captured\n- [ ] Buy milk @shop\n- [ ] Call Sam\n",
+        heading: "Inbox",
+      },
+      rules: [
+        {
+          id: "shop",
+          enabled: true,
+          match: "tag",
+          value: "@shop",
+          effect: "move",
+          target: "Shopping",
+        },
+      ],
+    });
+    expect(r.today).toContain("## Shopping\n\n- [ ] Buy milk @shop");
+    expect(r.today).toContain("## Inbox\n\n- [ ] Call Sam");
+  });
+
+  test("todos above any heading", () => {
+    const r = reviewedRollover({
+      yesterday: "",
+      today: "# Day\n",
+      templateHeading: "none",
+      inbox: { content: "- [ ] Buy milk\n" },
+    });
+    expect(r.today.endsWith("- [ ] Buy milk\n")).toBe(true);
+  });
+
+  test("no counter on the way in", () => {
+    const r = reviewedRollover({
+      yesterday: "- [ ] a\n",
+      track: true,
+      inbox: { content: captured },
+    });
+    expect(r.today).toContain("- [ ] a [rolled:: 1]");
+    expect(r.today).toContain("- [ ] Buy milk\n");
+    expect(r.today).not.toMatch(/Buy milk.*rolled::/);
+    expect(r.today).not.toMatch(/Call Sam.*rolled::/);
+  });
+
+  test("leave keeps an inbox todo", () => {
+    const r = reviewedRollover({
+      yesterday: "",
+      decisions: decide("- [ ] Call Sam", "leave"),
+      inbox: { content: captured },
+    });
+    expect(r.inbox).toBe("## Captured\n- [ ] Call Sam\n");
+  });
+
+  test("mark", () => {
+    const r = reviewedRollover({
+      yesterday: "",
+      inbox: { content: captured, action: "mark" },
+    });
+    expect(r.inbox).toBe("## Captured\n- [>] Buy milk\n- [>] Call Sam\n");
+  });
+
+  test("backlog from the inbox names the inbox", () => {
+    const r = reviewedRollover({
+      yesterday: "",
+      decisions: decide("- [ ] Buy milk", "backlog"),
+      inbox: { content: captured },
+    });
+    expect(r.backlog).toContain("- [ ] Buy milk [from:: [[Inbox]]]");
+    expect(r.inbox).toBe("## Captured\n");
   });
 });
