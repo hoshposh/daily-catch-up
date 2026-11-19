@@ -6,17 +6,33 @@ import {
   helpSegments,
 } from "./settings-text";
 
-test("seven groups in spec order, each with help", () => {
+test("eight groups in spec order, each with help", () => {
   expect(SETTING_GROUPS.map((g) => g.title)).toEqual([
     "When it runs",
     "Which todos roll over",
     "Where they go in today's note",
     "What happens to the previous day's note",
+    "Inbox",
     "Review and backlog",
     "Aging",
     "Rules",
   ]);
   for (const g of SETTING_GROUPS) expect(g.help.length).toBeGreaterThan(0);
+});
+
+test("the inbox group follows the previous-note group and names QuickAdd", () => {
+  const ids = SETTING_GROUPS.map((g) => g.id);
+  expect(ids.indexOf("inbox")).toBe(ids.indexOf("previous") + 1);
+  const { help } = SETTING_GROUPS.find((g) => g.id === "inbox");
+  expect(
+    help.some((p) => p.includes("QuickAdd") && /only checkbox/i.test(p))
+  ).toBe(true);
+});
+
+test("inbox labels", () => {
+  expect(SETTING_LABELS.inboxNotePath).toBe("Inbox note");
+  expect(SETTING_LABELS.inboxSourceAction).toBe("After rollover, in the inbox");
+  expect(SETTING_LABELS.inboxHeading).toBe("Heading for inbox todos");
 });
 
 test("renamed labels", () => {

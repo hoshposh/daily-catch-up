@@ -40,6 +40,16 @@ export const SETTING_GROUPS = [
     ],
   },
   {
+    id: "inbox",
+    title: "Inbox",
+    help: [
+      "An inbox is a note where quick captures land during the day. Every rollover pulls its open todos into today's note, along with the ones from the previous day's note.",
+      "To fill it, set QuickAdd's Capture to this note with Task turned on, and optionally Insert after a heading so captures land under one heading. Only checkbox lines are pulled; other text in the inbox stays where it is.",
+      "**Delete them** removes the pulled todos and keeps the headings and the note itself. **Mark them** changes each pulled todo's checkbox to the marker character set above under the previous day's note. There is no \"leave them\" choice, because they would be pulled again every day.",
+      "Heading for inbox todos works like a Move to heading rule: the pulled todos go under that heading in today's note, created at the end when missing. Left empty, they go where the rolled todos go.",
+    ],
+  },
+  {
     id: "review",
     title: "Review and backlog",
     help: [
@@ -82,6 +92,9 @@ export const SETTING_LABELS = {
   rolloverSourceMarker: "Marker character",
   moveNestedItemsOnMark: "Move nested items when marking",
   cancelMarker: "Cancel marker",
+  inboxNotePath: "Inbox note",
+  inboxSourceAction: "After rollover, in the inbox",
+  inboxHeading: "Heading for inbox todos",
   backlogNotePath: "Backlog note",
   backlogHeading: "Backlog heading",
   trackRolloverCount: "Count rollovers",
@@ -113,6 +126,12 @@ export const SETTING_DESCRIPTIONS = {
     "Keep only the marked todo; its nested items move to today's note.",
   cancelMarker:
     "Checkbox character a todo gets when you choose Cancel. Cancel is offered only when it is one of your done status markers.",
+  inboxNotePath:
+    "Note whose open todos are pulled into today's note by every rollover. Empty turns the inbox off.",
+  inboxSourceAction:
+    "What to do with the todos pulled from the inbox. They can't be left, or they would be pulled again.",
+  inboxHeading:
+    "Heading in today's note to put inbox todos under; empty means where rolled todos go.",
   backlogNotePath:
     "Note that receives todos you send to the backlog. Empty turns the Backlog choice off.",
   backlogHeading:

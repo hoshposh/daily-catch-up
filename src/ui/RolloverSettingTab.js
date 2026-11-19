@@ -268,6 +268,27 @@ export default class RolloverSettingTab extends PluginSettingTab {
       () => settings.moveNestedItemsOnMark || false
     );
 
+    // Inbox
+    this.addGroup(GROUP.inbox);
+    this.addText("inboxNotePath", {
+      placeholder: "Inbox.md",
+      value: settings.inboxNotePath || "",
+      parse: (v) => v.trim(),
+    });
+    this.addDropdown(
+      "inboxSourceAction",
+      {
+        delete: "Delete them",
+        mark: "Mark them",
+      },
+      settings.inboxSourceAction === "mark" ? "mark" : "delete"
+    );
+    this.addText("inboxHeading", {
+      placeholder: "## Inbox",
+      value: settings.inboxHeading || "",
+      parse: (v) => v.trim(),
+    });
+
     // Review and backlog
     this.addGroup(GROUP.review);
     this.cancelMarkerSetting = this.addText("cancelMarker", {

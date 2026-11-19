@@ -77,6 +77,21 @@ test("Backlog heading needs a non-blank Backlog note", () => {
   expect(s({}).backlogHeading.enabled).toBe(false);
 });
 
+test("inbox settings need an Inbox note", () => {
+  for (const path of ["", "  "]) {
+    const states = s({ inboxNotePath: path });
+    for (const key of ["inboxSourceAction", "inboxHeading"]) {
+      expect(states[key]).toEqual({
+        enabled: false,
+        reason: "Set an Inbox note to use this.",
+      });
+    }
+  }
+  const on = s({ inboxNotePath: "Inbox.md" });
+  expect(on.inboxSourceAction).toEqual({ enabled: true, reason: "" });
+  expect(on.inboxHeading).toEqual({ enabled: true, reason: "" });
+});
+
 test("stale settings need Count rollovers", () => {
   for (const key of ["staleAfterRollovers", "staleBehavior"]) {
     expect(s({ trackRolloverCount: true })[key].enabled).toBe(true);

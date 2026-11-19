@@ -9,6 +9,8 @@ export const DEPENDENT_SETTINGS = [
   "skipCompletedChildren",
   "rolloverSourceMarker",
   "moveNestedItemsOnMark",
+  "inboxSourceAction",
+  "inboxHeading",
   "backlogHeading",
   "staleAfterRollovers",
   "staleBehavior",
@@ -16,6 +18,8 @@ export const DEPENDENT_SETTINGS = [
 
 const NEEDS_MARK = 'Set After rollover to "Mark them" to use this.';
 const NEEDS_COUNT = "Turn on Count rollovers to use this.";
+
+const NEEDS_INBOX = "Set an Inbox note to use this.";
 
 const state = (enabled, reason) => ({ enabled, reason: enabled ? "" : reason });
 
@@ -37,6 +41,7 @@ export function dependentSettingStates(settings) {
   const children = Boolean(settings.rolloverChildren);
   const marking = resolveSourceAction(settings) === "mark";
   const counting = Boolean(settings.trackRolloverCount);
+  const inboxSet = (settings.inboxNotePath ?? "").trim() !== "";
   const backlogSet = (settings.backlogNotePath ?? "").trim() !== "";
 
   return {
@@ -53,6 +58,8 @@ export function dependentSettingStates(settings) {
       marking && children,
       moveNestedReason(marking, children)
     ),
+    inboxSourceAction: state(inboxSet, NEEDS_INBOX),
+    inboxHeading: state(inboxSet, NEEDS_INBOX),
     backlogHeading: state(backlogSet, "Set a Backlog note to use this."),
     staleAfterRollovers: state(counting, NEEDS_COUNT),
     staleBehavior: state(counting, NEEDS_COUNT),

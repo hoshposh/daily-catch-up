@@ -57,6 +57,12 @@ export default class RolloverTodosPlugin extends Plugin {
       reviewOnAutoRollover: "off",
       backlogNotePath: "",
       backlogHeading: "",
+      // the inbox note whose open todos every rollover pulls in ("" = off);
+      // what to do with them afterwards ("delete" | "mark", never "none");
+      // and the heading in today's note to put them under ("" = with the rest)
+      inboxNotePath: "",
+      inboxSourceAction: "delete",
+      inboxHeading: "",
       cancelMarker: "-",
       // seeded only when stored settings have no rules key, all switched off
       rules: EXAMPLE_RULES.map((rule) => ({ ...rule })),
