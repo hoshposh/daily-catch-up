@@ -144,6 +144,10 @@ function nestedLineIndices(lines, rolledLineIndices, retain) {
  *   Nested lines that were not rolled (skipped completed children) stay.
  * @param {number[]} [args.retainLineIndices] - nested lines that "moveNested"
  *   must not remove, because they did not move
+ * @param {boolean} [args.keepHeadings] - "delete" removes the lines but keeps
+ *   every heading, including one its deletion emptied (QuickAdd's "Insert after
+ *   heading" needs it). Default false drops emptied headings. No effect on
+ *   "mark" or "none".
  * @returns {{ content: string, changed: boolean }}
  */
 export function applySourceAction({
@@ -157,12 +161,18 @@ export function applySourceAction({
   ignoreBlockquotes = false,
   moveNested = false,
   retainLineIndices = [],
+  keepHeadings = false,
 }) {
   if (action === "delete") {
     const toDelete = new Set([...deletedLineIndices, ...skippedLineIndices]);
+    const lines = content.split("\n");
     // headings whose todos all moved over are removed, since they now live in
-    // today's note; headings that were already empty stay
-    const newContent = removeEmptiedHeadings(content.split("\n"), toDelete).join("\n");
+    // today's note; headings that were already empty stay. With keepHeadings
+    // every heading stays, even one the delete emptied.
+    const newLines = keepHeadings
+      ? lines.filter((_, index) => !toDelete.has(index))
+      : removeEmptiedHeadings(lines, toDelete);
+    const newContent = newLines.join("\n");
     return { content: newContent, changed: newContent !== content };
   }
 

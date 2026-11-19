@@ -238,6 +238,14 @@ describe("applySourceAction: delete", () => {
     });
     expect(result.content).toBe("## Home\n- [x] b");
   });
+
+  test("delete can keep headings it empties", () => {
+    const content = "## Captured\n- [ ] a\n- [ ] b\n";
+    const kept = applySourceAction({ content, action: "delete", rolledLineIndices: [1, 2], keepHeadings: true });
+    expect(kept.content).toBe("## Captured\n");
+    const dropped = applySourceAction({ content, action: "delete", rolledLineIndices: [1, 2] });
+    expect(dropped.content).not.toContain("## Captured");
+  });
 });
 
 describe("applySourceAction: mark", () => {
