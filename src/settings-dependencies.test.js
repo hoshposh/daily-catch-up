@@ -44,7 +44,7 @@ describe("marking", () => {
     ).toBe(true);
     expect(
       s({ onRolloverSourceAction: "delete" }).rolloverSourceMarker.reason
-    ).toBe('Set After rollover to "Mark them" to use this.');
+    ).toBe('Set an After rollover setting to "Mark them" to use this.');
     expect(s({}).rolloverSourceMarker.enabled).toBe(false); // resolves to "none"
     expect(
       s({ onRolloverSourceAction: "bogus" }).rolloverSourceMarker.enabled
@@ -56,14 +56,73 @@ describe("marking", () => {
         .moveNestedItemsOnMark;
     expect(m("mark", true)).toEqual({ enabled: true, reason: "" });
     expect(m("none", true).reason).toBe(
-      'Set After rollover to "Mark them" to use this.'
+      'Set an After rollover setting to "Mark them" to use this.'
     );
     expect(m("mark", false).reason).toBe(
       'Turn on Roll over children of todos (in "Which todos roll over") to use this.'
     );
     expect(m("delete", false).reason).toBe(
-      'Needs After rollover set to "Mark them" and Roll over children of todos turned on (in "Which todos roll over").'
+      'Needs an After rollover setting set to "Mark them" and Roll over children of todos turned on (in "Which todos roll over").'
     );
+  });
+  test("an inbox set to Mark uses the marker too", () => {
+    const inbox = (action, inboxAction, children = true) =>
+      s({
+        onRolloverSourceAction: action,
+        inboxNotePath: "Inbox.md",
+        inboxSourceAction: inboxAction,
+        rolloverChildren: children,
+      });
+    expect(inbox("none", "mark").rolloverSourceMarker).toEqual({
+      enabled: true,
+      reason: "",
+    });
+    expect(inbox("none", "mark").moveNestedItemsOnMark).toEqual({
+      enabled: true,
+      reason: "",
+    });
+    expect(inbox("mark", "delete").rolloverSourceMarker.enabled).toBe(true);
+    expect(inbox("none", "mark", false).moveNestedItemsOnMark.reason).toBe(
+      'Turn on Roll over children of todos (in "Which todos roll over") to use this.'
+    );
+  });
+  test("the reason is the same with an inbox set", () => {
+    const inbox = (children) =>
+      s({
+        onRolloverSourceAction: "none",
+        inboxNotePath: "Inbox.md",
+        inboxSourceAction: "delete",
+        rolloverChildren: children,
+      });
+    expect(inbox(true).rolloverSourceMarker).toEqual({
+      enabled: false,
+      reason: 'Set an After rollover setting to "Mark them" to use this.',
+    });
+    expect(inbox(true).moveNestedItemsOnMark.reason).toBe(
+      'Set an After rollover setting to "Mark them" to use this.'
+    );
+    expect(inbox(false).moveNestedItemsOnMark.reason).toBe(
+      'Needs an After rollover setting set to "Mark them" and Roll over children of todos turned on (in "Which todos roll over").'
+    );
+  });
+  test("an inbox action does not count while no inbox is set", () => {
+    for (const inboxNotePath of [undefined, "", "  "]) {
+      const states = s({
+        onRolloverSourceAction: "none",
+        inboxNotePath,
+        inboxSourceAction: "mark",
+        rolloverChildren: true,
+      });
+      // an inbox action set to Mark is not enough without an inbox note
+      expect(states.rolloverSourceMarker).toEqual({
+        enabled: false,
+        reason: 'Set an After rollover setting to "Mark them" to use this.',
+      });
+      expect(states.moveNestedItemsOnMark).toEqual({
+        enabled: false,
+        reason: 'Set an After rollover setting to "Mark them" to use this.',
+      });
+    }
   });
 });
 

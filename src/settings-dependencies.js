@@ -2,7 +2,7 @@
 // does not. Pure, so the rules can be tested without Obsidian; the settings
 // tab only renders what these return. A disabled setting keeps its value.
 
-import { isCancelAvailable, resolveSourceAction } from "./source-action";
+import { isCancelAvailable, marksSomewhere } from "./source-action";
 
 export const DEPENDENT_SETTINGS = [
   "reviewOnAutoRollover",
@@ -16,7 +16,10 @@ export const DEPENDENT_SETTINGS = [
   "staleBehavior",
 ];
 
-const NEEDS_MARK = 'Set After rollover to "Mark them" to use this.';
+// Either After rollover setting (the previous day's note's or the inbox's)
+// set to "Mark them" uses the marker. One text with or without an inbox, so
+// setting the inbox note does not change it (and move the page).
+const NEEDS_MARK = 'Set an After rollover setting to "Mark them" to use this.';
 const NEEDS_COUNT = "Turn on Count rollovers to use this.";
 
 const NEEDS_INBOX = "Set an Inbox note to use this.";
@@ -25,7 +28,7 @@ const state = (enabled, reason) => ({ enabled, reason: enabled ? "" : reason });
 
 function moveNestedReason(marking, children) {
   if (!marking && !children) {
-    return 'Needs After rollover set to "Mark them" and Roll over children of todos turned on (in "Which todos roll over").';
+    return 'Needs an After rollover setting set to "Mark them" and Roll over children of todos turned on (in "Which todos roll over").';
   }
   if (!marking) return NEEDS_MARK;
   return 'Turn on Roll over children of todos (in "Which todos roll over") to use this.';
@@ -39,7 +42,8 @@ export function dependentSettingStates(settings) {
   // Settings saved before this option existed have no key: it counts as on
   const autoRollover = settings.rolloverOnFileCreate !== false;
   const children = Boolean(settings.rolloverChildren);
-  const marking = resolveSourceAction(settings) === "mark";
+  // the previous day's note or the inbox marks, as the rollover itself sees it
+  const marking = marksSomewhere(settings);
   const counting = Boolean(settings.trackRolloverCount);
   const inboxSet = (settings.inboxNotePath ?? "").trim() !== "";
   const backlogSet = (settings.backlogNotePath ?? "").trim() !== "";
