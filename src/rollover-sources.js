@@ -43,14 +43,25 @@ const OUTCOMES = ["roll", "backlog", "cancel", "leave"];
  * @throws {Error} when two items, of the same or different sources, share an id
  */
 export function planSources({ sources, settings }) {
-  const plans = sources.map((source) =>
-    planDecisions({
+  const plans = sources.map((source) => {
+    const plan = planDecisions({
       sections: source.sections,
       lines: source.lines,
       settings,
       idPrefix: source.key ?? "",
-    })
-  );
+    });
+    if (typeof source.placement !== "string") return plan;
+    // a source with a placement sends its items there, unless a Move to
+    // heading rule already sends them somewhere
+    return {
+      ...plan,
+      items: plan.items.map((item) =>
+        item.rule?.moveTo
+          ? item
+          : { ...item, rule: { ...item.rule, moveTo: source.placement } }
+      ),
+    };
+  });
   const items = plans.flatMap((plan) => plan.items);
   const seen = new Set();
   for (const { id } of items) {
@@ -77,7 +88,16 @@ export function planSources({ sources, settings }) {
  * @returns {{ perSource: object[], backlogItems: object[], outcomeCounts: Record<string, number> }}
  */
 export function applySources({ plans, sources, decisions }) {
-  const perSource = plans.map((plan) => applyPlan({ plan, decisions }));
+  const perSource = plans.map((plan, i) => {
+    const applied = applyPlan({ plan, decisions });
+    // a source that does not count keeps every item's counter as it is
+    if (sources[i].countRollover === false) {
+      applied.noStaleLineIndices = plan.items.map(
+        (item) => item.lineIndices[0]
+      );
+    }
+    return applied;
+  });
   const backlogItems = perSource.flatMap((applied, i) =>
     applied.backlogItems.map((item) => ({
       ...item,
@@ -212,6 +232,7 @@ export function writeSource({
     // nested items only moved when children were rolled over
     moveNested: settings.moveNestedItemsOnMark && settings.rolloverChildren,
     retainLineIndices: retainedLineIndices,
+    keepHeadings: source.keepHeadings ?? false,
   });
   return { content: result.content, changed: result.content !== content };
 }
@@ -231,7 +252,10 @@ const plural = (count) => (count > 1 ? "s" : "");
  * @param {number} args.backlogCount
  * @param {string} args.backlogPath
  * @param {number} args.cancelledCount - 0 when the cancel marks were not applied
- * @param {{ name: string, sourceAction: string, removedEmptyTodos: number, leftCount: number }[]} args.sources
+ * @param {{ kind?: string, name: string, sourceAction: string, removedEmptyTodos: number, leftCount: number, rolledCount?: number }[]} args.sources
+ *   `rolledCount` is the todos of that source actually inserted; the rolled
+ *   line names every source that is not the previous day's note and
+ *   contributed some
  * @returns {string} "" when there is nothing to say
  */
 export function rolloverNotice({
@@ -251,16 +275,22 @@ export function rolloverNotice({
     );
   }
   if (todosAdded > 0) {
-    lines.push(`- ${todosAdded} todo${plural(todosAdded)} rolled over. `);
+    const fromInboxes = sources
+      .filter(({ kind, rolledCount }) => kind !== "previous" && rolledCount > 0)
+      .map(({ name, rolledCount }) => `${rolledCount} from ${name}`);
+    const parts = fromInboxes.length > 0 ? ` (${fromInboxes.join(", ")})` : "";
+    lines.push(
+      `- ${todosAdded} todo${plural(todosAdded)} rolled over${parts}. `
+    );
   }
-  for (const { sourceAction, removedEmptyTodos } of sources) {
-    if (removedEmptyTodos > 0 && sourceAction === "delete") {
-      lines.push(
-        `- ${removedEmptyTodos} empty todo${plural(
-          removedEmptyTodos
-        )} removed. `
-      );
-    }
+  // empty todos are only removed from a source that deletes
+  const removedEmptyTodos = sources
+    .filter(({ sourceAction }) => sourceAction === "delete")
+    .reduce((sum, source) => sum + (source.removedEmptyTodos ?? 0), 0);
+  if (removedEmptyTodos > 0) {
+    lines.push(
+      `- ${removedEmptyTodos} empty todo${plural(removedEmptyTodos)} removed. `
+    );
   }
   if (todosAlreadyPresent > 0) {
     lines.push(
@@ -279,4 +309,87 @@ export function rolloverNotice({
     if (leftCount > 0) lines.push(`- ${leftCount} left in ${name}.`);
   }
   return lines.join("\n");
+}
+
+/**
+ * How a notice names a source: "the previous day's note" or "the inbox note
+ * 'Inbox'".
+ *
+ * @param {{ kind: string, name: string }} source
+ */
+export function sourceLabel(source) {
+  return source.kind === "inbox"
+    ? `the inbox note '${source.name}'`
+    : "the previous day's note";
+}
+
+const labelsOf = (sources) => sources.map(sourceLabel).join(" and ");
+
+/**
+ * The notice for a source note that was edited while the rollover was
+ * running, so it was left unchanged.
+ *
+ * @param {{ kind: string, name: string }} source
+ */
+export function sourceUnchangedNotice(source) {
+  if (source.kind === "inbox") {
+    return `Rollover left ${sourceLabel(
+      source
+    )} unchanged: it was edited while the rollover was running. Its todos were still added to today's note; remove them from the inbox yourself.`;
+  }
+  return "Rollover left the previous day's note unchanged: it was edited while the rollover was running.";
+}
+
+/**
+ * The notice when the Templater safeguard found today's note changed by
+ * another plugin, so the source notes were left unchanged.
+ *
+ * @param {{ kind: string, name: string }[]} sources
+ */
+export function templaterNotice(sources) {
+  return `Rollover left ${labelsOf(
+    sources
+  )} unchanged: today's note was modified by another plugin (likely Templater) after the todos were added, and they may be missing. Run 'Roll over todos now' to try again.`;
+}
+
+/**
+ * The notice when the backlog note could not be written, so the source notes
+ * were left unchanged.
+ *
+ * @param {object} args
+ * @param {string} args.backlogPath
+ * @param {Error|string} args.error
+ * @param {number} args.todosAdded - rolled todos, all sources
+ * @param {{ kind: string, name: string }[]} args.sources
+ */
+export function backlogFailedNotice({
+  backlogPath,
+  error,
+  todosAdded,
+  sources,
+}) {
+  const todaysPart =
+    todosAdded > 0
+      ? ` ${todosAdded} todo${
+          todosAdded > 1 ? "s were" : " was"
+        } rolled over to today's note.`
+      : "";
+  return `Rollover couldn't write the backlog note '${backlogPath}' (${
+    error?.message ?? error
+  }), so ${labelsOf(sources)} ${
+    sources.length > 1 ? "were" : "was"
+  } left unchanged.${todaysPart}`;
+}
+
+/**
+ * The notice when a source note could not be written; its todos were still
+ * added to today's note.
+ *
+ * @param {{ kind: string, name: string }} source
+ * @param {Error|string} error
+ */
+export function sourceWriteFailedNotice(source, error) {
+  return `Rollover couldn't write ${sourceLabel(source)} (${
+    error?.message ?? error
+  }), so it was left unchanged. Its todos were still added to today's note.`;
 }
