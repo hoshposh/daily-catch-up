@@ -38,10 +38,34 @@ export function normalizeMarker(marker, fallback = DEFAULT_MARKER) {
   return splitGraphemes(marker).length === 1 ? marker : fallback;
 }
 
-// While marking, the marker counts as "done" for the parser, so a rolled and
-// marked todo is not rolled a second time. The saved setting is not changed.
+/**
+ * What happens to the todos pulled from the inbox: "mark", or "delete" for
+ * any other stored value. There is no "none": the inbox would then be pulled
+ * again by every rollover.
+ *
+ * @param {{ inboxSourceAction?: string }} settings
+ * @returns {"delete"|"mark"}
+ */
+export function inboxSourceAction(settings) {
+  return settings.inboxSourceAction === "mark" ? "mark" : "delete";
+}
+
+/**
+ * Whether a rollover marks todos in any source note: the previous day's note
+ * set to "mark", or an inbox note (a non-blank path) set to "mark". The
+ * inbox's action does not count while no inbox is set.
+ */
+export function marksSomewhere(settings) {
+  if (resolveSourceAction(settings) === "mark") return true;
+  const inboxSet = (settings.inboxNotePath ?? "").trim() !== "";
+  return inboxSet && inboxSourceAction(settings) === "mark";
+}
+
+// While marking (in the previous day's note or the inbox), the marker counts
+// as "done" for the parser, so a rolled and marked todo is not rolled a second
+// time. The saved setting is not changed.
 export function effectiveDoneStatusMarkers(settings) {
-  if (resolveSourceAction(settings) !== "mark") {
+  if (!marksSomewhere(settings)) {
     return settings.doneStatusMarkers || "";
   }
   // An empty setting means the parser's default markers, which must be kept

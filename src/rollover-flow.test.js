@@ -5,11 +5,16 @@ import { dedupeAgainstExisting } from "./insert-todos";
 import { appendToBacklog, normalizeHeading } from "./backlog";
 import {
   applySources,
+  inboxSource,
   insertSources,
   planSources,
   writeSource,
 } from "./rollover-sources";
-import { applySourceAction } from "./source-action";
+import {
+  applySourceAction,
+  effectiveDoneStatusMarkers,
+  resolveSourceAction,
+} from "./source-action";
 import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
 
 // The parts of rollover() that do not need Obsidian, run end to end
@@ -77,12 +82,25 @@ function reviewedRollover({
   templateHeading = "none",
   inbox,
 }) {
+  // one settings object for every source, as index.js has
+  const settings = {
+    onRolloverSourceAction: action,
+    rolloverSourceMarker: ">",
+    cancelMarker: "-",
+    doneStatusMarkers: "xX-",
+    ignoreBlockquotes: false,
+    moveNestedItemsOnMark: false,
+    rolloverChildren: children,
+    inboxNotePath: inbox ? "Inbox.md" : "",
+    inboxSourceAction: inbox?.action ?? "delete",
+    inboxHeading: inbox?.heading ?? "",
+  };
   const parse = (content) => {
     const lines = splitLines(content);
     const sections = getSections({
       lines,
       withChildren: children,
-      doneStatusMarkers: "xX-",
+      doneStatusMarkers: effectiveDoneStatusMarkers(settings),
       skipCompletedChildren: skipCompleted,
       isIgnored: (line, path) => isIgnoredByRules(line, path, rules),
     });
@@ -94,21 +112,18 @@ function reviewedRollover({
       kind: "previous",
       name: "2026-11-06",
       ...parse(yesterday),
-      sourceAction: action,
+      sourceAction: resolveSourceAction(settings),
     },
   ];
   if (inbox) {
-    const { content, action: inboxAction = "delete", heading = "" } = inbox;
-    sources.push({
-      key: "inbox/",
-      kind: "inbox",
-      name: "Inbox",
-      ...parse(content),
-      sourceAction: inboxAction,
-      keepHeadings: true,
-      countRollover: false,
-      placement: heading ? normalizeHeading(heading) : null,
-    });
+    sources.push(
+      inboxSource({
+        file: { basename: "Inbox" },
+        content: inbox.content,
+        ...parse(inbox.content),
+        settings,
+      })
+    );
   }
   const planned = planSources({
     sources,
@@ -146,7 +161,7 @@ function reviewedRollover({
       skipExistingTodos: skipExisting,
       rolloverChildren: children,
       trackRolloverCount: track,
-      doneStatusMarkers: "xX-",
+      doneStatusMarkers: effectiveDoneStatusMarkers(settings),
       templateHeading,
       leadingNewLine: true,
     },
@@ -168,15 +183,7 @@ function reviewedRollover({
       source,
       decided: applied.perSource[i],
       retainedLineIndices: inserted.perSource[i].retainedLineIndices,
-      settings: {
-        onRolloverSourceAction: source.sourceAction,
-        rolloverSourceMarker: ">",
-        cancelMarker: "-",
-        doneStatusMarkers: "xX-",
-        ignoreBlockquotes: false,
-        moveNestedItemsOnMark: false,
-        rolloverChildren: children,
-      },
+      settings,
     })
   );
   return {
@@ -1042,6 +1049,26 @@ describe("inbox", () => {
       inbox: { content: captured, action: "mark" },
     });
     expect(r.inbox).toBe("## Captured\n- [>] Buy milk\n- [>] Call Sam\n");
+  });
+
+  test("marked inbox todos are not pulled again while the previous note's action is none", () => {
+    const first = reviewedRollover({
+      yesterday: "",
+      action: "none",
+      inbox: { content: captured, action: "mark" },
+    });
+    expect(first.today).toContain("- [ ] Buy milk");
+    expect(first.inbox).toBe("## Captured\n- [>] Buy milk\n- [>] Call Sam\n");
+
+    const second = reviewedRollover({
+      yesterday: first.today,
+      today: "",
+      action: "none",
+      inbox: { content: first.inbox, action: "mark" },
+    });
+    expect(second.items.filter((i) => i.id.startsWith("inbox/"))).toEqual([]);
+    expect(second.today).not.toContain("[>]");
+    expect(second.inbox).toBe(first.inbox);
   });
 
   test("backlog from the inbox names the inbox", () => {

@@ -3,8 +3,10 @@ import { splitLines } from "./get-todos";
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
+  inboxSourceAction,
   isCancelAvailable,
   markCancelled,
+  marksSomewhere,
   migrateSourceActionSettings,
   normalizeMarker,
   resolveSourceAction,
@@ -108,6 +110,57 @@ describe("effectiveDoneStatusMarkers", () => {
         onRolloverSourceAction: "mark",
       })
     ).toBe("xX>");
+  });
+
+  test("adds the marker when only the inbox marks", () => {
+    const base = { doneStatusMarkers: "xX-", rolloverSourceMarker: ">", onRolloverSourceAction: "none" };
+    expect(effectiveDoneStatusMarkers({ ...base, inboxNotePath: "Inbox.md", inboxSourceAction: "mark" })).toBe("xX->");
+    expect(effectiveDoneStatusMarkers({ ...base, inboxNotePath: "Inbox.md", inboxSourceAction: "delete" })).toBe("xX-");
+  });
+
+  test("an inbox action does not count while no inbox is set", () => {
+    const base = { doneStatusMarkers: "xX-", rolloverSourceMarker: ">", inboxSourceAction: "mark" };
+    for (const inboxNotePath of [undefined, "", "   "]) {
+      expect(effectiveDoneStatusMarkers({ ...base, inboxNotePath })).toBe("xX-");
+      // with the inbox off, an empty field stays as it was
+      expect(effectiveDoneStatusMarkers({ ...base, doneStatusMarkers: "", inboxNotePath })).toBe("");
+    }
+  });
+});
+
+describe("marksSomewhere", () => {
+  const cases = [
+    // [previous action, inbox path, inbox action, expected]
+    ["mark", "", "delete", true],
+    ["mark", "Inbox.md", "delete", true],
+    ["none", "Inbox.md", "mark", true],
+    ["delete", "Inbox.md", "mark", true],
+    [undefined, "Inbox.md", "mark", true],
+    ["none", "", "mark", false],
+    ["none", "  ", "mark", false],
+    ["none", undefined, "mark", false],
+    ["none", "Inbox.md", "delete", false],
+    // anything but "mark" resolves to delete in the inbox
+    ["none", "Inbox.md", "none", false],
+    ["none", "Inbox.md", undefined, false],
+    ["bogus", "Inbox.md", "bogus", false],
+  ];
+  test.each(cases)("previous %s, inbox %j set to %s -> %s", (action, path, inboxAction, expected) => {
+    expect(
+      marksSomewhere({
+        onRolloverSourceAction: action,
+        inboxNotePath: path,
+        inboxSourceAction: inboxAction,
+      })
+    ).toBe(expected);
+  });
+});
+
+describe("inboxSourceAction", () => {
+  test("mark, or delete for anything else", () => {
+    expect(inboxSourceAction({ inboxSourceAction: "mark" })).toBe("mark");
+    expect(inboxSourceAction({ inboxSourceAction: "none" })).toBe("delete");
+    expect(inboxSourceAction({})).toBe("delete");
   });
 });
 

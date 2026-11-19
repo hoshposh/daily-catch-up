@@ -20,23 +20,16 @@ import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import {
   applySourceAction,
   effectiveDoneStatusMarkers,
+  inboxSourceAction,
   markCancelled,
   normalizeMarker,
 } from "./source-action";
 
 const OUTCOMES = ["roll", "backlog", "cancel", "leave"];
 
-/**
- * What happens to the todos pulled from the inbox: "mark", or "delete" for
- * any other stored value. There is no "none": the inbox would then be pulled
- * again by every rollover.
- *
- * @param {{ inboxSourceAction?: string }} settings
- * @returns {"delete"|"mark"}
- */
-export function inboxSourceAction(settings) {
-  return settings.inboxSourceAction === "mark" ? "mark" : "delete";
-}
+// re-exported: index.js and the tests take it from here with the other
+// source helpers
+export { inboxSourceAction };
 
 /**
  * The inbox note as a source, after the previous day's note. Delete keeps its
@@ -259,8 +252,9 @@ export function insertSources({ content, entries, settings }) {
  *   insertSources().perSource[i].retainedLineIndices: duplicates skip existing
  *   kept out of today's note, which "mark" with moveNested must not remove
  * @param {object} args.settings - the plugin settings: cancelMarker,
- *   rolloverSourceMarker, doneStatusMarkers, onRolloverSourceAction (with the
- *   two before it, for effectiveDoneStatusMarkers()), ignoreBlockquotes,
+ *   rolloverSourceMarker, doneStatusMarkers, onRolloverSourceAction,
+ *   inboxNotePath and inboxSourceAction (with the two before them, for
+ *   effectiveDoneStatusMarkers()), ignoreBlockquotes,
  *   moveNestedItemsOnMark and rolloverChildren
  * @returns {{ content: string, changed: boolean }} the new content, and
  *   whether it differs from `content`
