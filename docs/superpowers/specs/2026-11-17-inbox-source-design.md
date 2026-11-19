@@ -111,6 +111,16 @@ An automatic run opens the dialog under the same `reviewOnAutoRollover` rules, c
 
 The inbox is a source note, so the foundation's undo snapshots it when the rollover changed it. `UndoModal`'s description mentions the inbox note alongside the previous day's note.
 
+Undo keeps what arrived in the inbox after the rollover (decided by the user on 2026-11-18, see [Follow-ups](#follow-ups-2026-11-18)).
+
+## Follow-ups (2026-11-18)
+
+Decided by the user after the final review of the inbox branch:
+
+1. **Undo keeps lines added to the inbox since the rollover.** Undo restores notes from a snapshot taken before the rollover, so a capture that syncs into the inbox between the rollover and an undo (the 2-minute window) would be overwritten and lost silently: it was never pulled, and the user did not type it. For the inbox only, the undo entry also keeps the inbox as the rollover left it. On undo, the lines the inbox gained since then are put back on top of the restored text: each run of new lines goes where it sat relative to the lines around it, and new lines next to lines the rollover removed go after those restored lines. A line diff cannot tell an edited line from a removed line plus a new one, so a line edited in the inbox since the rollover comes back twice: the restored original and the edited text, next to it (nothing typed or synced is lost; the user removes one). Lines deleted from the inbox since the rollover come back with the restore, as for other notes. When nothing was added, undo is exactly as before. The undo dialog's line for the inbox says how many added lines are kept. Today's, the previous and the backlog note keep plain snapshot undo.
+2. **The inbox and backlog settings follow renames.** When the vault renames or moves the inbox note, the backlog note, or a folder that contains either, the setting is updated to the new path (stored as the full vault path with `.md`) and saved. A path that never matched a note (a typo) still disables the inbox silently; that is out of scope.
+3. **Docs for "Move nested items when marking"** (README and `CLAUDE.md`) say it applies to every note set to Mark: the previous day's note and the inbox.
+
 ## Testing
 
 - Unit tests (`src/rollover-flow.test.js` through the foundation module, with two sources): inbox only (no previous todos); both sources with skip existing deduping the inbox against the previous note's todos; Delete keeping the inbox's headings; `inboxHeading` placement, with and without a template heading; a Move to heading rule winning over `inboxHeading`; no counter raised for inbox items, and an existing counter kept; Leave keeping a todo in the inbox; Mark on the inbox.
