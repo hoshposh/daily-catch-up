@@ -582,6 +582,20 @@ describe("rolloverNotice with an inbox", () => {
     ).toBe("- 5 todos rolled over. ");
   });
 
+  test("an inbox-only rollover does not repeat the count", () => {
+    expect(
+      rolloverNotice({
+        ...NOTICE,
+        todosAdded: 2,
+        sources: [{ ...PREVIOUS, rolledCount: 0 }, INBOX],
+      })
+    ).toBe("- 2 todos rolled over. ");
+    // no previous note at all
+    expect(
+      rolloverNotice({ ...NOTICE, todosAdded: 2, sources: [INBOX] })
+    ).toBe("- 2 todos rolled over. ");
+  });
+
   test("left lines per source", () => {
     const sources = [
       { ...PREVIOUS, leftCount: 1 },

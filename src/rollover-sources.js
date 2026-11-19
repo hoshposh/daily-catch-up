@@ -315,9 +315,9 @@ const plural = (count) => (count > 1 ? "s" : "");
  * @param {string} args.backlogPath
  * @param {number} args.cancelledCount - 0 when the cancel marks were not applied
  * @param {{ kind?: string, name: string, sourceAction: string, removedEmptyTodos: number, leftCount: number, rolledCount?: number }[]} args.sources
- *   `rolledCount` is the todos of that source actually inserted; the rolled
- *   line names every source that is not the previous day's note and
- *   contributed some
+ *   `rolledCount` is the todos of that source actually inserted; when more
+ *   than one source contributed, the rolled line names every source that is
+ *   not the previous day's note and contributed some
  * @returns {string} "" when there is nothing to say
  */
 export function rolloverNotice({
@@ -337,10 +337,15 @@ export function rolloverNotice({
     );
   }
   if (todosAdded > 0) {
-    const fromInboxes = sources
-      .filter(({ kind, rolledCount }) => kind !== "previous" && rolledCount > 0)
+    const contributors = sources.filter(({ rolledCount }) => rolledCount > 0);
+    const fromInboxes = contributors
+      .filter(({ kind }) => kind !== "previous")
       .map(({ name, rolledCount }) => `${rolledCount} from ${name}`);
-    const parts = fromInboxes.length > 0 ? ` (${fromInboxes.join(", ")})` : "";
+    // with a single contributing source, naming it would only repeat the count
+    const parts =
+      fromInboxes.length > 0 && contributors.length > 1
+        ? ` (${fromInboxes.join(", ")})`
+        : "";
     lines.push(
       `- ${todosAdded} todo${plural(todosAdded)} rolled over${parts}. `
     );

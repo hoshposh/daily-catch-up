@@ -316,6 +316,8 @@ export default class RolloverTodosPlugin extends Plugin {
       if (!lastDailyNote && inboxPath == null) return;
 
       const rules = this.settings.rules ?? [];
+      const backlogEnabled =
+        (this.settings.backlogNotePath || "").trim() !== "";
       // unfinished todos grouped by their parent heading, with the same
       // options for every source note
       const parse = (lines) =>
@@ -356,10 +358,7 @@ export default class RolloverTodosPlugin extends Plugin {
             inboxPath,
             todayPath: file.path,
             previousPath: lastDailyNote?.path,
-            backlogPath:
-              (this.settings.backlogNotePath || "").trim() !== ""
-                ? this.getBacklogPath()
-                : null,
+            backlogPath: backlogEnabled ? this.getBacklogPath() : null,
           })
         ) {
           new Notice(INBOX_GUARD_NOTICE, 10000);
@@ -411,8 +410,6 @@ export default class RolloverTodosPlugin extends Plugin {
         trackRolloverCount: this.settings.trackRolloverCount,
         staleAfterRollovers: this.settings.staleAfterRollovers,
       };
-      const backlogEnabled =
-        (this.settings.backlogNotePath || "").trim() !== "";
       const cancelEnabled = isCancelAvailable(this.settings);
 
       // Review: drop empty todos when set, group the todos into items and

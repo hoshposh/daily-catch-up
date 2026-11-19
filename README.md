@@ -178,7 +178,7 @@ Whether completed nested todos move is decided by **Skip completed children**. W
 
 ### Inbox
 
-An inbox is a note where quick captures land during the day, for example from your phone. With an **Inbox note** set, every rollover (automatic, `Roll over todos now` and `Review and roll over todos…`) also pulls the inbox's open todos into today's note, with their nested items as **Roll over children of todos** says, and then removes them from the inbox. It does so even when there is no previous daily note, or it has no open todos.
+An inbox is a note where quick captures land during the day, for example from your phone. With an **Inbox note** set, every rollover (automatic, `Roll over todos now` and `Review and roll over todos…`) also pulls the inbox's open todos into today's note, with their nested items as **Roll over children of todos** says, and then deletes or marks them in the inbox (see **After rollover, in the inbox**). It does so even when there is no previous daily note, or it has no open todos.
 
 A typical setup uses the [QuickAdd](https://github.com/chhoumann/quickadd) plugin: a Capture choice with **Capture to** set to the inbox note, **Task** turned on (so each capture is written as `- [ ] …`), and optionally **Insert after** a heading such as `## Captured`. Only checkbox lines are pulled; plain bullets and other text stay in the inbox where they are.
 
@@ -190,7 +190,7 @@ The path of the inbox note, for example `Inbox.md`. Leave it empty (the default)
 
 #### After rollover, in the inbox
 
-**Delete them** (default) removes the pulled todos from the inbox, but keeps its headings (QuickAdd's **Insert after** needs its heading) and the note itself, even when nothing else is left. **Mark them** changes each pulled todo's checkbox to the same marker as the previous day's note (default `>`), and follows **Move nested items when marking** too. There is no "leave them alone": the same todos would then be pulled again every day.
+**Delete them** (default) removes the pulled todos from the inbox, but keeps its headings (QuickAdd's **Insert after** needs its heading) and the note itself, even when nothing else is left. **Mark them** changes each pulled todo's checkbox to the same marker as the previous day's note (default `>`), and follows **Move nested items when marking** too. The marker then counts as a done marker (in the previous day's note too, without changing your **Done status markers** setting), so marked todos are not pulled again. There is no "leave them alone": the same todos would then be pulled again every day.
 
 If the inbox is edited while the rollover runs (a sync client delivering a new capture, for example), it is left unchanged, with a notice: its todos are still in today's note, so remove them from the inbox yourself.
 
