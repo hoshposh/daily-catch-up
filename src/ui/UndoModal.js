@@ -1,4 +1,5 @@
 import { Modal, Setting } from 'obsidian'
+import { addedLineCount, restoreKeepingNewLines } from '../undo-merge'
 
 export default class UndoModal extends Modal {
   constructor(plugin) {
@@ -7,8 +8,15 @@ export default class UndoModal extends Modal {
   }
 
   async parseDay(day) {
-    const { file, oldContent } = day
+    const { file, oldContent, newContent, keepNewLines } = day
     let currentContent = await this.plugin.app.vault.read(file)
+
+    if (keepNewLines) {
+      const added = addedLineCount({ after: newContent, current: currentContent })
+      if (added > 0) {
+        return `- ${file.basename}.${file.extension}: will be restored, keeping ${added} line${added === 1 ? '' : 's'} added since the rollover.`
+      }
+    }
 
     const oldContentLineCount = oldContent.split('\n').length
     const currentContentLineCount = currentContent.split('\n').length
@@ -32,8 +40,14 @@ export default class UndoModal extends Modal {
 
   // Put a note back to its snapshot. vault.process is the recommended
   // replacement for vault.modify on a note that is open or may be edited.
-  async restore({ file, oldContent }) {
-    await this.plugin.app.vault.process(file, () => oldContent)
+  // An entry with keepNewLines (the inbox) keeps the lines added since the
+  // rollover; without any, that is the snapshot itself.
+  async restore({ file, oldContent, newContent, keepNewLines }) {
+    await this.plugin.app.vault.process(file, (current) =>
+      keepNewLines
+        ? restoreKeepingNewLines({ before: oldContent, after: newContent, current })
+        : oldContent
+    )
   }
 
   async confirmUndo(undoHistoryInstance) {

@@ -192,6 +192,46 @@ test("undo restores the inbox", async () => {
   );
 });
 
+test("undo keeps a capture that arrived after the rollover", async () => {
+  await reset({
+    notes: withInbox(),
+    settings: { inboxNotePath: INBOX },
+  });
+
+  await openToday();
+  await waitForNotice("rolled over");
+  await waitForIdle();
+  expect(await readNote(INBOX)).not.toBe(INBOX_CONTENT);
+
+  // a capture arriving (from QuickAdd or a sync client) after the rollover
+  await startAsync(`
+    const file = app.vault.getAbstractFileByPath(${JSON.stringify(INBOX)});
+    await app.vault.process(file, (content) => content + '- [ ] Pick up parcel\\n');
+    return true;
+  `);
+  await awaitAsync();
+
+  await runCommand("undo-rollover");
+  await waitForUndoDialog();
+  // the dialog says what is kept
+  const dialog = await evalJson(
+    `[...document.querySelectorAll('.modal')].map((m) => m.textContent).join(' ')`
+  );
+  expect(dialog).toContain(
+    "Inbox.md: will be restored, keeping 1 line added since the rollover."
+  );
+  await clickButton("Confirm Undo");
+  await waitFor(
+    async () =>
+      (await readNote(INBOX)) === `${INBOX_CONTENT}- [ ] Pick up parcel\n`,
+    { message: "the inbox note to be restored with the capture" }
+  );
+  await waitFor(
+    async () => (await readNote(today())) === fixture("daily-template.md"),
+    { message: "today's note to be restored" }
+  );
+});
+
 test("an inbox that is the backlog note stops the rollover", async () => {
   await reset({
     notes: withInbox(),

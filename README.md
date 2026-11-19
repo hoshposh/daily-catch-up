@@ -70,10 +70,10 @@ The undo works by restoring complete snapshots of the files the rollover changed
 
 - All inserted todos and headings are removed from today's note
 - If **After rollover** changed the previous note (**Mark them** or **Delete them**), the marked or deleted todos, and any headings removed with them, are restored
-- Todos pulled from the **Inbox note** are put back in it
+- Todos pulled from the **Inbox note** are put back in it, and lines added to the inbox since the rollover (a capture that synced in from your phone, say) are kept: the undo dialog says how many. If you edited a line in the inbox after the rollover, the restored original and your edited text both come back, next to each other
 - If the rollover added to the backlog note, those todos are removed again; a backlog note the rollover created is deleted
 - The restoration is complete regardless of how many todos or sub-headings were involved
-- Anything you typed into those notes after the rollover is overwritten too, so use undo right away
+- Anything you typed into the other notes after the rollover is overwritten too (the inbox keeps the lines added to it, as above), so use undo right away
 
 If the Templater plugin is enabled, `Undo last rollover` only restores the previous day's note, the inbox note and the backlog note, and leaves today's note as it is, because Templater rewrites a new note after the todos are added and restoring an earlier version would replace its output. Remove the rolled over todos from today's note yourself in that case. There is nothing to undo if the rollover changed neither of them.
 
@@ -182,7 +182,7 @@ An inbox is a note where quick captures land during the day, for example from yo
 
 A typical setup uses the [QuickAdd](https://github.com/chhoumann/quickadd) plugin: a Capture choice with **Capture to** set to the inbox note, **Task** turned on (so each capture is written as `- [ ] …`), and optionally **Insert after** a heading such as `## Captured`. Only checkbox lines are pulled; plain bullets and other text stay in the inbox where they are.
 
-The rules, the review dialog (where the inbox's todos get a group of their own, such as **From Inbox**, when the previous day's note has todos too), **Leave** and **Undo last rollover** work for inbox todos as for the previous day's note. A todo pulled from the inbox does not get its rollover counter raised, since it was not rolled over.
+The rules, the review dialog (where the inbox's todos get a group of their own, such as **From Inbox**, when the previous day's note has todos too), **Leave** and **Undo last rollover** work for inbox todos as for the previous day's note, except that undo keeps lines added to the inbox since the rollover. A todo pulled from the inbox does not get its rollover counter raised, since it was not rolled over.
 
 #### Inbox note
 

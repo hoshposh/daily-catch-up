@@ -637,6 +637,7 @@ export default class RolloverTodosPlugin extends Plugin {
           // the Templater wait). Only change it when it is still exactly that.
           let editedMeanwhile = false;
           let changed = false;
+          let writtenContent = null;
           try {
             await this.app.vault.process(source.file, (currentContent) => {
               if (currentContent !== source.content) {
@@ -651,6 +652,7 @@ export default class RolloverTodosPlugin extends Plugin {
                 settings: this.settings,
               });
               changed = result.changed;
+              writtenContent = result.content;
               return result.content;
             });
           } catch (error) {
@@ -669,10 +671,17 @@ export default class RolloverTodosPlugin extends Plugin {
             // the cancel marks were applied
             cancelledCount += decided.outcomeCounts.cancel;
             if (changed) {
-              undoHistoryInstance.sources.push({
+              const entry = {
                 file: source.file,
                 oldContent: `${source.content}`,
-              });
+              };
+              // the inbox can gain captures from another device before an
+              // undo: undo keeps those lines (see undo-merge.js)
+              if (source.kind === "inbox") {
+                entry.newContent = writtenContent;
+                entry.keepNewLines = true;
+              }
+              undoHistoryInstance.sources.push(entry);
             }
           }
         }
