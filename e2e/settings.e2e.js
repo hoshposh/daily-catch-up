@@ -364,6 +364,43 @@ test("the inbox settings wait for an inbox note", async () => {
   expect(await markStillThere()).toBe(true);
 });
 
+test("an inbox set to Mark enables the marker character", async () => {
+  // the previous note's action stays at its default, "none"
+  await reset({ notes: standardNotes(), settings: { inboxNotePath: "Inbox.md" } });
+  await openSettings();
+  const marker = () =>
+    evalJson(`(() => {
+      const item = [...${SETTINGS_DOC}.querySelectorAll('.setting-item')].find(
+        (s) => s.querySelector('.setting-item-name')?.textContent === 'Marker character');
+      return {
+        disabled: item?.classList.contains('is-disabled') ?? null,
+        desc: item?.querySelector('.setting-item-description')?.textContent ?? null,
+      };
+    })()`);
+
+  expect(await marker()).toEqual({
+    disabled: true,
+    desc: 'Set an After rollover setting to "Mark them" to use this.',
+  });
+
+  const changed = await evalJson(`(() => {
+    const item = [...${SETTINGS_DOC}.querySelectorAll('.setting-item')].find(
+      (s) => s.querySelector('.setting-item-name')?.textContent === 'After rollover, in the inbox');
+    const select = item?.querySelector('select');
+    if (!select) return false;
+    select.value = 'mark';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  })()`);
+  expect(changed).toBe(true);
+  await waitFor(async () => (await marker()).disabled === false, {
+    message: "the marker character to be enabled",
+  });
+  expect((await marker()).desc).toBe('Checkbox character "Mark them" uses, e.g. ">".');
+  expect(await evalJson(`${plugin}.settings.inboxSourceAction`)).toBe("mark");
+  expect(await evalJson(`${plugin}.settings.onRolloverSourceAction`)).toBe("none");
+});
+
 test("a hand-edited, malformed rule opens as something Save can store", async () => {
   // no match, and a number for a value, as a hand edit of data.json can leave
   await reset({

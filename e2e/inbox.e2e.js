@@ -105,6 +105,45 @@ test("the morning rollover drains the inbox", async () => {
   expect(inbox).not.toContain("Call Sam");
 });
 
+test("a marked inbox is not pulled again the next day", async () => {
+  // the previous note's action stays at its default, "none"
+  const settings = { inboxNotePath: INBOX, inboxSourceAction: "mark" };
+  await reset({ notes: withInbox(), settings });
+
+  await openToday();
+  await waitForNotice("rolled over");
+  await waitForIdle();
+  const firstDay = await readNote(today());
+  const markedInbox = await readNote(INBOX);
+  expect(markedInbox).toBe("## Captured\n\n- [>] Buy milk\n- [>] Call Sam\n");
+  expect(firstDay.split("\n")).toContain("- [ ] Buy milk");
+
+  // the next day: today's note becomes the previous one, the inbox as the
+  // first rollover left it
+  await reset({
+    notes: {
+      "templates/daily.md": fixture("daily-template.md"),
+      [previous()]: firstDay,
+      [INBOX]: markedInbox,
+    },
+    settings,
+  });
+  await openToday();
+  await waitForNotice("rolled over");
+  await waitForIdle();
+
+  const todayLines = await lines(today());
+  expect(todayLines.filter((line) => line.includes("[>]"))).toEqual([]);
+  // only once, rolled from the previous note, not pulled again
+  expect(todayLines.filter((line) => line.includes("Buy milk"))).toEqual([
+    "- [ ] Buy milk",
+  ]);
+  expect(todayLines.filter((line) => line.includes("Call Sam"))).toEqual([
+    "- [ ] Call Sam",
+  ]);
+  expect(await readNote(INBOX)).toBe(markedInbox);
+});
+
 test("the review shows each source, and Leave keeps an inbox todo", async () => {
   await reset({
     notes: withInbox(standardNotes({ withToday: true })),
