@@ -316,6 +316,54 @@ test("editing a rule shows its values and saves in place", async () => {
   });
 });
 
+test("the inbox settings wait for an inbox note", async () => {
+  await reset({ notes: standardNotes() });
+  await openSettings();
+  const NEEDS_INBOX = "Set an Inbox note to use this.";
+  const dependents = () =>
+    evalJson(`(() => {
+      const items = [...${SETTINGS_DOC}.querySelectorAll('.setting-item')];
+      return ['After rollover, in the inbox', 'Heading for inbox todos'].map((name) => {
+        const item = items.find((s) => s.querySelector('.setting-item-name')?.textContent === name);
+        return {
+          name,
+          disabled: item?.classList.contains('is-disabled') ?? null,
+          desc: item?.querySelector('.setting-item-description')?.textContent ?? null,
+        };
+      });
+    })()`);
+
+  for (const dependent of await dependents()) {
+    expect(dependent, dependent.name).toMatchObject({
+      disabled: true,
+      desc: NEEDS_INBOX,
+    });
+  }
+
+  // the Inbox group in view: setting the note must not move it
+  await evalJs(`(() => {
+    const item = [...${SETTINGS_DOC}.querySelectorAll('.setting-item')].find(
+      (s) => s.querySelector('.setting-item-name')?.textContent === 'Inbox note');
+    item.scrollIntoView({ block: 'start' });
+    return true;
+  })()`);
+  const scrollTop = await settingsScrollTop();
+  // an element outside the inbox settings: a full redraw would replace it
+  await markOutsideRules();
+
+  await setTextSetting("Inbox note", "Inbox.md");
+  await waitFor(
+    async () => (await dependents()).every((d) => d.disabled === false),
+    { message: "the inbox settings to be enabled" }
+  );
+  for (const dependent of await dependents()) {
+    expect(dependent.desc, dependent.name).not.toBe(NEEDS_INBOX);
+  }
+  expect(await evalJson(`${plugin}.settings.inboxNotePath`)).toBe("Inbox.md");
+  expect(await settingsScrollTop()).toBe(scrollTop);
+  expect(await markStillThere()).toBe(true);
+});
+
 test("a hand-edited, malformed rule opens as something Save can store", async () => {
   // no match, and a number for a value, as a hand edit of data.json can leave
   await reset({

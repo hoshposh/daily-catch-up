@@ -32,7 +32,7 @@ Every item below reads todos from a second note, and the rollover is written aro
 
 - [x] Multi-source foundation (see above).
 - [ ] A "gather from the last N days" mode. Today only the single previous note is read, so todos are stranded whenever a note is created without a rollover (a closed review dialog, a device without the plugin, Templater overwriting the todos), or added to an older note after a newer one exists. Phase 4's snoozing needs this to find a todo that sits in an older note.
-- [ ] Pull from an inbox note as a source, such as a capture inbox that the Delete source action empties. Designed for the QuickAdd capture scenario (see the spec above).
+- [x] Pull from an inbox note as a source, such as a capture inbox that the Delete source action empties. Designed for the QuickAdd capture scenario (see the spec above).
 - [ ] Pull from the backlog note as a source, with a "bring back" outcome in the review dialog, so parked todos can return.
 - [ ] Pull next actions from project notes as a source. Needs a tag or marker rule from Phase 4 to avoid pulling every todo. Phase 4's rules now exist, but they only act on todos already read from the previous note (`isIgnoredByRules()` in the parser, `ruleResult()` per item). Choosing which todos a source contributes needs a new hook, for example a rule effect or a per-source match evaluated before items are formed.
 
