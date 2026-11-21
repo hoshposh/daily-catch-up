@@ -1,9 +1,10 @@
 import { normalizePath, Notice, Plugin, TFile } from "obsidian";
 import {
   getDailyNoteSettings,
-  getAllDailyNotes,
-  getDailyNote,
-} from "obsidian-daily-notes-interface";
+  isDailyNotesEnabled,
+  previousDailyNote,
+  todayNotePath,
+} from "./daily-notes";
 import UndoModal from "./ui/UndoModal";
 import ReviewModal from "./ui/ReviewModal";
 import RolloverSettingTab from "./ui/RolloverSettingTab";
@@ -87,71 +88,16 @@ export default class RolloverTodosPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  isDailyNotesEnabled() {
-    const dailyNotesPlugin = this.app.internalPlugins.plugins["daily-notes"];
-    const dailyNotesEnabled = dailyNotesPlugin && dailyNotesPlugin.enabled;
-
-    const periodicNotesPlugin = this.app.plugins.getPlugin("periodic-notes");
-    const periodicNotesEnabled =
-      periodicNotesPlugin && periodicNotesPlugin.settings?.daily?.enabled;
-
-    return dailyNotesEnabled || periodicNotesEnabled;
-  }
-
+  // The newest daily note dated before today, or null
   getLastDailyNote() {
-    const { moment } = window;
-    const dailyNoteSettings = getDailyNoteSettings();
-    if (!dailyNoteSettings) return null;
-    let { folder, format } = dailyNoteSettings;
-
-    folder = this.getCleanFolder(folder);
-    folder = folder.length === 0 ? folder : folder + "/";
-
-    const dailyNoteRegexMatch = new RegExp("^" + folder + "(.*).md$");
-    const todayMoment = moment();
-
-    // get all notes in directory that aren't null
-    const dailyNoteFiles = this.app.vault
-      .getMarkdownFiles()
-      .filter((file) => file.path.startsWith(folder))
-      .filter((file) =>
-        moment(
-          file.path.replace(dailyNoteRegexMatch, "$1"),
-          format,
-          true
-        ).isValid()
-      )
-      .filter((file) => file.basename)
-      .filter((file) =>
-        this.getFileMoment(file, folder, format).isSameOrBefore(
-          todayMoment,
-          "day"
-        )
-      );
-
-    // sort by date
-    const sorted = dailyNoteFiles.sort(
-      (a, b) =>
-        this.getFileMoment(b, folder, format).valueOf() -
-        this.getFileMoment(a, folder, format).valueOf()
+    const settings = getDailyNoteSettings(this.app);
+    if (!settings) return null;
+    return previousDailyNote(
+      this.app.vault.getMarkdownFiles(),
+      settings,
+      window.moment(),
+      window.moment
     );
-    return sorted[1];
-  }
-
-  getFileMoment(file, folder, format) {
-    let path = file.path;
-
-    if (path.startsWith(folder)) {
-      // Remove length of folder from start of path
-      path = path.substring(folder.length);
-    }
-
-    if (path.endsWith(`.${file.extension}`)) {
-      // Remove length of file extension from end of path
-      path = path.substring(0, path.length - file.extension.length - 1);
-    }
-
-    return window.moment(path, format);
   }
 
   isTemplaterEnabled() {
@@ -160,20 +106,6 @@ export default class RolloverTodosPlugin extends Plugin {
 
   async waitForSettle(ms) {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
-  }
-
-  getCleanFolder(folder) {
-    // Check if user defined folder with root `/` e.g. `/dailies`
-    if (folder.startsWith("/")) {
-      folder = folder.substring(1);
-    }
-
-    // Check if user defined folder with trailing `/` e.g. `dailies/`
-    if (folder.endsWith("/")) {
-      folder = folder.substring(0, folder.length - 1);
-    }
-
-    return folder;
   }
 
   // A note path setting as a vault path, with ".md" added when missing
@@ -249,8 +181,8 @@ export default class RolloverTodosPlugin extends Plugin {
     const isAutomaticRun = file != undefined;
 
     /*** First we check if the file created is actually a valid daily note ***/
-    // the library returns undefined when it cannot read the configuration
-    const dailyNoteSettings = getDailyNoteSettings();
+    // null when the configuration cannot be read
+    const dailyNoteSettings = getDailyNoteSettings(this.app);
     if (!dailyNoteSettings) {
       // Automatic runs fire for every created file, so only warn in the console;
       // tell the user when they ran the command themselves.
@@ -265,29 +197,19 @@ export default class RolloverTodosPlugin extends Plugin {
       }
       return;
     }
-    let { folder, format } = dailyNoteSettings;
+    const today = new Date();
+    const todayPath = todayNotePath(dailyNoteSettings, window.moment(today));
     let ignoreCreationTime = false;
 
     // Rollover can be called, but we need to get the daily file
     if (file == undefined) {
-      const allDailyNotes = getAllDailyNotes();
-      file = getDailyNote(window.moment(), allDailyNotes);
+      file = this.app.vault.getAbstractFileByPath(todayPath);
+      if (!(file instanceof TFile)) return;
       ignoreCreationTime = true;
     }
-    if (!file) return;
-
-    folder = this.getCleanFolder(folder);
-
-    // is a daily note
-    if (!file.path.startsWith(folder)) return;
 
     // is today's daily note
-    const today = new Date();
-    const todayFormatted = window.moment(today).format(format);
-    const filePathConstructed = `${folder}${
-      folder == "" ? "" : "/"
-    }${todayFormatted}.${file.extension}`;
-    if (filePathConstructed !== file.path) return;
+    if (file.path !== todayPath) return;
 
     // was just created
     if (
@@ -316,7 +238,7 @@ export default class RolloverTodosPlugin extends Plugin {
   // The rollover into `file`, today's daily note, once rollover() checked it
   async rolloverDailyNote(file, { review, isAutomaticRun }) {
     /*** Next, if it is a valid daily note, but we don't have daily notes enabled, we must alert the user ***/
-    if (!this.isDailyNotesEnabled()) {
+    if (!isDailyNotesEnabled(this.app)) {
       new Notice(
         "Couldn't roll over unfinished todos. Enable Daily Notes, or Periodic Notes with daily notes turned on.",
         10000

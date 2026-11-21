@@ -12,7 +12,7 @@ import {
   SETTING_LABELS,
   helpSegments,
 } from "../settings-text";
-import { getDailyNoteSettings } from "obsidian-daily-notes-interface";
+import { getDailyNoteSettings } from "../daily-notes";
 import { newRuleId, ruleNote, ruleSummary } from "../rules";
 import RuleModal from "./RuleModal";
 
@@ -36,8 +36,8 @@ export default class RolloverSettingTab extends PluginSettingTab {
   // heading setting falls back to a text field.
   async getTemplateHeadings() {
     try {
-      // the library returns undefined when it cannot read the configuration
-      const { template } = getDailyNoteSettings() ?? {};
+      // null when the configuration cannot be read
+      const { template } = getDailyNoteSettings(this.app) ?? {};
       if (!template) return [];
 
       let file = this.app.vault.getAbstractFileByPath(template);

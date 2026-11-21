@@ -4,11 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  obsidian-daily-notes-interface:
-    specifier: ^0.9.2
-    version: 0.9.4(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
-
 devDependencies:
   '@rollup/plugin-commonjs':
     specifier: ^15.1.0
@@ -20,8 +15,8 @@ devDependencies:
     specifier: 2.31.0
     version: 2.31.0
   obsidian:
-    specifier: https://github.com/obsidianmd/obsidian-api/tarball/master
-    version: '@github.com/obsidianmd/obsidian-api/tarball/master(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)'
+    specifier: 1.14.4
+    version: 1.14.4(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
   prettier:
     specifier: ^2.8.1
     version: 2.8.7
@@ -38,6 +33,7 @@ packages:
     resolution: {integrity: sha512-kAz+AncRtKuIknedxT1bq4XwXv4UowhbkHU1myPrtVb/jZtImWuV5BXzv5vK6i3kYACsdiZiQKFQQ5Mq7elW8w==}
     dependencies:
       '@marijn/find-cluster-break': 1.0.4
+    dev: true
 
   /@codemirror/view@6.43.13:
     resolution: {integrity: sha512-sihaFrUzAsYBQsL9J2t69y8nfMQGwcYmggAZsk+kjPbjYZMyuf2hU8tUNTZ+P+isb6XRr8JE22TZlJxBoVdH1A==}
@@ -46,6 +42,7 @@ packages:
       crelt: 1.0.7
       style-mod: 4.1.4
       w3c-keyname: 2.2.6
+    dev: true
 
   /@esbuild/aix-ppc64@0.28.2:
     resolution: {integrity: sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ==}
@@ -287,6 +284,7 @@ packages:
 
   /@marijn/find-cluster-break@1.0.4:
     resolution: {integrity: sha512-Wy0V7+SGUjnF9/TkiM1hKVDPj7jKXduPNboMVtHTA8dySMURWqfg/JZ9E2Sq8JgSJmkl7k7Qe9FLeMSrSraWmQ==}
+    dev: true
 
   /@napi-rs/lzma-linux-x64-gnu@1.5.1:
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -551,6 +549,7 @@ packages:
     resolution: {integrity: sha512-VjFgDF/eB+Aklcy15TtOTLQeMjTo07k7KAjql8OK5Dirr7a6sJY4T1uVBDuTVG9VEmn1uUsohOpYnVfgC6/jyw==}
     dependencies:
       '@types/tern': 0.23.4
+    dev: true
 
   /@types/deep-eql@4.0.2:
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
@@ -562,6 +561,7 @@ packages:
 
   /@types/estree@1.0.0:
     resolution: {integrity: sha512-WulqXMDUTYAXCjZnk6JtIHPigp55cVtDgDrO2gHRwhyJto21+1zbVCtOYB2L1F9w4qCQ0rOGWBnBe0FNTiEJIQ==}
+    dev: true
 
   /@types/estree@1.0.9:
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
@@ -580,7 +580,8 @@ packages:
   /@types/tern@0.23.4:
     resolution: {integrity: sha512-JAUw1iXGO1qaWwEOzxTKJZ/5JxVeON9kvGZ/osgZaJImBnyjyn0cjovPsf6FNLmyGY8Vw9DoXZCMlfMkMwHRWg==}
     dependencies:
-      '@types/estree': 1.0.0
+      '@types/estree': 1.0.9
+    dev: true
 
   /@vitest/expect@3.2.7:
     resolution: {integrity: sha512-E8eBXaKibuvH2pSZErOjdVb5vF4PbKYcrnluBTYxEk1l/VhhwZg1kZQsdtjq+CsF5CFydf2Rdkz7jDHKSisi3w==}
@@ -697,6 +698,7 @@ packages:
 
   /crelt@1.0.7:
     resolution: {integrity: sha512-aK6BbWfhf4U/wCcLHKPJl/xa6VkVstRaPywWtMKGwuOLc/wZTyQYuoxgvZnNsBvv7Kg3YTBQYYBCggcviQczuA==}
+    dev: true
 
   /debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -878,6 +880,7 @@ packages:
 
   /moment@2.31.0:
     resolution: {integrity: sha512-0acOTfMiWOheYS4eoWb80yYMb/JLvVv9SHbs2PehaDzfUG0Bw855SKyk0IKTnPGa5+U2bmi3W68l1+sGLX/pvw==}
+    dev: true
 
   /ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
@@ -889,16 +892,17 @@ packages:
     hasBin: true
     dev: true
 
-  /obsidian-daily-notes-interface@0.9.4(@codemirror/state@6.7.6)(@codemirror/view@6.43.13):
-    resolution: {integrity: sha512-PILoRtZUB5wEeGnDQAPMlkVlXwDYoxkLR8Wl4STU2zLNwhcq9kKvQexiXi7sfjGlpTnL+LeAOfEVWyeVndneKg==}
-    hasBin: true
+  /obsidian@1.14.4(@codemirror/state@6.7.6)(@codemirror/view@6.43.13):
+    resolution: {integrity: sha512-Kyo+5t0wFW2On5irLOPrgtwWDnaJsvE9n/P1OVvdPytx+NqeHJXvxVqADNOqLp9bU1+I64B6i+dHb0fxR/ss3w==}
+    peerDependencies:
+      '@codemirror/state': 6.7.6
+      '@codemirror/view': 6.43.13
     dependencies:
-      obsidian: github.com/obsidianmd/obsidian-api/737629a51f6b4d30f8336fa3d38f3df006e322d4(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
-      tslib: 2.1.0
-    transitivePeerDependencies:
-      - '@codemirror/state'
-      - '@codemirror/view'
-    dev: false
+      '@codemirror/state': 6.7.6
+      '@codemirror/view': 6.43.13
+      '@types/codemirror': 5.60.8
+      moment: 2.31.0
+    dev: true
 
   /once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
@@ -1036,6 +1040,7 @@ packages:
 
   /style-mod@4.1.4:
     resolution: {integrity: sha512-XXWIQt633/EpAFx8aZDOTjBzrCaGmhvEQlQo6MVPfa2OzO2cWo+4hV9h+6UkHYlXGfy+ODXKUdP7Pthmcu5ATw==}
+    dev: true
 
   /supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
@@ -1072,10 +1077,6 @@ packages:
     resolution: {integrity: sha512-u8KszXvGfU68hVcZpRHKG28T0krMuv2G5nDhiHaMLen/gIuFEgIJhaJuO69qjnXg5paSrbPMFfx3brNuN8eVSg==}
     engines: {node: '>=14.0.0'}
     dev: true
-
-  /tslib@2.1.0:
-    resolution: {integrity: sha512-hcVC3wYEziELGGmEEXue7D75zbwIIVUMWAVbHItGPx0ziyXxrOMQx4rQEVEV45Ut/1IotuEvwqPopzIOkDMf0A==}
-    dev: false
 
   /vite-node@3.2.4:
     resolution: {integrity: sha512-EbKSKh+bh1E1IFxeO0pg1n4dvoOTt0UDiXMd/qn++r98+jPO1xtJilvXldeuQ8giIB5IkpjCgMleHMNEsGH6pg==}
@@ -1220,6 +1221,7 @@ packages:
 
   /w3c-keyname@2.2.6:
     resolution: {integrity: sha512-f+fciywl1SJEniZHD6H+kUO8gOnwIr7f4ijKA6+ZvJFjeGi1r4PDLl53Ayud9O/rk64RqgoQine0feoeOU0kXg==}
+    dev: true
 
   /why-is-node-running@2.3.0:
     resolution: {integrity: sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w==}
@@ -1233,33 +1235,3 @@ packages:
   /wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
     dev: true
-
-  '@github.com/obsidianmd/obsidian-api/tarball/master(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)':
-    resolution: {tarball: https://github.com/obsidianmd/obsidian-api/tarball/master}
-    id: '@github.com/obsidianmd/obsidian-api/tarball/master'
-    name: obsidian
-    version: 1.14.4
-    peerDependencies:
-      '@codemirror/state': 6.7.6
-      '@codemirror/view': 6.43.13
-    dependencies:
-      '@codemirror/state': 6.7.6
-      '@codemirror/view': 6.43.13
-      '@types/codemirror': 5.60.8
-      moment: 2.31.0
-    dev: true
-
-  github.com/obsidianmd/obsidian-api/737629a51f6b4d30f8336fa3d38f3df006e322d4(@codemirror/state@6.7.6)(@codemirror/view@6.43.13):
-    resolution: {tarball: https://codeload.github.com/obsidianmd/obsidian-api/tar.gz/737629a51f6b4d30f8336fa3d38f3df006e322d4}
-    id: github.com/obsidianmd/obsidian-api/737629a51f6b4d30f8336fa3d38f3df006e322d4
-    name: obsidian
-    version: 1.14.4
-    peerDependencies:
-      '@codemirror/state': 6.7.6
-      '@codemirror/view': 6.43.13
-    dependencies:
-      '@codemirror/state': 6.7.6
-      '@codemirror/view': 6.43.13
-      '@types/codemirror': 5.60.8
-      moment: 2.31.0
-    dev: false
