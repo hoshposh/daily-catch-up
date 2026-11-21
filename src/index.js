@@ -88,14 +88,16 @@ export default class RolloverTodosPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  // The newest daily note dated before today, or null
-  getLastDailyNote() {
+  // The newest daily note dated before `today` (a moment), or null. The
+  // rollover passes the time it read once, so midnight passing in between
+  // cannot make today's own note the previous one.
+  getLastDailyNote(today) {
     const settings = getDailyNoteSettings(this.app);
     if (!settings) return null;
     return previousDailyNote(
       this.app.vault.getMarkdownFiles(),
       settings,
-      window.moment(),
+      today,
       window.moment
     );
   }
@@ -197,8 +199,10 @@ export default class RolloverTodosPlugin extends Plugin {
       }
       return;
     }
+    // the clock is read once: everything below decides "today" from it
     const today = new Date();
-    const todayPath = todayNotePath(dailyNoteSettings, window.moment(today));
+    const todayMoment = window.moment(today);
+    const todayPath = todayNotePath(dailyNoteSettings, todayMoment);
     let ignoreCreationTime = false;
 
     // Rollover can be called, but we need to get the daily file
@@ -229,14 +233,18 @@ export default class RolloverTodosPlugin extends Plugin {
     }
     this.rolloverInProgress = true;
     try {
-      await this.rolloverDailyNote(file, { review, isAutomaticRun });
+      await this.rolloverDailyNote(file, {
+        review,
+        isAutomaticRun,
+        today: todayMoment,
+      });
     } finally {
       this.rolloverInProgress = false;
     }
   }
 
   // The rollover into `file`, today's daily note, once rollover() checked it
-  async rolloverDailyNote(file, { review, isAutomaticRun }) {
+  async rolloverDailyNote(file, { review, isAutomaticRun, today }) {
     /*** Next, if it is a valid daily note, but we don't have daily notes enabled, we must alert the user ***/
     if (!isDailyNotesEnabled(this.app)) {
       new Notice(
@@ -249,7 +257,7 @@ export default class RolloverTodosPlugin extends Plugin {
 
       // check if there is a daily note from yesterday; without one, only an
       // inbox note can still give todos
-      const lastDailyNote = this.getLastDailyNote();
+      const lastDailyNote = this.getLastDailyNote(today);
       const inboxPath = this.getInboxPath();
       if (!lastDailyNote && inboxPath == null) return;
 

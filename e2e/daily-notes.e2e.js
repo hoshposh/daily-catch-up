@@ -34,8 +34,35 @@ async function setDailyOptions(options) {
   );
 }
 
+/**
+ * From now on, reading the clock through `moment()` gives tomorrow: as if
+ * midnight passed just after the rollover read the time.
+ */
+async function crossMidnightOnNextRead() {
+  await evalJs(`(() => {
+    window.__realMoment ??= window.moment;
+    const real = window.__realMoment;
+    window.moment = Object.assign(
+      (...args) => (args.length === 0 ? real().add(1, "day") : real(...args)),
+      real
+    );
+    return true;
+  })()`);
+}
+
+async function restoreClock() {
+  await evalJs(`(() => {
+    if (window.__realMoment) {
+      window.moment = window.__realMoment;
+      delete window.__realMoment;
+    }
+    return true;
+  })()`);
+}
+
 afterEach(expectNoErrors);
 afterEach(() => setDailyOptions(BOOTSTRAP_OPTIONS));
+afterEach(restoreClock);
 
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) =>
@@ -87,6 +114,20 @@ test("a format with folders in it, across a month boundary", async () => {
   await waitForIdle();
 
   expect((await readNote(todayPath)).split("\n")).toContain(
+    "- [ ] Ship release"
+  );
+});
+
+test("midnight passing during the rollover does not change the previous note", async () => {
+  await reset({ notes: standardNotes({ withToday: true }) });
+  await crossMidnightOnNextRead();
+
+  await runCommand("rollover");
+  await waitForNotice("rolled over");
+  await waitForIdle();
+  await restoreClock();
+
+  expect((await readNote(`daily/${day()}.md`)).split("\n")).toContain(
     "- [ ] Ship release"
   );
 });
