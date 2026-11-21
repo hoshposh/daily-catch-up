@@ -16,6 +16,9 @@ devDependencies:
   '@rollup/plugin-node-resolve':
     specifier: ^9.0.0
     version: 9.0.0(rollup@2.79.1)
+  moment:
+    specifier: 2.31.0
+    version: 2.31.0
   obsidian:
     specifier: https://github.com/obsidianmd/obsidian-api/tarball/master
     version: '@github.com/obsidianmd/obsidian-api/tarball/master(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)'
@@ -790,14 +793,6 @@ packages:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
     dev: true
 
-  /fsevents@2.3.2:
-    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
-    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
-    os: [darwin]
-    requiresBuild: true
-    dev: true
-    optional: true
-
   /fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -898,7 +893,7 @@ packages:
     resolution: {integrity: sha512-PILoRtZUB5wEeGnDQAPMlkVlXwDYoxkLR8Wl4STU2zLNwhcq9kKvQexiXi7sfjGlpTnL+LeAOfEVWyeVndneKg==}
     hasBin: true
     dependencies:
-      obsidian: github.com/obsidianmd/obsidian-api/9abd9605ce081383674aae1ed111c456edde0688(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
+      obsidian: github.com/obsidianmd/obsidian-api/737629a51f6b4d30f8336fa3d38f3df006e322d4(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
       tslib: 2.1.0
     transitivePeerDependencies:
       - '@codemirror/state'
@@ -972,7 +967,7 @@ packages:
     engines: {node: '>=10.0.0'}
     hasBin: true
     optionalDependencies:
-      fsevents: 2.3.2
+      fsevents: 2.3.3
     dev: true
 
   /rollup@4.64.12:
@@ -1254,9 +1249,9 @@ packages:
       moment: 2.31.0
     dev: true
 
-  github.com/obsidianmd/obsidian-api/9abd9605ce081383674aae1ed111c456edde0688(@codemirror/state@6.7.6)(@codemirror/view@6.43.13):
-    resolution: {tarball: https://codeload.github.com/obsidianmd/obsidian-api/tar.gz/9abd9605ce081383674aae1ed111c456edde0688}
-    id: github.com/obsidianmd/obsidian-api/9abd9605ce081383674aae1ed111c456edde0688
+  github.com/obsidianmd/obsidian-api/737629a51f6b4d30f8336fa3d38f3df006e322d4(@codemirror/state@6.7.6)(@codemirror/view@6.43.13):
+    resolution: {tarball: https://codeload.github.com/obsidianmd/obsidian-api/tar.gz/737629a51f6b4d30f8336fa3d38f3df006e322d4}
+    id: github.com/obsidianmd/obsidian-api/737629a51f6b4d30f8336fa3d38f3df006e322d4
     name: obsidian
     version: 1.14.4
     peerDependencies:
