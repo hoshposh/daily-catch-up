@@ -316,6 +316,30 @@ test("editing a rule shows its values and saves in place", async () => {
   });
 });
 
+// Obsidian opens a dialog in the window it last saw focused. A user's click
+// focuses the settings window; the helpers' clicks must do the same, or the
+// rule dialog opens in the main window whenever that was focused last.
+test("the rule dialog opens in the settings window after the main window was focused", async () => {
+  await reset({ notes: standardNotes() });
+  await openSettings();
+  await evalJs("window.dispatchEvent(new FocusEvent('focus')); true");
+
+  await clickRuleControl(0, "Edit");
+  await waitFor(
+    async () =>
+      evalJson(
+        `Boolean(document.querySelector('.rollover-rule-modal') || ${SETTINGS_DOC}.querySelector('.rollover-rule-modal'))`
+      ),
+    { message: "a rule dialog in either window" }
+  );
+  expect(
+    await evalJson(
+      `Boolean(${SETTINGS_DOC}.querySelector('.rollover-rule-modal'))`
+    )
+  ).toBe(true);
+  await clickSettingsButton("Cancel");
+});
+
 test("the inbox settings wait for an inbox note", async () => {
   await reset({ notes: standardNotes() });
   await openSettings();

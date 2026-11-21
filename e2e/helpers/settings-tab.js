@@ -10,6 +10,13 @@ const ROWS = `[...${SETTINGS_DOC}.querySelectorAll('.rollover-rules .rollover-ru
 const PANE = `app.setting.modalEl.querySelector('.vertical-tab-content')`;
 const RULE_DIALOG = `${SETTINGS_DOC}.querySelector('.rollover-rule-modal')`;
 
+// Obsidian opens a dialog in the window it last saw focused. A user's click
+// focuses the settings window first; a click from code does not, so the
+// helpers tell Obsidian the settings window has focus before they click.
+// Without it, the rule dialog opens in the main window whenever that was
+// focused last (the window manager or another app can cause that mid-test).
+const FOCUS_SETTINGS_WINDOW = `${SETTINGS_DOC}.defaultView.dispatchEvent(new FocusEvent('focus'))`;
+
 export async function openSettings() {
   await evalJs(
     "app.setting.open(); app.setting.openTabById('daily-catch-up'); true"
@@ -33,6 +40,7 @@ export async function ruleRows() {
 
 async function clickInRow(index, selector, what) {
   const clicked = await evalJson(`(() => {
+    ${FOCUS_SETTINGS_WINDOW};
     const el = ${ROWS}[${index}]?.querySelector(${JSON.stringify(selector)});
     el?.click();
     return Boolean(el);
@@ -110,6 +118,7 @@ export async function setTextSetting(name, value) {
 /** Clicks the button with exactly this text in the settings window's topmost dialog. */
 export async function clickSettingsButton(text) {
   const clicked = await evalJson(`(() => {
+    ${FOCUS_SETTINGS_WINDOW};
     const modals = ${SETTINGS_DOC}.querySelectorAll('.modal');
     const top = modals[modals.length - 1];
     const button = [...(top?.querySelectorAll('button') ?? [])].find(
