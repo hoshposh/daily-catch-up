@@ -2,11 +2,18 @@
 // does not. Pure, so the rules can be tested without Obsidian; the settings
 // tab only renders what these return. A disabled setting keeps its value.
 
-import { isCancelAvailable, marksSomewhere } from "./source-action";
+import { lookBackApplies, lookBackDependenciesMet } from "./look-back";
+import {
+  isCancelAvailable,
+  marksSomewhere,
+  resolveSourceAction,
+} from "./source-action";
 
 export const DEPENDENT_SETTINGS = [
   "reviewOnAutoRollover",
   "skipCompletedChildren",
+  "lookBackDays",
+  "lookBackSince",
   "rolloverSourceMarker",
   "moveNestedItemsOnMark",
   "inboxSourceAction",
@@ -34,6 +41,16 @@ function moveNestedReason(marking, children) {
   return 'Turn on Roll over children of todos (in "Which todos roll over") to use this.';
 }
 
+function lookBackReason(actionSet, skipExisting) {
+  if (!actionSet && !skipExisting) {
+    return 'Needs After rollover set to "Mark them" or "Delete them" and Skip todos already in today\'s note turned on.';
+  }
+  if (!actionSet) {
+    return 'Set After rollover to "Mark them" or "Delete them" to use this.';
+  }
+  return "Turn on Skip todos already in today's note to use this.";
+}
+
 /**
  * @returns {Record<string, { enabled: boolean, reason: string }>} one entry
  *   per DEPENDENT_SETTINGS key; `reason` is "" when the setting is enabled
@@ -48,6 +65,11 @@ export function dependentSettingStates(settings) {
   const inboxSet = (settings.inboxNotePath ?? "").trim() !== "";
   const backlogSet = (settings.backlogNotePath ?? "").trim() !== "";
 
+  const lookBackReasonText = lookBackReason(
+    resolveSourceAction(settings) !== "none",
+    settings.skipExistingTodos === true
+  );
+
   return {
     reviewOnAutoRollover: state(
       autoRollover,
@@ -56,6 +78,13 @@ export function dependentSettingStates(settings) {
     skipCompletedChildren: state(
       children,
       "Turn on Roll over children of todos to use this."
+    ),
+    lookBackDays: state(lookBackDependenciesMet(settings), lookBackReasonText),
+    lookBackSince: state(
+      lookBackApplies(settings),
+      lookBackDependenciesMet(settings)
+        ? "Set Look back to 1 day or more to use this."
+        : lookBackReasonText
     ),
     rolloverSourceMarker: state(marking, NEEDS_MARK),
     moveNestedItemsOnMark: state(

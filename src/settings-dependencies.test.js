@@ -168,3 +168,42 @@ test("cancelMarkerNote", () => {
     "Cancel is currently not offered, because this character is not one of the done status markers."
   );
 });
+
+describe("Look back", () => {
+  const met = {
+    onRolloverSourceAction: "delete",
+    skipExistingTodos: true,
+    lookBackDays: 3,
+  };
+  test("both enabled when everything is set", () => {
+    expect(s(met).lookBackDays).toEqual({ enabled: true, reason: "" });
+    expect(s(met).lookBackSince).toEqual({ enabled: true, reason: "" });
+  });
+  test("both dependencies missing", () => {
+    const reason =
+      'Needs After rollover set to "Mark them" or "Delete them" and Skip todos already in today\'s note turned on.';
+    expect(s({}).lookBackDays).toEqual({ enabled: false, reason });
+    expect(s({}).lookBackSince).toEqual({ enabled: false, reason });
+  });
+  test("only the action is missing", () => {
+    const st = s({ ...met, onRolloverSourceAction: "none" });
+    const reason =
+      'Set After rollover to "Mark them" or "Delete them" to use this.';
+    expect(st.lookBackDays).toEqual({ enabled: false, reason });
+    expect(st.lookBackSince).toEqual({ enabled: false, reason });
+  });
+  test("only Skip existing todos is missing", () => {
+    const st = s({ ...met, skipExistingTodos: false });
+    const reason = "Turn on Skip todos already in today's note to use this.";
+    expect(st.lookBackDays).toEqual({ enabled: false, reason });
+    expect(st.lookBackSince).toEqual({ enabled: false, reason });
+  });
+  test("Read notes from waits for days of 1 or more", () => {
+    const st = s({ ...met, lookBackDays: 0 });
+    expect(st.lookBackDays.enabled).toBe(true);
+    expect(st.lookBackSince).toEqual({
+      enabled: false,
+      reason: "Set Look back to 1 day or more to use this.",
+    });
+  });
+});

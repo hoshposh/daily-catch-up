@@ -18,6 +18,7 @@ export const SETTING_GROUPS = [
     help: [
       "An open todo is a checkbox whose character isn't one of the done status markers. With Roll over children, the bullets and todos nested under it come too, and Skip completed children leaves completed ones behind.",
       "Empty todos, todos in callouts or blockquotes, and todos that today's note already has can each be left out. Lines inside fenced code blocks never count as todos.",
+      "**Look back** also reads the daily notes from the last few days, not only the previous one, for todos stranded there or added late. It needs After rollover set to Mark or Delete and Skip todos already in today's note, so a todo done in a newer note is skipped and marked there. It starts from the day you turn it on; Read notes from reaches further back, which is safe if After rollover was already set to Mark or Delete back then. A todo you **Leave** comes back the next day, so use **Cancel** to drop it.",
     ],
   },
   {
@@ -86,6 +87,8 @@ export const SETTING_LABELS = {
   removeEmptyTodos: "Remove empty todos",
   ignoreBlockquotes: "Ignore todos in callouts and blockquotes",
   skipExistingTodos: "Skip todos already in today's note",
+  lookBackDays: "Look back (days)",
+  lookBackSince: "Read notes from",
   templateHeading: "Template heading",
   leadingNewLine: "Blank line after a heading",
   onRolloverSourceAction: "After rollover, on the previous day's note",
@@ -114,6 +117,10 @@ export const SETTING_DESCRIPTIONS = {
   ignoreBlockquotes: "Don't roll over todos in lines that start with '>'.",
   skipExistingTodos:
     "Don't roll over a todo that today's note already has. It is still marked or deleted in the previous day's note.",
+  lookBackDays:
+    "Also read the daily notes from this many days back, for todos stranded there or added late. 0 reads only the previous day's note.",
+  lookBackSince:
+    "Notes dated before this are not read. Set it earlier to recover todos from before you turned Look back on.",
   templateHeading: "Heading in today's note to put the todos under.",
   templateHeadingText:
     "Heading in today's note to put the todos under, e.g. '## Tasks', or 'none' for the end of the note. Your template's headings couldn't be read.",

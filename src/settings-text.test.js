@@ -62,3 +62,13 @@ test("helpSegments", () => {
       .join("")
   ).toBe("odd ** marker");
 });
+
+test("Look back labels and help", () => {
+  expect(SETTING_LABELS.lookBackDays).toBe("Look back (days)");
+  expect(SETTING_LABELS.lookBackSince).toBe("Read notes from");
+  const { help } = SETTING_GROUPS.find((g) => g.id === "which");
+  const last = help[help.length - 1];
+  expect(last).toMatch(/Look back/);
+  expect(last).toMatch(/\*\*Leave\*\*/);
+  expect(last).toMatch(/\*\*Cancel\*\*/);
+});
