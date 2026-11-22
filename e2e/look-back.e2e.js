@@ -262,9 +262,9 @@ test("rule-left todos of older notes alone do not open the review", async () => 
   await reset({
     notes: notesWith(
       {
-        [note(-1)]: tasks("- [x] Water plants"),
+        [note(-1)]: tasks("- [x] Water plants", "- [x] Call Sam"),
         [note(-2)]: tasks(habit),
-        [note(-3)]: tasks(habit),
+        [note(-3)]: tasks("- [ ] Call Sam", habit),
       },
       { withToday: false }
     ),
@@ -272,14 +272,16 @@ test("rule-left todos of older notes alone do not open the review", async () => 
   });
 
   await openToday();
+  // the handled Call Sam shows the rollover ran, without a review
+  await waitForNotice("already done in a newer note");
   await waitForIdle();
 
   expect(
     await evalJson("document.querySelectorAll('.modal-container').length")
   ).toBe(0);
   expect(await readNote(today())).toBe(TEMPLATE);
+  expect(await readNote(note(-3))).toBe(tasks("- [>] Call Sam", habit));
   expect(await readNote(note(-2))).toBe(tasks(habit));
-  expect(await readNote(note(-3))).toBe(tasks(habit));
 });
 
 test.each(["mark", "delete"])(
