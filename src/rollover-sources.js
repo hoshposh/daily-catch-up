@@ -425,6 +425,30 @@ export function insertSources({ content, entries, settings }) {
 }
 
 /**
+ * Whether a source note has to go through writeSource() at all. A source that
+ * leaves its todos alone ("none") is only written for its Cancel marks. An
+ * older daily note is only written when it has lines to mark, cancel or
+ * delete: one holding nothing but Leave items (a rule's, hidden from the
+ * review, or the user's) is not opened for writing. The previous note and the
+ * inbox are written as they always were.
+ *
+ * @param {{ kind: string, sourceAction: string }} source
+ * @param {object} decided - the source's entry in applySources().perSource
+ */
+export function sourceNeedsWrite(source, decided) {
+  if (source.sourceAction === "none") {
+    return decided.cancelledLineIndices.length > 0;
+  }
+  if (source.kind !== "earlier") return true;
+  return [
+    decided.movedLineIndices,
+    decided.cancelledLineIndices,
+    decided.deleteLineIndices,
+    decided.skippedLineIndices,
+  ].some((indices) => indices.length > 0);
+}
+
+/**
  * What one source note becomes after the rollover: its Cancel items marked
  * first, then the source's action ("delete" | "mark") on its Roll and Backlog
  * items. Leave items are untouched. Line positions refer to the note as it

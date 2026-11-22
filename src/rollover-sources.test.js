@@ -17,6 +17,7 @@ import {
   inboxSourceAction,
   rolloverNotice,
   sourceLabel,
+  sourceNeedsWrite,
   sourceUnchangedNotice,
   sourceWriteFailedNotice,
   templaterNotice,
@@ -963,6 +964,77 @@ describe("earlier sources", () => {
     expect(items[0].handled).toBeUndefined();
     expect(reviewItems).toEqual([]);
     expect(decisions[items[0].id]).toBe("leave");
+  });
+
+  describe("sourceNeedsWrite", () => {
+    const decidedFor = (sources, decisionsFor = (d) => d) => {
+      const { plans, decisions } = planSources({
+        sources,
+        settings: { ...SETTINGS, rules: [HABIT] },
+      });
+      return applySources({
+        plans,
+        sources,
+        decisions: decisionsFor(decisions),
+      }).perSource[0];
+    };
+
+    test("an older note with only hidden Leaves is not written", () => {
+      const sources = [
+        earlier("Daily/2026-11-15.md", [
+          "- [ ] Stretch #habit",
+          "  - [x] done",
+        ]),
+      ];
+      expect(sourceNeedsWrite(sources[0], decidedFor(sources))).toBe(false);
+    });
+
+    test("an older note with a todo to mark, cancel or delete is written", () => {
+      const sources = [
+        earlier("Daily/2026-11-15.md", [
+          "- [ ] Stretch #habit",
+          "- [ ] Pay rent",
+        ]),
+      ];
+      expect(sourceNeedsWrite(sources[0], decidedFor(sources))).toBe(true);
+      const cancelled = decidedFor(sources, (d) => ({
+        ...d,
+        "Daily/2026-11-15.md/0:1": "cancel",
+      }));
+      expect(sourceNeedsWrite(sources[0], cancelled)).toBe(true);
+    });
+
+    test("an older note whose todos are all left by hand is not written", () => {
+      const sources = [earlier("Daily/2026-11-15.md", ["- [ ] Pay rent"])];
+      const left = decidedFor(sources, (d) => ({
+        ...d,
+        "Daily/2026-11-15.md/0:0": "leave",
+      }));
+      expect(sourceNeedsWrite(sources[0], left)).toBe(false);
+    });
+
+    test("the previous note and the inbox are written as before", () => {
+      const nothing = {
+        movedLineIndices: [],
+        cancelledLineIndices: [],
+        deleteLineIndices: [],
+        skippedLineIndices: [],
+      };
+      for (const kind of ["previous", "inbox"]) {
+        expect(sourceNeedsWrite({ kind, sourceAction: "mark" }, nothing)).toBe(
+          true
+        );
+        expect(sourceNeedsWrite({ kind, sourceAction: "none" }, nothing)).toBe(
+          false
+        );
+        expect(
+          sourceNeedsWrite(
+            { kind, sourceAction: "none" },
+            { ...nothing, cancelledLineIndices: [0] }
+          )
+        ).toBe(true);
+      }
+    });
   });
 
   test("without newer done keys nothing is handled", () => {

@@ -28,6 +28,7 @@ import {
   inboxSource,
   insertSources,
   planSources,
+  sourceNeedsWrite,
   rolloverNotice,
   sourceUnchangedNotice,
   sourceWriteFailedNotice,
@@ -657,12 +658,9 @@ export default class RolloverTodosPlugin extends Plugin {
       try {
         for (const [i, source] of sources.entries()) {
           const decided = perSource[i];
-          if (
-            source.sourceAction === "none" &&
-            decided.cancelledLineIndices.length === 0
-          ) {
-            continue;
-          }
+          // nothing to cancel, mark or delete (an older note with only Leave
+          // items, or a source whose action is "none" without Cancel items)
+          if (!sourceNeedsWrite(source, decided)) continue;
           // Read, check and write in one atomic step: the line positions
           // refer to the content we parsed, and the note may have been edited
           // since (by the user, a sync client or another plugin, e.g. during
