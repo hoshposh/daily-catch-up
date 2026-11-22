@@ -30,12 +30,16 @@ import {
   ruleDialog,
   ruleRows,
   scrollRulesIntoView,
+  setDropdownSetting,
   setTextSetting,
+  settingState,
   settingsMaxScrollTop,
   settingsScrollTop,
   toggleRule,
+  toggleSetting,
 } from "./helpers/settings-tab";
 import {
+  CHECKLIST_PROFILE,
   day,
   expectNoErrors,
   fixture,
@@ -461,5 +465,127 @@ test("a hand-edited, malformed rule opens as something Save can store", async ()
     match: "tag",
     value: "42",
     effect: "leave",
+  });
+});
+
+const AFTER_ROLLOVER = "After rollover, on the previous day's note";
+const SKIP_EXISTING = "Skip todos already in today's note";
+const LOOK_BACK = "Look back (days)";
+const READ_FROM = "Read notes from";
+
+/** lookBackSince as the plugin holds it in memory and as data.json holds it. */
+async function storedSince() {
+  await startAsync(`return {
+    memory: ${plugin}.settings.lookBackSince ?? null,
+    file: (await ${plugin}.loadData())?.lookBackSince ?? null,
+  };`);
+  return awaitAsync();
+}
+
+/** Waits until lookBackSince is `since` in memory and in data.json. */
+async function waitForSince(since) {
+  await waitFor(
+    async () => {
+      const stored = await storedSince();
+      return stored.memory === since && stored.file === since;
+    },
+    { message: `lookBackSince to be "${since}" in memory and in data.json` }
+  );
+}
+
+test("Look back waits for Mark or Delete and Skip todos already in today's note", async () => {
+  await reset({ notes: standardNotes() });
+  await openSettings();
+  const NEEDS_BOTH =
+    'Needs After rollover set to "Mark them" or "Delete them" and Skip todos already in today\'s note turned on.';
+  expect(await settingState(LOOK_BACK)).toMatchObject({
+    disabled: true,
+    desc: NEEDS_BOTH,
+  });
+  expect(await settingState(READ_FROM)).toMatchObject({
+    disabled: true,
+    desc: NEEDS_BOTH,
+  });
+
+  await setDropdownSetting(AFTER_ROLLOVER, "mark");
+  await waitFor(
+    async () =>
+      (await settingState(LOOK_BACK)).desc ===
+      "Turn on Skip todos already in today's note to use this.",
+    { message: "Look back to ask for Skip todos already in today's note" }
+  );
+  expect((await settingState(LOOK_BACK)).disabled).toBe(true);
+
+  await toggleSetting(SKIP_EXISTING);
+  await waitFor(async () => !(await settingState(LOOK_BACK)).disabled, {
+    message: "Look back (days) to be enabled",
+  });
+  expect((await settingState(LOOK_BACK)).desc).toBe(
+    "Also read the daily notes from this many days back, for todos stranded there or added late. 0 reads only the previous day's note."
+  );
+  // Read notes from waits for Look back itself
+  expect(await settingState(READ_FROM)).toMatchObject({
+    disabled: true,
+    desc: "Set Look back to 1 day or more to use this.",
+  });
+});
+
+test("turning Look back on starts it today, without redrawing the page", async () => {
+  await reset({ notes: standardNotes(), settings: CHECKLIST_PROFILE });
+  await openSettings();
+  expect((await settingState(READ_FROM)).value).toBe("");
+  // an element outside the Look back settings: a full redraw would replace it
+  await markOutsideRules();
+
+  await setTextSetting(LOOK_BACK, "7");
+  await waitForSince(day());
+  expect(await evalJson(`${plugin}.settings.lookBackDays`)).toBe(7);
+  expect(await settingState(READ_FROM)).toMatchObject({
+    disabled: false,
+    value: day(),
+  });
+  expect(await markStillThere()).toBe(true);
+});
+
+test("Read notes from saves an earlier date and ignores a later one", async () => {
+  await reset({
+    notes: standardNotes(),
+    settings: { ...CHECKLIST_PROFILE, lookBackDays: 7, lookBackSince: day() },
+  });
+  await openSettings();
+  expect((await settingState(READ_FROM)).value).toBe(day());
+
+  await setTextSetting(READ_FROM, day(-10));
+  await waitForSince(day(-10));
+
+  // the field reacts as it is typed into, so a saved date would be in memory now
+  await setTextSetting(READ_FROM, day(1));
+  expect(await storedSince()).toEqual({ memory: day(-10), file: day(-10) });
+});
+
+test("switching After rollover off and on again starts Look back today", async () => {
+  await reset({
+    notes: standardNotes(),
+    settings: {
+      ...CHECKLIST_PROFILE,
+      lookBackDays: 7,
+      lookBackSince: day(-10),
+    },
+  });
+  await openSettings();
+  expect((await settingState(READ_FROM)).value).toBe(day(-10));
+
+  await setDropdownSetting(AFTER_ROLLOVER, "none");
+  await waitForSince("");
+  expect(await settingState(READ_FROM)).toMatchObject({
+    disabled: true,
+    value: "",
+  });
+
+  await setDropdownSetting(AFTER_ROLLOVER, "mark");
+  await waitForSince(day());
+  expect(await settingState(READ_FROM)).toMatchObject({
+    disabled: false,
+    value: day(),
   });
 });

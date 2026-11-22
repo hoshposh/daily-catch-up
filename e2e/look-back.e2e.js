@@ -3,7 +3,13 @@
 // when After rollover marks or deletes; what they show in the review, todos
 // already done in a newer note, copies across notes, and undo.
 import { afterEach, expect, test } from "vitest";
-import { awaitAsync, evalJson, startAsync, waitFor } from "./helpers/obsidian";
+import {
+  awaitAsync,
+  evalJs,
+  evalJson,
+  startAsync,
+  waitFor,
+} from "./helpers/obsidian";
 import {
   clickButton,
   notices,
@@ -17,6 +23,7 @@ import {
   waitForNotice,
   waitForReview,
 } from "./helpers/rollover";
+import { openSettings, setTextSetting } from "./helpers/settings-tab";
 import {
   CHECKLIST_PROFILE,
   day,
@@ -370,4 +377,32 @@ test("undo restores today's note and every daily note the rollover changed", asy
       JSON.stringify(before),
     { message: "today's note and both daily notes to be restored" }
   );
+});
+
+test("an earlier Read notes from set in the settings tab recovers a stranded todo", async () => {
+  const stranded = tasks("- [ ] Pay rent");
+  await reset({
+    notes: notesWith({
+      [note(-1)]: tasks("- [ ] Water plants"),
+      [note(-5)]: stranded,
+    }),
+    // Look back turned on today: day -5 is before the start date
+    settings: lookBack({ lookBackSince: day() }),
+  });
+
+  await openSettings();
+  await setTextSetting("Read notes from", day(-10));
+  await waitFor(
+    async () => {
+      await startAsync(`return (await ${plugin}.loadData())?.lookBackSince;`);
+      return (await awaitAsync()) === day(-10);
+    },
+    { message: "Read notes from to be saved" }
+  );
+  await evalJs("app.setting.close(); true");
+
+  await rollOver();
+
+  expect(await lines(today())).toContain("- [ ] Pay rent");
+  expect(await readNote(note(-5))).toBe(tasks("- [>] Pay rent"));
 });

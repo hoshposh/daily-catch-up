@@ -115,6 +115,51 @@ export async function setTextSetting(name, value) {
   if (!found) throw new Error(`No text setting named "${name}"`);
 }
 
+const SETTING_ITEM = (name) =>
+  `[...${SETTINGS_DOC}.querySelectorAll('.setting-item')].find(
+    (s) => s.querySelector('.setting-item-name')?.textContent === ${JSON.stringify(
+      name
+    )})`;
+
+/** The setting with this name: greyed out or not, its description, its text field's value. */
+export async function settingState(name) {
+  const state = await evalJson(`(() => {
+    const item = ${SETTING_ITEM(name)};
+    if (!item) return null;
+    return {
+      disabled: item.classList.contains('is-disabled'),
+      desc: item.querySelector('.setting-item-description')?.textContent ?? '',
+      value: item.querySelector('input[type="text"], input:not([type])')?.value ?? null,
+    };
+  })()`);
+  if (!state) throw new Error(`No setting named "${name}"`);
+  return state;
+}
+
+/** Picks this option value in the dropdown of the setting with this name. */
+export async function setDropdownSetting(name, value) {
+  const found = await evalJson(`(() => {
+    const select = ${SETTING_ITEM(name)}?.querySelector('select');
+    if (!select) return false;
+    select.value = ${JSON.stringify(value)};
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return select.value === ${JSON.stringify(value)};
+  })()`);
+  if (!found) {
+    throw new Error(`No dropdown named "${name}" with the option "${value}"`);
+  }
+}
+
+/** Clicks the switch of the setting with this name. */
+export async function toggleSetting(name) {
+  const found = await evalJson(`(() => {
+    const toggle = ${SETTING_ITEM(name)}?.querySelector('.checkbox-container');
+    toggle?.click();
+    return Boolean(toggle);
+  })()`);
+  if (!found) throw new Error(`No switch named "${name}"`);
+}
+
 /** Clicks the button with exactly this text in the settings window's topmost dialog. */
 export async function clickSettingsButton(text) {
   const clicked = await evalJson(`(() => {

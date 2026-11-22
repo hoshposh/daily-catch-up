@@ -13,10 +13,18 @@ import {
   helpSegments,
 } from "../settings-text";
 import { getDailyNoteSettings } from "../daily-notes";
+import {
+  lookBackApplies,
+  nextLookBackSince,
+  parseLookBackDays,
+  parseLookBackSince,
+} from "../look-back";
 import { newRuleId, ruleNote, ruleSummary } from "../rules";
 import RuleModal from "./RuleModal";
 
 const GROUP = Object.fromEntries(SETTING_GROUPS.map((g) => [g.id, g]));
+
+const today = () => window.moment().format("YYYY-MM-DD");
 
 export default class RolloverSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
@@ -29,6 +37,8 @@ export default class RolloverSettingTab extends PluginSettingTab {
     this.rulesEl = null;
     // [{ rule, setting }] for each row, so notes can be refreshed in place
     this.ruleRows = [];
+    // whether Look back applied before the latest change
+    this.lookBackWasApplying = false;
   }
 
   // Never throws: a broken template path or an unreadable daily-notes config
@@ -64,8 +74,24 @@ export default class RolloverSettingTab extends PluginSettingTab {
   // Saves, then updates the dependent rows in place, so the page never
   // re-renders or jumps when a parent setting changes
   save() {
+    this.settleLookBackSince();
     this.plugin.saveSettings();
     this.refreshDependents();
+  }
+
+  // Read notes from becomes today when Look back starts applying and is
+  // cleared when it stops; the field is updated in place
+  settleLookBackSince() {
+    const settings = this.plugin.settings;
+    const since = nextLookBackSince({
+      wasApplying: this.lookBackWasApplying,
+      settings,
+      today: today(),
+    });
+    this.lookBackWasApplying = lookBackApplies(settings);
+    if (since === (settings.lookBackSince ?? "")) return;
+    settings.lookBackSince = since;
+    this.dependents.lookBackSince?.component.setValue(since);
   }
 
   // A group heading with a `?` button that toggles its help panel, which sits
@@ -179,6 +205,7 @@ export default class RolloverSettingTab extends PluginSettingTab {
 
     this.containerEl.empty();
     this.dependents = {};
+    this.lookBackWasApplying = lookBackApplies(settings);
 
     // When it runs
     this.addGroup(GROUP.when);
@@ -226,6 +253,16 @@ export default class RolloverSettingTab extends PluginSettingTab {
       "skipExistingTodos",
       () => settings.skipExistingTodos || false
     );
+    this.addText("lookBackDays", {
+      placeholder: "0",
+      value: String(settings.lookBackDays ?? 0),
+      parse: parseLookBackDays,
+    });
+    this.addText("lookBackSince", {
+      placeholder: "YYYY-MM-DD",
+      value: settings.lookBackSince ?? "",
+      parse: (v) => parseLookBackSince(v, today()),
+    });
 
     // Where they go in today's note
     this.addGroup(GROUP.where);
