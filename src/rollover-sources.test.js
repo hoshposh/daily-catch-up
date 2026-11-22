@@ -3,6 +3,7 @@ import { getSections } from "./get-todos";
 import {
   insertSources,
   applySources,
+  earlierSource,
   planSources,
   backlogFailedNotice,
   INBOX_GUARD_NOTICE,
@@ -426,6 +427,7 @@ describe("insertSources", () => {
       duplicateTodos: [],
       retainedLineIndices: [],
       insertedTodos: [],
+      todosDoneElsewhere: 0,
     });
 
     const { sources, plans, decisions: defaults } = setup();
@@ -760,5 +762,177 @@ describe("the inbox source", () => {
     expect(INBOX_GUARD_NOTICE).toBe(
       "The inbox note can't be today's note, the previous daily note or the backlog note. Change it in settings."
     );
+  });
+});
+
+describe("earlier sources", () => {
+  const HABIT = {
+    id: "habit",
+    enabled: true,
+    match: "tag",
+    value: "#habit",
+    effect: "leave",
+  };
+  const LATER = {
+    id: "later",
+    enabled: true,
+    match: "tag",
+    value: "#later",
+    effect: "backlog",
+  };
+  const SETTINGS = { ...PLAN_SETTINGS, doneStatusMarkers: "xX->" };
+
+  function earlier(path, lines, newerDoneKeys) {
+    const basename = path.split("/").pop().replace(/\.md$/, "");
+    return earlierSource({
+      file: { path, basename },
+      content: lines.join("\n"),
+      lines,
+      sections: getSections({
+        lines,
+        withChildren: true,
+        doneStatusMarkers: "xX->",
+      }),
+      settings: { onRolloverSourceAction: "mark" },
+      newerDoneKeys,
+    });
+  }
+
+  test("the source object", () => {
+    const file = { path: "journal/2026/11/21.md", basename: "21" };
+    const lines = ["- [ ] a"];
+    const newerDoneKeys = new Set(["b"]);
+    expect(
+      earlierSource({
+        file,
+        content: "- [ ] a",
+        lines,
+        sections: [],
+        settings: { onRolloverSourceAction: "delete" },
+        newerDoneKeys,
+      })
+    ).toEqual({
+      key: "journal/2026/11/21.md/",
+      kind: "earlier",
+      name: "21",
+      file,
+      content: "- [ ] a",
+      lines,
+      sections: [],
+      sourceAction: "delete",
+      newerDoneKeys,
+    });
+  });
+
+  test("two older notes with the same name in different folders", () => {
+    const sources = [
+      earlier("journal/2026/11/21.md", ["- [ ] a"]),
+      earlier("journal/2026/10/21.md", ["- [ ] b"]),
+    ];
+    const { items } = planSources({ sources, settings: SETTINGS });
+    expect(items.map((i) => i.id)).toEqual([
+      "journal/2026/11/21.md/0:0",
+      "journal/2026/10/21.md/0:0",
+    ]);
+  });
+
+  test("a rule-chosen Leave is hidden only in an earlier note", () => {
+    const lines = ["- [ ] Stretch #habit"];
+    const sources = [
+      source("", "2026-11-16", lines),
+      earlier("Daily/2026-11-15.md", lines),
+      source("inbox/", "Inbox", lines),
+    ];
+    const { items, reviewItems, decisions } = planSources({
+      sources,
+      settings: { ...SETTINGS, rules: [HABIT] },
+    });
+    expect(items.map((i) => i.hidden)).toEqual([undefined, true, undefined]);
+    expect(reviewItems.map((i) => i.id)).toEqual(["0:0", "inbox/0:0"]);
+    expect(Object.values(decisions)).toEqual(["leave", "leave", "leave"]);
+  });
+
+  test("an item done in a newer note is handled, hidden and rolled, whatever its rule", () => {
+    const sources = [
+      earlier(
+        "Daily/2026-11-15.md",
+        ["- [ ] Old #later", "- [ ] New #later"],
+        new Set(["Old #later"])
+      ),
+    ];
+    const { items, reviewItems, decisions } = planSources({
+      sources,
+      settings: { ...SETTINGS, rules: [LATER] },
+    });
+    const [old, fresh] = items;
+    expect(old).toMatchObject({ handled: true, hidden: true });
+    expect(fresh.handled).toBeUndefined();
+    expect(fresh.hidden).toBeUndefined();
+    expect(reviewItems.map((i) => i.id)).toEqual([fresh.id]);
+    expect(decisions[old.id]).toBe("roll");
+    expect(decisions[fresh.id]).toBe("backlog");
+  });
+
+  test("without newer done keys nothing is handled", () => {
+    const sources = [earlier("Daily/2026-11-15.md", ["- [ ] Old"])];
+    const { items } = planSources({ sources, settings: SETTINGS });
+    expect(items[0].handled).toBeUndefined();
+  });
+
+  test("applySources counts the left and handled items", () => {
+    const sources = [
+      earlier(
+        "Daily/2026-11-15.md",
+        [
+          "- [ ] a",
+          "- [ ] Stretch #habit",
+          "- [ ] Old",
+          "  - [x] done child",
+          "  note",
+        ],
+        new Set(["Old"])
+      ),
+    ];
+    const { plans, items, decisions } = planSources({
+      sources,
+      settings: { ...SETTINGS, rules: [HABIT] },
+    });
+    const applied = applySources({
+      plans,
+      sources,
+      decisions: { ...decisions, [items[0].id]: "leave" },
+    });
+    const [perSource] = applied.perSource;
+    // the hand-chosen Leave is counted, the hidden rule-chosen one is not
+    expect(perSource.leftCount).toBe(1);
+    expect(perSource.handledCount).toBe(1);
+    expect(perSource.handledLineIndices).toEqual([2, 3, 4]);
+  });
+
+  test("insertSources keeps handled todos out of today's note", () => {
+    const sources = [
+      earlier(
+        "Daily/2026-11-15.md",
+        ["- [ ] Old", "  - [x] done child", "- [ ] Stranded"],
+        new Set(["Old"])
+      ),
+    ];
+    const { plans, decisions } = planSources({ sources, settings: SETTINGS });
+    const applied = applySources({ plans, sources, decisions });
+    const result = insertSources({
+      content: "",
+      entries: [
+        {
+          ...entriesOf(sources, applied)[0],
+          handledLineIndices: applied.perSource[0].handledLineIndices,
+        },
+      ],
+      // independent of skip existing
+      settings: insertSettings(false),
+    });
+    expect(result.content).toBe("- [ ] Stranded\n");
+    expect(result.perSource[0].todosDoneElsewhere).toBe(2);
+    expect(result.perSource[0].retainedLineIndices).toEqual([0, 1]);
+    expect(result.perSource[0].insertedTodos).toEqual(["- [ ] Stranded"]);
   });
 });

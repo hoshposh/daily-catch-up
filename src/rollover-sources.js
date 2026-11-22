@@ -1,10 +1,15 @@
 // The Obsidian-free orchestration of a rollover over several source notes,
 // shared by index.js and the unit flow test (src/rollover-flow.test.js). It
-// loops the steps of rollover-plan.js over a list of sources (the previous
-// day's note and the inbox note). A source is
-// `{ key, kind, name, lines, sections, sourceAction }`; `key` is put in front
-// of its item ids ("" for the previous day's note, so its ids stay as they
-// were) and `name` is what its backlog items say they came from.
+// loops the steps of rollover-plan.js over a list of sources, in this order:
+// the previous day's note (kind "previous"), the older daily notes Look back
+// reads, newest first (kind "earlier"), and the inbox note (kind "inbox"). A
+// source is `{ key, kind, name, lines, sections, sourceAction }`; `key` is put
+// in front of its item ids ("" for the previous day's note, so its ids stay as
+// they were) and `name` is what its backlog items say they came from. An
+// earlier source also carries `newerDoneKeys`, the todos done in a note newer
+// than it: its items done there are handled (hidden from the review, rolled so
+// its action marks or deletes them, but kept out of today's note), and its
+// items a rule leaves are hidden from the review too.
 //
 // 1. planSources: every source's items and default outcomes
 // 2. applySources: the decisions turned into what each source and the backlog
@@ -16,6 +21,7 @@
 
 import { normalizeHeading } from "./backlog";
 import { insertSections } from "./insert-sections";
+import { handledItemIds } from "./look-back";
 import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import {
   applySourceAction,
@@ -23,6 +29,7 @@ import {
   inboxSourceAction,
   markCancelled,
   normalizeMarker,
+  resolveSourceAction,
 } from "./source-action";
 
 const OUTCOMES = ["roll", "backlog", "cancel", "leave"];
@@ -61,6 +68,69 @@ export function inboxSource({ file, content, lines, sections, settings }) {
   };
 }
 
+/**
+ * An older daily note read by Look back as a source, between the previous
+ * day's note and the inbox. It behaves as the previous note does (its action,
+ * counters raised, delete removes emptied headings), except that its items
+ * done in a newer note are handled and its rule-chosen Leaves are hidden
+ * (planSources()).
+ *
+ * @param {object} args
+ * @param {{ path: string, basename: string }} args.file - the older note; its
+ *   path makes the key, so two notes with the same name stay apart
+ * @param {string} args.content - as read
+ * @param {string[]} args.lines - splitLines(content)
+ * @param {object[]} args.sections - getSections() of `lines`, with the same
+ *   options as the previous note
+ * @param {object} args.settings - onRolloverSourceAction
+ * @param {Set<string>} args.newerDoneKeys - the done todo keys of every note
+ *   newer than this one (cumulativeDoneKeys())
+ */
+export function earlierSource({
+  file,
+  content,
+  lines,
+  sections,
+  settings,
+  newerDoneKeys,
+}) {
+  return {
+    key: file.path + "/",
+    kind: "earlier",
+    name: file.basename,
+    file,
+    content,
+    lines,
+    sections,
+    sourceAction: resolveSourceAction(settings),
+    newerDoneKeys,
+  };
+}
+
+/**
+ * An earlier source's items, marked: `handled` and `hidden` when done in a
+ * newer note (their decision becomes "roll"), `hidden` when a rule leaves
+ * them. Handled wins over every rule.
+ */
+function markEarlierItems(plan, source, doneStatusMarkers) {
+  const handled = handledItemIds(
+    plan.items,
+    source.newerDoneKeys ?? new Set(),
+    doneStatusMarkers
+  );
+  const decisions = { ...plan.decisions };
+  const items = plan.items.map((item) => {
+    if (handled.has(item.id)) {
+      // rolled, so the source action marks or deletes it; planInsert() keeps
+      // it out of today's note
+      decisions[item.id] = "roll";
+      return { ...item, handled: true, hidden: true };
+    }
+    return item.rule?.outcome === "leave" ? { ...item, hidden: true } : item;
+  });
+  return { ...plan, items, decisions };
+}
+
 export const INBOX_GUARD_NOTICE =
   "The inbox note can't be today's note, the previous daily note or the backlog note. Change it in settings.";
 
@@ -96,11 +166,18 @@ export function inboxPathConflicts({
  * so a duplicate id throws instead of one item silently taking another's
  * outcome.
  *
+ * Items of an earlier source done in a newer note get `handled: true,
+ * hidden: true` and the decision "roll", whatever a rule says; its other items
+ * whose rule outcome is Leave get `hidden: true`. Hidden items are kept out
+ * of `reviewItems`. Other sources' items are not marked.
+ *
  * @param {object} args
  * @param {object[]} args.sources
- * @param {object} args.settings - what planDecisions() takes
- * @returns {{ plans: object[], items: object[], decisions: Record<string, string> }}
- *   `plans[i]` belongs to `sources[i]`; `items` and `decisions` cover all of them
+ * @param {object} args.settings - what planDecisions() takes, and
+ *   doneStatusMarkers (the effective ones) for earlier sources
+ * @returns {{ plans: object[], items: object[], reviewItems: object[], decisions: Record<string, string> }}
+ *   `plans[i]` belongs to `sources[i]`; `items` and `decisions` cover all of
+ *   them, `reviewItems` the items the review shows (none hidden)
  * @throws {Error} when two items, of the same or different sources, share an id
  */
 export function planSources({ sources, settings }) {
@@ -111,6 +188,9 @@ export function planSources({ sources, settings }) {
       settings,
       idPrefix: source.key ?? "",
     });
+    if (source.kind === "earlier") {
+      return markEarlierItems(plan, source, settings.doneStatusMarkers ?? "");
+    }
     if (typeof source.placement !== "string") return plan;
     // a source with a placement sends its items there, unless a Move to
     // heading rule already sends them somewhere
@@ -134,6 +214,7 @@ export function planSources({ sources, settings }) {
   return {
     plans,
     items,
+    reviewItems: items.filter((item) => !item.hidden),
     decisions: Object.assign({}, ...plans.map((plan) => plan.decisions)),
   };
 }
@@ -147,10 +228,22 @@ export function planSources({ sources, settings }) {
  * @param {object[]} args.sources - the sources the plans were made for
  * @param {Record<string, string>} args.decisions - item id -> outcome
  * @returns {{ perSource: object[], backlogItems: object[], outcomeCounts: Record<string, number> }}
+ *   `perSource[i]` is applyPlan()'s result for `sources[i]`, plus
+ *   `handledLineIndices` (every line of its handled items, for
+ *   insertSources()), `handledCount` (its handled items) and `leftCount` (its
+ *   items decided "leave" that the review showed)
  */
 export function applySources({ plans, sources, decisions }) {
   const perSource = plans.map((plan, i) => {
-    const applied = applyPlan({ plan, decisions });
+    const handled = plan.items.filter((item) => item.handled);
+    const applied = {
+      ...applyPlan({ plan, decisions }),
+      handledLineIndices: handled.flatMap((item) => item.lineIndices),
+      handledCount: handled.length,
+      leftCount: plan.items.filter(
+        (item) => !item.hidden && decisions[item.id] === "leave"
+      ).length,
+    };
     // a source that does not count keeps every item's counter as it is
     if (sources[i].countRollover === false) {
       applied.noStaleLineIndices = plan.items.map(
@@ -185,14 +278,15 @@ export function applySources({ plans, sources, decisions }) {
  *
  * @param {object} args
  * @param {string} args.content - today's note
- * @param {{ sections: object[], lines: string[], noStaleLineIndices?: number[] }[]} args.entries
- *   one per source: its rolledSections, its lines and its noStaleLineIndices
+ * @param {{ sections: object[], lines: string[], noStaleLineIndices?: number[], handledLineIndices?: number[] }[]} args.entries
+ *   one per source: its rolledSections, its lines, its noStaleLineIndices and
+ *   its handledLineIndices (todos done in a newer note, kept out)
  * @param {object} args.settings - skipExistingTodos, rolloverChildren,
  *   trackRolloverCount, doneStatusMarkers (the effective ones), templateHeading
  *   and leadingNewLine
  * @returns {{ content: string, templateHeadingNotFound: boolean, perSource: object[] }}
  *   `perSource[i]` is { todosAlreadyPresent, duplicateTodos,
- *   retainedLineIndices, insertedTodos } for `entries[i]`
+ *   retainedLineIndices, insertedTodos, todosDoneElsewhere } for `entries[i]`
  */
 export function insertSources({ content, entries, settings }) {
   let current = content;
@@ -204,6 +298,7 @@ export function insertSources({ content, entries, settings }) {
         duplicateTodos: [],
         retainedLineIndices: [],
         insertedTodos: [],
+        todosDoneElsewhere: 0,
       };
     }
     const planned = planInsert({
@@ -211,6 +306,7 @@ export function insertSources({ content, entries, settings }) {
       todayContent: current,
       settings,
       noStaleLineIndices: entry.noStaleLineIndices,
+      handledLineIndices: entry.handledLineIndices,
       lines: entry.lines,
     });
     // nothing left after skip-existing: leave the note exactly as it is
@@ -230,6 +326,7 @@ export function insertSources({ content, entries, settings }) {
       duplicateTodos: planned.duplicateTodos,
       retainedLineIndices: planned.retainedLineIndices,
       insertedTodos: planned.sections.flatMap((s) => s.incompleteTodos),
+      todosDoneElsewhere: planned.todosDoneElsewhere,
     };
   });
   return { content: current, templateHeadingNotFound, perSource };
@@ -250,7 +347,8 @@ export function insertSources({ content, entries, settings }) {
  *   skippedLineIndices)
  * @param {number[]} [args.retainedLineIndices] - the source's
  *   insertSources().perSource[i].retainedLineIndices: duplicates skip existing
- *   kept out of today's note, which "mark" with moveNested must not remove
+ *   and todos done in a newer note kept out of today's note, which "mark"
+ *   with moveNested must not remove
  * @param {object} args.settings - the plugin settings: cancelMarker,
  *   rolloverSourceMarker, doneStatusMarkers, onRolloverSourceAction,
  *   inboxNotePath and inboxSourceAction (with the two before them, for

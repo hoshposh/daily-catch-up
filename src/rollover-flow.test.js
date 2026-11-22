@@ -5,6 +5,7 @@ import { dedupeAgainstExisting } from "./insert-todos";
 import { appendToBacklog, normalizeHeading } from "./backlog";
 import {
   applySources,
+  earlierSource,
   inboxSource,
   insertSources,
   planSources,
@@ -16,6 +17,7 @@ import {
   resolveSourceAction,
 } from "./source-action";
 import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
+import { cumulativeDoneKeys } from "./look-back";
 
 // The parts of rollover() that do not need Obsidian, run end to end
 function rollover({
@@ -80,6 +82,7 @@ function reviewedRollover({
   cancelEnabled = true,
   children = true,
   templateHeading = "none",
+  earlier = [],
   inbox,
 }) {
   // one settings object for every source, as index.js has
@@ -111,10 +114,28 @@ function reviewedRollover({
       key: "",
       kind: "previous",
       name: "2026-11-06",
+      content: yesterday,
       ...parse(yesterday),
       sourceAction: resolveSourceAction(settings),
     },
   ];
+  // older notes, newest first: each one's newer notes are today's note, the
+  // previous note and the older notes before it
+  const newerDoneKeys = cumulativeDoneKeys(
+    [today, yesterday, ...earlier.map((note) => note.content)].map(splitLines),
+    effectiveDoneStatusMarkers(settings)
+  );
+  earlier.forEach(({ path, content }, k) => {
+    sources.push(
+      earlierSource({
+        file: { path, basename: path.split("/").pop().replace(/\.md$/, "") },
+        content,
+        ...parse(content),
+        settings,
+        newerDoneKeys: newerDoneKeys[k + 2],
+      })
+    );
+  });
   if (inbox) {
     sources.push(
       inboxSource({
@@ -136,6 +157,7 @@ function reviewedRollover({
       backlogEnabled,
       cancelEnabled,
       rules,
+      doneStatusMarkers: effectiveDoneStatusMarkers(settings),
     },
   });
   const plan = { items: planned.items };
@@ -156,6 +178,7 @@ function reviewedRollover({
       sections: applied.perSource[i].rolledSections,
       lines: source.lines,
       noStaleLineIndices: applied.perSource[i].noStaleLineIndices,
+      handledLineIndices: applied.perSource[i].handledLineIndices,
     })),
     settings: {
       skipExistingTodos: skipExisting,
@@ -179,7 +202,7 @@ function reviewedRollover({
   // the same call, with the same plugin settings, as index.js
   const written = sources.map((source, i) =>
     writeSource({
-      content: i === 0 ? yesterday : inbox.content,
+      content: source.content,
       source,
       decided: applied.perSource[i],
       retainedLineIndices: inserted.perSource[i].retainedLineIndices,
@@ -189,9 +212,11 @@ function reviewedRollover({
   return {
     today: inserted.content,
     yesterday: written[0].content,
-    inbox: written[1]?.content,
+    earlier: written.slice(1, 1 + earlier.length).map((w) => w.content),
+    inbox: inbox ? written[1 + earlier.length].content : undefined,
     backlog,
     items: plan.items,
+    reviewItems: planned.reviewItems,
   };
 }
 
@@ -1079,5 +1104,111 @@ describe("inbox", () => {
     });
     expect(r.backlog).toContain("- [ ] Buy milk [from:: [[Inbox]]]");
     expect(r.inbox).toBe("## Captured\n");
+  });
+});
+
+describe("earlier notes", () => {
+  const HABIT = {
+    id: "habit",
+    enabled: true,
+    match: "tag",
+    value: "#habit",
+    effect: "leave",
+  };
+  const count = (text, line) =>
+    text.split("\n").filter((l) => l === line).length;
+  const older = (content, path = "Daily/2026-11-04.md") => [{ path, content }];
+
+  test("a todo stranded two notes back rolls and is marked in its note", () => {
+    const r = reviewedRollover({
+      yesterday: "- [>] Ship\n",
+      action: "mark",
+      skipExisting: true,
+      earlier: older("## Work\n- [ ] Stranded\n"),
+    });
+    expect(count(r.today, "- [ ] Stranded")).toBe(1);
+    expect(r.earlier).toEqual(["## Work\n- [>] Stranded\n"]);
+  });
+
+  test("with delete, a late addition is removed from its note", () => {
+    const r = reviewedRollover({
+      yesterday: "",
+      action: "delete",
+      skipExisting: true,
+      earlier: older("## Work\n- [x] done\n- [ ] Late\n"),
+    });
+    expect(count(r.today, "- [ ] Late")).toBe(1);
+    expect(r.earlier).toEqual(["## Work\n- [x] done\n"]);
+  });
+
+  test("a todo open in the previous note and an older one appears once, both marked", () => {
+    const r = reviewedRollover({
+      yesterday: "- [ ] Call Sam\n",
+      action: "mark",
+      skipExisting: true,
+      earlier: [
+        { path: "Daily/2026-11-05.md", content: "- [ ] Call Sam\n" },
+        { path: "Daily/2026-11-04.md", content: "- [ ] Call Sam\n" },
+      ],
+    });
+    expect(count(r.today, "- [ ] Call Sam")).toBe(1);
+    expect(r.yesterday).toBe("- [>] Call Sam\n");
+    expect(r.earlier).toEqual(["- [>] Call Sam\n", "- [>] Call Sam\n"]);
+  });
+
+  test("a todo done in a newer note is not offered and is marked", () => {
+    const r = reviewedRollover({
+      yesterday: "- [x] Call Sam\n",
+      action: "mark",
+      skipExisting: true,
+      earlier: older("- [ ] Call Sam\n"),
+    });
+    expect(r.today).not.toContain("Call Sam");
+    expect(r.reviewItems).toEqual([]);
+    expect(r.earlier).toEqual(["- [>] Call Sam\n"]);
+  });
+
+  test("an open nested todo not done anywhere makes the whole item roll", () => {
+    const r = reviewedRollover({
+      yesterday: "- [x] Call Sam\n",
+      action: "mark",
+      skipExisting: true,
+      earlier: older("- [ ] Call Sam\n  - [ ] sub\n"),
+    });
+    expect(r.today).toContain("- [ ] Call Sam\n  - [ ] sub");
+    expect(r.reviewItems.map((i) => i.lines)).toEqual([
+      ["- [ ] Call Sam", "  - [ ] sub"],
+    ]);
+    expect(r.earlier).toEqual(["- [>] Call Sam\n  - [>] sub\n"]);
+  });
+
+  test("a rule-chosen Leave from an older note is not reviewed and stays", () => {
+    const content = "- [ ] Stretch #habit\n- [ ] Stranded\n";
+    const r = reviewedRollover({
+      yesterday: "",
+      action: "mark",
+      skipExisting: true,
+      rules: [HABIT],
+      earlier: older(content),
+    });
+    expect(r.reviewItems.map((i) => i.lines[0])).toEqual(["- [ ] Stranded"]);
+    expect(r.today).not.toContain("Stretch");
+    expect(r.earlier).toEqual(["- [ ] Stretch #habit\n- [>] Stranded\n"]);
+  });
+
+  test("nothing to offer from older notes leaves today's note byte for byte", () => {
+    // mixed line endings: insertSections() would normalise them
+    const today = "# Day\r\n\nnotes\n";
+    const r = reviewedRollover({
+      yesterday: "- [x] Call Sam\n",
+      today,
+      action: "mark",
+      skipExisting: true,
+      rules: [HABIT],
+      earlier: older("- [ ] Call Sam\n- [ ] Stretch #habit\n"),
+    });
+    expect(r.today).toBe(today);
+    expect(r.reviewItems).toEqual([]);
+    expect(r.earlier).toEqual(["- [>] Call Sam\n- [ ] Stretch #habit\n"]);
   });
 });

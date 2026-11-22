@@ -129,8 +129,9 @@ export function applyPlan({ plan, decisions }) {
 
 /**
  * The sections to insert into today's note: the rolled sections without the
- * todos today's note already has (with skipExistingTodos), and with each
- * item's counter raised (with trackRolloverCount).
+ * todos done in a newer note (handledLineIndices), without the todos today's
+ * note already has (with skipExistingTodos), and with each item's counter
+ * raised (with trackRolloverCount).
  *
  * @param {object} args
  * @param {object[]} args.sections - rolledSections from applyPlan()
@@ -139,25 +140,56 @@ export function applyPlan({ plan, decisions }) {
  *   trackRolloverCount, and doneStatusMarkers (the effective ones)
  * @param {number[]} [args.noStaleLineIndices] - from applyPlan(): items whose
  *   counter is not raised
+ * @param {number[]} [args.handledLineIndices] - from applySources(): lines of
+ *   items done in a newer note, dropped whatever skipExistingTodos is
  * @param {string[]} [args.lines] - the previous note's lines (plan.lines);
  *   with them, a todo whose parent does not come along starts at column 0
  *   (rebaseSections)
+ * @returns {{ sections: object[], todosAlreadyPresent: number, duplicateTodos: string[], retainedLineIndices: number[], todosDoneElsewhere: number }}
+ *   `retainedLineIndices` holds the lines of skip-existing duplicates and of
+ *   handled todos; `todosDoneElsewhere` counts the handled lines dropped
  */
 export function planInsert({
   sections,
   todayContent,
   settings,
   noStaleLineIndices = [],
+  handledLineIndices = [],
   lines,
 }) {
   let todosAlreadyPresent = 0;
+  let todosDoneElsewhere = 0;
   const duplicateTodos = [];
-  // lines of duplicates dropped by skip-existing: they did not move
+  // lines of duplicates dropped by skip-existing and of todos done in a newer
+  // note: they did not move
   const retainedLineIndices = [];
 
   let toInsert = sections;
+  if (handledLineIndices.length > 0) {
+    const handled = new Set(handledLineIndices);
+    toInsert = toInsert
+      .map((section) => {
+        const kept = section.incompleteLineIndices.map(
+          (index) => !handled.has(index)
+        );
+        const dropped = section.incompleteLineIndices.filter(
+          (_, i) => !kept[i]
+        );
+        todosDoneElsewhere += dropped.length;
+        retainedLineIndices.push(...dropped);
+        // positions kept in step with the todos, as skip-existing does below
+        return {
+          ...section,
+          incompleteTodos: section.incompleteTodos.filter((_, i) => kept[i]),
+          incompleteLineIndices: section.incompleteLineIndices.filter(
+            (_, i) => kept[i]
+          ),
+        };
+      })
+      .filter((section) => section.incompleteTodos.length > 0);
+  }
   if (settings.skipExistingTodos) {
-    toInsert = sections
+    toInsert = toInsert
       .map((section) => {
         const { todos, skipped, duplicates, droppedIndices } =
           dedupeAgainstExisting(
@@ -200,5 +232,6 @@ export function planInsert({
     todosAlreadyPresent,
     duplicateTodos,
     retainedLineIndices,
+    todosDoneElsewhere,
   };
 }
