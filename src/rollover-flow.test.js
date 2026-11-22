@@ -1251,6 +1251,36 @@ describe("earlier notes", () => {
     }
   );
 
+  test("a todo of an older note left by hand stays open in its note", () => {
+    const r = reviewedRollover({
+      yesterday: "- [ ] Water plants\n",
+      action: "mark",
+      skipExisting: true,
+      earlier: older("## Bills\n- [ ] Pay rent\n"),
+      decisions: (items, defaults) => ({
+        ...defaults,
+        [items.find((i) => i.lines[0] === "- [ ] Pay rent").id]: "leave",
+      }),
+    });
+    expect(r.today).not.toContain("Pay rent");
+    expect(count(r.today, "- [ ] Water plants")).toBe(1);
+    expect(r.earlier).toEqual(["## Bills\n- [ ] Pay rent\n"]);
+  });
+
+  test("delete: a todo done in a newer note goes with its notes and completed child", () => {
+    const r = reviewedRollover({
+      yesterday: "- [x] Call Sam\n",
+      action: "delete",
+      skipExisting: true,
+      earlier: older(
+        "## Calls\n- [ ] Call Sam\n  - ask about Friday\n  - [x] found the number\n- [x] Book room\n"
+      ),
+    });
+    expect(r.today).toBe("");
+    expect(r.reviewItems).toEqual([]);
+    expect(r.earlier).toEqual(["## Calls\n- [x] Book room\n"]);
+  });
+
   test("nothing to offer from older notes leaves today's note byte for byte", () => {
     // mixed line endings: insertSections() would normalise them
     const today = "# Day\r\n\nnotes\n";
