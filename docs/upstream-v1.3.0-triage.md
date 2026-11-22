@@ -34,7 +34,7 @@ Trying the build in a test vault showed a problem the unit tests had not caught:
 | Section routing | The fork's version creates missing headings and keeps full heading ancestry. |
 | Skip `---` after the heading | The fork inserts at the end of the heading's section, so todos already land below a rule. |
 | Append below existing tasks | Same: the fork already appends at the end of the section. Placement directly after the list, ahead of other text in the section, was declined. |
-| Inlined `daily-notes.js` | The only gain is Periodic Notes 1.0 support. The maintainer does not use Periodic Notes, and the plugin has not been updated in about five years. `obsidian-daily-notes-interface` stays. |
+| Inlined `daily-notes.js` | The only gain is Periodic Notes 1.0 support. The maintainer does not use Periodic Notes, and the plugin has not been updated in about five years. Later (2026-11-20) the fork dropped `obsidian-daily-notes-interface` anyway, for its own `src/daily-notes.js` (see the roadmap's "Own the daily-notes lookup"). |
 | Persisted undo across restart | Stores note contents in `data.json`; judged not worth it. Not implemented. |
 | wdio e2e infrastructure, `latest` dev dependencies, `manifest.json` / `package.json` changes | Heavy for a personal fork; `minAppVersion` and versioning stay the fork's own. |
 

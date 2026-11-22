@@ -4,10 +4,15 @@
 
 export const DEFAULT_DAILY_NOTE_FORMAT = "YYYY-MM-DD";
 
-// The folder as a vault path: no surrounding whitespace or slashes, "" for the
-// vault root
+// The folder as a vault path, as Obsidian normalizes one: backslashes and runs
+// of slashes become a single "/", no surrounding whitespace or slashes, "" for
+// the vault root
 export function cleanFolder(folder) {
-  return (folder ?? "").trim().replace(/^\/+/, "").replace(/\/+$/, "");
+  return (folder ?? "")
+    .trim()
+    .replace(/[\\/]+/g, "/")
+    .replace(/^\//, "")
+    .replace(/\/$/, "");
 }
 
 // A note's date, or null when it is not a daily note: its path inside the
@@ -63,7 +68,10 @@ export function getDailyNoteSettings(app) {
       template: template?.trim() || "",
     };
   } catch (err) {
-    console.info("Daily Catch-Up: could not read the daily notes settings", err);
+    console.info(
+      "Daily Catch-Up: could not read the daily notes settings",
+      err
+    );
     return null;
   }
 }

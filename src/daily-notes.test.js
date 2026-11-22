@@ -22,6 +22,10 @@ describe("cleanFolder", () => {
     ["/daily/", "daily"],
     ["  daily  ", "daily"],
     ["a/b/", "a/b"],
+    ["daily//work", "daily/work"],
+    ["daily\\work", "daily/work"],
+    ["\\daily\\", "daily"],
+    ["/a\\/b//", "a/b"],
     ["", ""],
     ["/", ""],
     [undefined, ""],
@@ -120,11 +124,19 @@ describe("previousDailyNote", () => {
 
   test("the newest before today", () =>
     expect(
-      prev(["daily/2026-11-17.md", "daily/2026-11-20.md", "daily/2026-11-19.md"])
+      prev([
+        "daily/2026-11-17.md",
+        "daily/2026-11-20.md",
+        "daily/2026-11-19.md",
+      ])
     ).toBe("daily/2026-11-19.md"));
   test("skips future-dated notes", () =>
     expect(
-      prev(["daily/2026-11-21.md", "daily/2026-11-20.md", "daily/2026-11-18.md"])
+      prev([
+        "daily/2026-11-21.md",
+        "daily/2026-11-20.md",
+        "daily/2026-11-18.md",
+      ])
     ).toBe("daily/2026-11-18.md"));
   test("only today's note", () =>
     expect(prev(["daily/2026-11-20.md"])).toBeNull());
@@ -192,12 +204,35 @@ describe("getDailyNoteSettings", () => {
       )
     ).toEqual({ folder: "journal", format: "YYYY/MM/DD", template: "" }));
 
+  test("Periodic Notes' folder is cleaned and a missing format defaults", () =>
+    expect(
+      getDailyNoteSettings(
+        app({
+          periodic: {
+            settings: {
+              daily: {
+                enabled: true,
+                folder: " /journal/ ",
+                template: " t/d ",
+              },
+            },
+          },
+        })
+      )
+    ).toEqual({
+      folder: "journal",
+      format: DEFAULT_DAILY_NOTE_FORMAT,
+      template: "t/d",
+    }));
+
   test("Periodic Notes with daily notes off is ignored", () =>
     expect(
       getDailyNoteSettings(
         app({
           daily: { instance: { options: { folder: "daily" } } },
-          periodic: { settings: { daily: { enabled: false, folder: "journal" } } },
+          periodic: {
+            settings: { daily: { enabled: false, folder: "journal" } },
+          },
         })
       ).folder
     ).toBe("daily"));
