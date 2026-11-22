@@ -53,6 +53,30 @@ export function previousDailyNote(files, settings, today, moment) {
   return found ? found.file : null;
 }
 
+// [{ file, date }] for the dated notes among `files` within the last `count`
+// periods before `today`'s own period, newest first: from `count` periods back
+// up to, not including, the start of today's period. `since` (a moment, or
+// null) cuts the window short at the start of that day. The `period` ("day",
+// "week" or "month") lets a weekly or monthly note series reuse this.
+export function notesInWindow(
+  files,
+  settings,
+  today,
+  moment,
+  { count, period, since = null }
+) {
+  if (!(count > 0)) return [];
+  const end = today.clone().startOf(period);
+  let start = end.clone().subtract(count, period);
+  if (since) {
+    const sinceStart = since.clone().startOf("day");
+    if (sinceStart.isAfter(start)) start = sinceStart;
+  }
+  return dailyNotes(files, settings, moment).filter(
+    ({ date }) => !date.isBefore(start) && date.isBefore(end)
+  );
+}
+
 // { folder, format, template } from Periodic Notes when it has daily notes on,
 // else from the core Daily Notes plugin; null when they can't be read
 export function getDailyNoteSettings(app) {

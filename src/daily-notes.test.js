@@ -7,6 +7,7 @@ import {
   getDailyNoteSettings,
   isDailyNotesEnabled,
   noteDate,
+  notesInWindow,
   previousDailyNote,
   todayNotePath,
 } from "./daily-notes";
@@ -146,6 +147,125 @@ describe("previousDailyNote", () => {
     ));
   test("without today's note", () =>
     expect(prev(["daily/2026-11-19.md"])).toBe("daily/2026-11-19.md"));
+});
+
+describe("notesInWindow", () => {
+  const files = (from, to, settings = S) => {
+    const out = [];
+    for (let m = d(from); !m.isAfter(d(to)); m.add(1, "day"))
+      out.push({ path: `${settings.folder}/${m.format(settings.format)}.md` });
+    return out;
+  };
+  const dates = (found) => found.map(({ date }) => date.format("YYYY-MM-DD"));
+
+  test("the days before today, newest first", () => {
+    const found = notesInWindow(
+      files("2026-11-13", "2026-11-22"),
+      S,
+      d("2026-11-21"),
+      moment,
+      { count: 7, period: "day" }
+    );
+    expect(dates(found)).toEqual([
+      "2026-11-20",
+      "2026-11-19",
+      "2026-11-18",
+      "2026-11-17",
+      "2026-11-16",
+      "2026-11-15",
+      "2026-11-14",
+    ]);
+    expect(found[0].file.path).toBe("daily/2026-11-20.md");
+  });
+
+  test("a count of 0 gives nothing", () =>
+    expect(
+      notesInWindow(
+        files("2026-11-13", "2026-11-22"),
+        S,
+        d("2026-11-21"),
+        moment,
+        { count: 0, period: "day" }
+      )
+    ).toEqual([]));
+
+  test("since cuts the window short", () =>
+    expect(
+      dates(
+        notesInWindow(
+          files("2026-11-13", "2026-11-22"),
+          S,
+          d("2026-11-21"),
+          moment,
+          { count: 7, period: "day", since: d("2026-11-18") }
+        )
+      )
+    ).toEqual(["2026-11-20", "2026-11-19", "2026-11-18"]));
+
+  test("a since older than the window changes nothing", () => {
+    const args = [
+      files("2026-11-13", "2026-11-22"),
+      S,
+      d("2026-11-21"),
+      moment,
+    ];
+    expect(
+      notesInWindow(...args, {
+        count: 7,
+        period: "day",
+        since: d("2026-10-01"),
+      })
+    ).toEqual(notesInWindow(...args, { count: 7, period: "day" }));
+  });
+
+  test("the window crosses a year boundary", () =>
+    expect(
+      dates(
+        notesInWindow(
+          files("2026-12-29", "2027-01-02"),
+          S,
+          d("2027-01-02"),
+          moment,
+          { count: 3, period: "day" }
+        )
+      )
+    ).toEqual(["2027-01-01", "2026-12-31", "2026-12-30"]));
+
+  test("weeks: the weeks before this one", () => {
+    const weekly = { folder: "weekly", format: "gggg-[W]ww" };
+    const today = moment("2026-11-21");
+    const week = (n) => ({
+      path: `weekly/${today
+        .clone()
+        .subtract(n, "week")
+        .format(weekly.format)}.md`,
+    });
+    const found = notesInWindow(
+      [week(0), week(1), week(2), week(3)],
+      weekly,
+      today,
+      moment,
+      { count: 2, period: "week" }
+    );
+    expect(found.map(({ file }) => file.path)).toEqual([
+      week(1).path,
+      week(2).path,
+    ]);
+  });
+
+  test("months: the month before this one", () => {
+    const monthly = { folder: "monthly", format: "YYYY-MM" };
+    const found = notesInWindow(
+      ["2026-09", "2026-10", "2026-11"].map((m) => ({
+        path: `monthly/${m}.md`,
+      })),
+      monthly,
+      moment("2026-11-21"),
+      moment,
+      { count: 1, period: "month" }
+    );
+    expect(found.map(({ file }) => file.path)).toEqual(["monthly/2026-10.md"]);
+  });
 });
 
 describe("getDailyNoteSettings", () => {
