@@ -21,7 +21,7 @@
 
 import { normalizeHeading } from "./backlog";
 import { insertSections } from "./insert-sections";
-import { handledItemIds } from "./look-back";
+import { cumulativeDoneKeys, handledItemIds } from "./look-back";
 import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import {
   applySourceAction,
@@ -105,6 +105,39 @@ export function earlierSource({
     sourceAction: resolveSourceAction(settings),
     newerDoneKeys,
   };
+}
+
+/**
+ * The sources of the older daily notes Look back reads, in the order given
+ * (newest first). Each one's `newerDoneKeys` are the todos done in today's
+ * note, the previous note or an older note listed before it.
+ *
+ * @param {object} args
+ * @param {string[]} args.todayLines - today's note, as read before the review
+ * @param {string[]} args.previousLines - the previous daily note ([] without
+ *   one)
+ * @param {{ file: { path: string, basename: string }, content: string, lines: string[], sections: object[] }[]} args.notes
+ *   the older notes, newest first, as earlierSource() takes them
+ * @param {object} args.settings - what earlierSource() takes
+ * @param {string} args.doneStatusMarkers - the effective ones
+ *   (effectiveDoneStatusMarkers())
+ * @returns {object[]} one earlierSource() per note, in the same order
+ */
+export function earlierSources({
+  todayLines,
+  previousLines,
+  notes,
+  settings,
+  doneStatusMarkers,
+}) {
+  // entry k + 2 holds what is done in every note newer than notes[k]
+  const newerDoneKeys = cumulativeDoneKeys(
+    [todayLines, previousLines, ...notes.map((note) => note.lines)],
+    doneStatusMarkers
+  );
+  return notes.map((note, k) =>
+    earlierSource({ ...note, settings, newerDoneKeys: newerDoneKeys[k + 2] })
+  );
 }
 
 /**

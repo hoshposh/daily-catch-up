@@ -4,6 +4,7 @@ import {
   insertSources,
   applySources,
   earlierSource,
+  earlierSources,
   planSources,
   backlogFailedNotice,
   BACKLOG_GUARD_EARLIER_NOTICE,
@@ -825,6 +826,75 @@ describe("earlier sources", () => {
       sections: [],
       sourceAction: "delete",
       newerDoneKeys,
+    });
+  });
+
+  describe("earlierSources", () => {
+    const note = (path, lines) => ({
+      file: { path, basename: path.split("/").pop().replace(/\.md$/, "") },
+      content: lines.join("\n"),
+      lines,
+      sections: [],
+    });
+    const build = ({ todayLines = [], previousLines = [], notes }) =>
+      earlierSources({
+        todayLines,
+        previousLines,
+        notes,
+        settings: { onRolloverSourceAction: "mark" },
+        doneStatusMarkers: "xX->",
+      });
+
+    test("one earlierSource() per note, in the order given", () => {
+      const notes = [
+        note("daily/2026-11-19.md", ["- [ ] a"]),
+        note("daily/2026-11-18.md", ["- [ ] b"]),
+      ];
+      const sources = build({ notes });
+      expect(
+        sources.map((s) => [s.key, s.kind, s.name, s.sourceAction])
+      ).toEqual([
+        ["daily/2026-11-19.md/", "earlier", "2026-11-19", "mark"],
+        ["daily/2026-11-18.md/", "earlier", "2026-11-18", "mark"],
+      ]);
+      expect(sources[0].lines).toBe(notes[0].lines);
+    });
+
+    test("todos done in today's note and the previous note count for every older note", () => {
+      const sources = build({
+        todayLines: ["- [x] Call Sam"],
+        previousLines: ["- [>] Pay rent"],
+        notes: [note("d/2.md", []), note("d/1.md", [])],
+      });
+      for (const source of sources) {
+        expect([...source.newerDoneKeys].sort()).toEqual([
+          "Call Sam",
+          "Pay rent",
+        ]);
+      }
+    });
+
+    test("a todo done in a newer older note counts for the older ones only", () => {
+      const sources = build({
+        notes: [
+          note("d/3.md", ["- [x] Newest"]),
+          note("d/2.md", ["- [x] Middle"]),
+          note("d/1.md", ["- [x] Oldest"]),
+        ],
+      });
+      expect(sources.map((s) => [...s.newerDoneKeys].sort())).toEqual([
+        [],
+        ["Newest"],
+        ["Middle", "Newest"],
+      ]);
+    });
+
+    test("open todos and other markers are not done", () => {
+      const [source] = build({
+        todayLines: ["- [ ] Open", "- [?] Question"],
+        notes: [note("d/1.md", [])],
+      });
+      expect([...source.newerDoneKeys]).toEqual([]);
     });
   });
 

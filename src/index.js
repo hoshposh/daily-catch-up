@@ -22,7 +22,7 @@ import {
   applySources,
   backlogFailedNotice,
   backlogPathConflict,
-  earlierSource,
+  earlierSources,
   inboxGuardNotice,
   inboxPathConflicts,
   inboxSource,
@@ -37,11 +37,7 @@ import {
 import { appendToBacklog } from "./backlog";
 import { followRename } from "./note-paths";
 import { EXAMPLE_RULES, isIgnoredByRules, sanitizeRules } from "./rules";
-import {
-  cumulativeDoneKeys,
-  lookBackApplies,
-  settledLookBackSince,
-} from "./look-back";
+import { lookBackApplies, settledLookBackSince } from "./look-back";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
 
@@ -342,37 +338,29 @@ export default class RolloverTodosPlugin extends Plugin {
       }
       const earlierPaths = earlierNotes.map((note) => note.path);
       if (earlierNotes.length > 0) {
-        const earlier = [];
+        const notes = [];
         for (const earlierFile of earlierNotes) {
           const content = await this.app.vault.read(earlierFile);
-          earlier.push({
+          const lines = splitLines(content);
+          notes.push({
             file: earlierFile,
             content,
-            lines: splitLines(content),
+            lines,
+            sections: parse(lines),
           });
         }
         // An older note's todo already done in a newer note (today's, the
         // previous one or a newer older one) counts as handled. Today's note
         // is read for this now; the write below reads it again.
-        const todayLines = splitLines(await this.app.vault.read(file));
-        const newerDoneKeys = cumulativeDoneKeys(
-          [
-            todayLines,
-            lastDailyNoteLines,
-            ...earlier.map((note) => note.lines),
-          ],
-          effectiveDoneStatusMarkers(this.settings)
+        candidates.push(
+          ...earlierSources({
+            todayLines: splitLines(await this.app.vault.read(file)),
+            previousLines: lastDailyNoteLines,
+            notes,
+            settings: this.settings,
+            doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
+          })
         );
-        for (const [k, note] of earlier.entries()) {
-          candidates.push(
-            earlierSource({
-              ...note,
-              sections: parse(note.lines),
-              settings: this.settings,
-              newerDoneKeys: newerDoneKeys[k + 2],
-            })
-          );
-        }
       }
       if (inboxPath != null) {
         // before the backlog guard below, so an inbox that is also the

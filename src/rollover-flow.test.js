@@ -5,7 +5,7 @@ import { dedupeAgainstExisting } from "./insert-todos";
 import { appendToBacklog, normalizeHeading } from "./backlog";
 import {
   applySources,
-  earlierSource,
+  earlierSources,
   inboxSource,
   insertSources,
   planSources,
@@ -17,7 +17,6 @@ import {
   resolveSourceAction,
 } from "./source-action";
 import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
-import { cumulativeDoneKeys } from "./look-back";
 
 // The parts of rollover() that do not need Obsidian, run end to end
 function rollover({
@@ -119,23 +118,23 @@ function reviewedRollover({
       sourceAction: resolveSourceAction(settings),
     },
   ];
-  // older notes, newest first: each one's newer notes are today's note, the
-  // previous note and the older notes before it
-  const newerDoneKeys = cumulativeDoneKeys(
-    [today, yesterday, ...earlier.map((note) => note.content)].map(splitLines),
-    effectiveDoneStatusMarkers(settings)
-  );
-  earlier.forEach(({ path, content }, k) => {
-    sources.push(
-      earlierSource({
-        file: { path, basename: path.split("/").pop().replace(/\.md$/, "") },
+  // older notes, newest first, as index.js builds them
+  sources.push(
+    ...earlierSources({
+      todayLines: splitLines(today),
+      previousLines: splitLines(yesterday),
+      notes: earlier.map(({ path, content }) => ({
+        file: {
+          path,
+          basename: path.split("/").pop().replace(/\.md$/, ""),
+        },
         content,
         ...parse(content),
-        settings,
-        newerDoneKeys: newerDoneKeys[k + 2],
-      })
-    );
-  });
+      })),
+      settings,
+      doneStatusMarkers: effectiveDoneStatusMarkers(settings),
+    })
+  );
   if (inbox) {
     sources.push(
       inboxSource({
