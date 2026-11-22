@@ -84,7 +84,12 @@ export default class ReviewModal extends Modal {
 
   updateSummary() {
     if (this.summaryEl) {
-      this.summaryEl.setText(summarizeDecisions(this.decisions));
+      // only the shown items: the map also holds the decisions of items the
+      // dialog was not given (an older note's hidden ones)
+      const shown = Object.fromEntries(
+        this.items.map((item) => [item.id, this.decisions[item.id]])
+      );
+      this.summaryEl.setText(summarizeDecisions(shown));
     }
   }
 

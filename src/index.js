@@ -2,6 +2,7 @@ import { normalizePath, Notice, Plugin, TFile } from "obsidian";
 import {
   getDailyNoteSettings,
   isDailyNotesEnabled,
+  notesInWindow,
   previousDailyNote,
   todayNotePath,
 } from "./daily-notes";
@@ -20,7 +21,9 @@ import { needsReview } from "./rollover-items";
 import {
   applySources,
   backlogFailedNotice,
-  INBOX_GUARD_NOTICE,
+  backlogPathConflict,
+  earlierSource,
+  inboxGuardNotice,
   inboxPathConflicts,
   inboxSource,
   insertSources,
@@ -34,6 +37,11 @@ import {
 import { appendToBacklog } from "./backlog";
 import { followRename } from "./note-paths";
 import { EXAMPLE_RULES, isIgnoredByRules, sanitizeRules } from "./rules";
+import {
+  cumulativeDoneKeys,
+  lookBackApplies,
+  settledLookBackSince,
+} from "./look-back";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
 
@@ -73,6 +81,10 @@ export default class RolloverTodosPlugin extends Plugin {
       inboxSourceAction: "delete",
       inboxHeading: "",
       cancelMarker: "-",
+      // Look back: also read the daily notes of this many days before today
+      // (0 = off), none dated before lookBackSince ("YYYY-MM-DD", "" = unset)
+      lookBackDays: 0,
+      lookBackSince: "",
       // seeded only when stored settings have no rules key, all switched off
       rules: EXAMPLE_RULES.map((rule) => ({ ...rule })),
     };
@@ -237,6 +249,7 @@ export default class RolloverTodosPlugin extends Plugin {
         review,
         isAutomaticRun,
         today: todayMoment,
+        dailyNoteSettings,
       });
     } finally {
       this.rolloverInProgress = false;
@@ -244,7 +257,10 @@ export default class RolloverTodosPlugin extends Plugin {
   }
 
   // The rollover into `file`, today's daily note, once rollover() checked it
-  async rolloverDailyNote(file, { review, isAutomaticRun, today }) {
+  async rolloverDailyNote(
+    file,
+    { review, isAutomaticRun, today, dailyNoteSettings }
+  ) {
     /*** Next, if it is a valid daily note, but we don't have daily notes enabled, we must alert the user ***/
     if (!isDailyNotesEnabled(this.app)) {
       new Notice(
@@ -280,11 +296,13 @@ export default class RolloverTodosPlugin extends Plugin {
         });
 
       // the notes todos are rolled over from, in order: the previous daily
-      // note, then the inbox note
+      // note, the older daily notes Look back reads (newest first), then the
+      // inbox note
       const candidates = [];
+      let lastDailyNoteLines = [];
       if (lastDailyNote) {
         const lastDailyNoteContent = await this.app.vault.read(lastDailyNote);
-        const lastDailyNoteLines = splitLines(lastDailyNoteContent);
+        lastDailyNoteLines = splitLines(lastDailyNoteContent);
         candidates.push({
           key: "",
           kind: "previous",
@@ -296,6 +314,66 @@ export default class RolloverTodosPlugin extends Plugin {
           sourceAction: resolveSourceAction(this.settings),
         });
       }
+      // Look back: the other daily notes of the last N days, none dated
+      // before the start date (set to today, and saved, when it is unset)
+      let earlierNotes = [];
+      if (lookBackApplies(this.settings)) {
+        const { since, changed } = settledLookBackSince(
+          this.settings,
+          today.format("YYYY-MM-DD")
+        );
+        if (changed) {
+          this.settings.lookBackSince = since;
+          await this.saveSettings();
+        }
+        earlierNotes = notesInWindow(
+          this.app.vault.getMarkdownFiles(),
+          dailyNoteSettings,
+          today,
+          window.moment,
+          {
+            count: this.settings.lookBackDays,
+            period: "day",
+            since: window.moment(since, "YYYY-MM-DD", true),
+          }
+        )
+          .map((note) => note.file)
+          .filter((note) => note.path !== lastDailyNote?.path);
+      }
+      const earlierPaths = earlierNotes.map((note) => note.path);
+      if (earlierNotes.length > 0) {
+        const earlier = [];
+        for (const earlierFile of earlierNotes) {
+          const content = await this.app.vault.read(earlierFile);
+          earlier.push({
+            file: earlierFile,
+            content,
+            lines: splitLines(content),
+          });
+        }
+        // An older note's todo already done in a newer note (today's, the
+        // previous one or a newer older one) counts as handled. Today's note
+        // is read for this now; the write below reads it again.
+        const todayLines = splitLines(await this.app.vault.read(file));
+        const newerDoneKeys = cumulativeDoneKeys(
+          [
+            todayLines,
+            lastDailyNoteLines,
+            ...earlier.map((note) => note.lines),
+          ],
+          effectiveDoneStatusMarkers(this.settings)
+        );
+        for (const [k, note] of earlier.entries()) {
+          candidates.push(
+            earlierSource({
+              ...note,
+              sections: parse(note.lines),
+              settings: this.settings,
+              newerDoneKeys: newerDoneKeys[k + 2],
+            })
+          );
+        }
+      }
       if (inboxPath != null) {
         // before the backlog guard below, so an inbox that is also the
         // backlog note gets this notice
@@ -305,9 +383,10 @@ export default class RolloverTodosPlugin extends Plugin {
             todayPath: file.path,
             previousPath: lastDailyNote?.path,
             backlogPath: backlogEnabled ? this.getBacklogPath() : null,
+            earlierPaths,
           })
         ) {
-          new Notice(INBOX_GUARD_NOTICE, 10000);
+          new Notice(inboxGuardNotice({ inboxPath, earlierPaths }), 10000);
           return;
         }
         // a missing inbox is skipped silently: it may not exist until the
@@ -372,9 +451,13 @@ export default class RolloverTodosPlugin extends Plugin {
           backlogEnabled,
           cancelEnabled,
           rules,
+          // the effective ones: an older note's todo done in a newer note
+          doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
         },
       });
-      const { plans, items } = planned;
+      // reviewItems: the items the review shows (an older note's todos done
+      // in a newer note or left by a rule are not)
+      const { plans, reviewItems } = planned;
 
       let backlogPath = null;
       if (backlogEnabled) {
@@ -382,27 +465,27 @@ export default class RolloverTodosPlugin extends Plugin {
         // Compare with the previous daily note itself, not with the sources:
         // a previous note without open todos is not a source, but it must
         // still never become the backlog (the inbox can run a rollover
-        // without it)
-        if (
-          backlogPath === file.path ||
-          (lastDailyNote != null && backlogPath === lastDailyNote.path)
-        ) {
-          new Notice(
-            "The backlog note can't be today's or the previous daily note. Change it in settings.",
-            10000
-          );
+        // without it). The same goes for the older notes Look back reads.
+        const conflict = backlogPathConflict({
+          backlogPath,
+          todayPath: file.path,
+          previousPath: lastDailyNote?.path,
+          earlierPaths,
+        });
+        if (conflict != null) {
+          new Notice(conflict, 10000);
           return;
         }
       }
 
       let decisions = planned.decisions;
       const showReview =
-        items.length > 0 &&
+        reviewItems.length > 0 &&
         (review ||
           (isAutomaticRun &&
             needsReview(
               this.settings.reviewOnAutoRollover,
-              items,
+              reviewItems,
               staleSettings
             )));
       if (showReview) {
@@ -410,7 +493,9 @@ export default class RolloverTodosPlugin extends Plugin {
           sources: sources.map((source, i) => ({
             name: source.name,
             sections: plans[i].sections,
-            items: plans[i].items,
+            // hidden items keep their decision: the dialog returns the whole
+            // map it was given, with only the shown items changed
+            items: plans[i].items.filter((item) => !item.hidden),
           })),
           decisions,
           staleSettings,
@@ -440,6 +525,8 @@ export default class RolloverTodosPlugin extends Plugin {
       let templateHeadingNotFound = false;
 
       let todosAlreadyPresent = 0;
+      // older notes' todos done in a newer note, kept out of today's note
+      let todosDoneElsewhere = 0;
       let duplicateTodos = [];
       let insertedTodos = [];
       // per source: what insertSources() did with its todos, including the
@@ -449,6 +536,7 @@ export default class RolloverTodosPlugin extends Plugin {
         duplicateTodos: [],
         retainedLineIndices: [],
         insertedTodos: [],
+        todosDoneElsewhere: 0,
       }));
 
       if (perSource.some((decided) => decided.rolledSections.length > 0)) {
@@ -470,6 +558,7 @@ export default class RolloverTodosPlugin extends Plugin {
               sections: perSource[i].rolledSections,
               lines: source.lines,
               noStaleLineIndices: perSource[i].noStaleLineIndices,
+              handledLineIndices: perSource[i].handledLineIndices,
             })),
             settings: {
               skipExistingTodos,
@@ -490,8 +579,12 @@ export default class RolloverTodosPlugin extends Plugin {
         duplicateTodos = insertedPerSource.flatMap(
           (part) => part.duplicateTodos
         );
+        todosDoneElsewhere = insertedPerSource.reduce(
+          (sum, part) => sum + part.todosDoneElsewhere,
+          0
+        );
         insertedTodos = insertedPerSource.flatMap((part) => part.insertedTodos);
-        todosAdded -= todosAlreadyPresent;
+        todosAdded -= todosAlreadyPresent + todosDoneElsewhere;
         if (insertedTodos.length > 0) {
           // insertSources() only reports the heading missing when it inserted
           templateHeadingNotFound = inserted.templateHeadingNotFound;
@@ -638,6 +731,10 @@ export default class RolloverTodosPlugin extends Plugin {
           templateHeading,
           todosAdded,
           todosAlreadyPresent,
+          doneElsewhereCount: perSource.reduce(
+            (sum, decided) => sum + decided.handledCount,
+            0
+          ),
           backlogCount: outcomeCounts.backlog,
           backlogPath,
           cancelledCount,
@@ -646,7 +743,8 @@ export default class RolloverTodosPlugin extends Plugin {
             name: source.name,
             sourceAction: source.sourceAction,
             removedEmptyTodos: plans[i].removedEmptyTodos,
-            leftCount: perSource[i].outcomeCounts.leave,
+            // the leaves the review showed (not an older note's rule leaves)
+            leftCount: perSource[i].leftCount,
             // the todos of this source actually inserted into today's note
             rolledCount: insertedPerSource[i].insertedTodos.length,
           })),
