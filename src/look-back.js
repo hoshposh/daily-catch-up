@@ -3,7 +3,7 @@
 // settings. Days are local "YYYY-MM-DD" strings; `today` is passed in, so
 // nothing here reads a clock or a date library.
 
-import { LIST_PREFIX } from "./get-todos";
+import { splitGraphemes } from "./get-todos";
 import { stripRolledCount } from "./rolled-count";
 import { resolveSourceAction } from "./source-action";
 
@@ -79,21 +79,40 @@ export function parseLookBackSince(text, today) {
   return isValidDay(trimmed) && trimmed <= today ? trimmed : undefined;
 }
 
+// A list item's checkbox, strictly: indentation and quote prefixes, a list
+// marker, then "[" one character "]" followed by a space or the end of the
+// line, as the parser takes a todo. So "- [[Sam Smith]] note" (a link) and
+// "- [[]] x" are plain bullets. The single character is checked with
+// graphemes below, so an emoji status counts as one.
+const CHECKBOX = /^(?:\s*>)*\s*(?:[-*+]|\d+[.)])\s+\[([^\]]+)\](?=\s|$)/u;
+
+// zero-width and direction characters the parser never takes as a status on
+// their own
+const NOT_A_STATUS = ["\u202E", "\u200B", "\u200C", "\u200D"];
+
+/** The checkbox match of a line, or null when it is not a checkbox line. */
+function matchCheckbox(line) {
+  const match = CHECKBOX.exec(line);
+  if (!match) return null;
+  const chars = splitGraphemes(match[1]);
+  if (chars.length !== 1 || NOT_A_STATUS.includes(chars[0])) return null;
+  return { prefix: match[0], marker: match[1] };
+}
+
 /**
  * A checkbox line's text after the checkbox, without its `[rolled:: n]`
  * counter, trimmed: the same for a todo and its copy in another note whatever
  * the indentation, quote prefix, list marker or counter. Null for any other line.
  */
 export function todoKey(line) {
-  const match = LIST_PREFIX.exec(line);
+  const match = matchCheckbox(line);
   if (!match) return null;
-  return stripRolledCount(line.slice(match[0].length)).trim();
+  return stripRolledCount(line.slice(match.prefix.length)).trim();
 }
 
 /** What sits inside a checkbox line's brackets; null for any other line. */
 export function checkboxMarker(line) {
-  const match = LIST_PREFIX.exec(line);
-  return match ? match[0].slice(match[0].lastIndexOf("[") + 1, -1) : null;
+  return matchCheckbox(line)?.marker ?? null;
 }
 
 /** The `todoKey` of every checkbox line whose marker is a done marker. */

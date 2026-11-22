@@ -1167,6 +1167,20 @@ describe("earlier notes", () => {
     expect(r.earlier).toEqual(["- [>] Call Sam\n"]);
   });
 
+  test("a nested bullet starting with a link does not stop a todo done in a newer note", () => {
+    const r = reviewedRollover({
+      yesterday: "- [x] Call Sam\n",
+      action: "mark",
+      skipExisting: true,
+      earlier: older("- [ ] Call Sam\n  - [[Sam Smith]] prefers mornings\n"),
+    });
+    expect(r.today).not.toContain("Call Sam");
+    expect(r.reviewItems).toEqual([]);
+    expect(r.earlier).toEqual([
+      "- [>] Call Sam\n  - [[Sam Smith]] prefers mornings\n",
+    ]);
+  });
+
   test("an open nested todo not done anywhere makes the whole item roll", () => {
     const r = reviewedRollover({
       yesterday: "- [x] Call Sam\n",

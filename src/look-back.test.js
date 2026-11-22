@@ -146,6 +146,19 @@ describe("todoKey", () => {
     expect(todoKey("- Call Sam")).toBeNull();
     expect(todoKey("Call Sam")).toBeNull();
   });
+
+  test("is null for a bullet starting with a link or other brackets", () => {
+    expect(todoKey("  - [[Sam Smith]] prefers mornings")).toBeNull();
+    expect(todoKey("- [[]] x")).toBeNull();
+    expect(todoKey("- [ab] x")).toBeNull();
+    expect(todoKey("- [x]y")).toBeNull();
+  });
+
+  test("takes an emoji status as one checkbox", () => {
+    expect(todoKey("- [👍🏽] Call Sam")).toBe("Call Sam");
+    expect(todoKey("- [👨‍👩‍👧] Call Sam")).toBe("Call Sam");
+    expect(todoKey("- [x]")).toBe("");
+  });
 });
 
 describe("checkboxMarker", () => {
@@ -157,12 +170,22 @@ describe("checkboxMarker", () => {
   test("is null for a line that is not a checkbox", () => {
     expect(checkboxMarker("- A")).toBeNull();
   });
+
+  test("is null for brackets that are not a one-character checkbox", () => {
+    expect(checkboxMarker("  - [[Sam Smith]] prefers mornings")).toBeNull();
+    expect(checkboxMarker("- [[]] x")).toBeNull();
+    expect(checkboxMarker("- [\u200B] x")).toBeNull();
+  });
 });
 
 describe("doneKeys", () => {
   test("holds the key of every checkbox with a done marker", () => {
     const lines = ["- [x] A", "- [ ] B", "- [>] C", "- [-] D", "text"];
     expect(doneKeys(lines, DONE)).toEqual(new Set(["A", "C", "D"]));
+  });
+
+  test("a bullet starting with brackets is not done", () => {
+    expect(doneKeys(["- [[]] x", "- [[Sam]] y"], DONE)).toEqual(new Set());
   });
 });
 
@@ -197,6 +220,15 @@ describe("handledItemIds", () => {
   test("an open nested todo done in a newer note too does not block", () => {
     const items = [item("0:0", "- [ ] A", "  - [ ] sub")];
     expect(handledItemIds(items, new Set(["A", "sub"]), DONE)).toEqual(
+      new Set(["0:0"])
+    );
+  });
+
+  test("a nested bullet starting with a link does not block", () => {
+    const items = [
+      item("0:0", "- [ ] A", "  - [[Sam Smith]] prefers mornings"),
+    ];
+    expect(handledItemIds(items, new Set(["A"]), DONE)).toEqual(
       new Set(["0:0"])
     );
   });
