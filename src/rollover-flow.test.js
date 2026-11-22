@@ -1195,6 +1195,23 @@ describe("earlier notes", () => {
     expect(r.earlier).toEqual(["- [ ] Stretch #habit\n- [>] Stranded\n"]);
   });
 
+  test.each(["mark", "delete"])(
+    "%s: a rule-chosen Leave done in a newer note stays put in its older note",
+    (action) => {
+      const content = "## Habits\n- [ ] Stretch #habit\n";
+      const r = reviewedRollover({
+        yesterday: "- [x] Stretch #habit\n",
+        action,
+        skipExisting: true,
+        rules: [HABIT],
+        earlier: older(content),
+      });
+      expect(r.reviewItems).toEqual([]);
+      expect(r.today).not.toContain("Stretch");
+      expect(r.earlier).toEqual([content]);
+    }
+  );
+
   test("nothing to offer from older notes leaves today's note byte for byte", () => {
     // mixed line endings: insertSections() would normalise them
     const today = "# Day\r\n\nnotes\n";

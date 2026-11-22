@@ -282,6 +282,29 @@ test("rule-left todos of older notes alone do not open the review", async () => 
   expect(await readNote(note(-3))).toBe(tasks(habit));
 });
 
+test.each(["mark", "delete"])(
+  "%s: a rule-left todo done in a newer note stays put in its older note",
+  async (action) => {
+    const older = tasks("- [ ] Exercise #habit");
+    await reset({
+      notes: notesWith({
+        [note(-1)]: tasks("- [ ] Water plants", "- [x] Exercise #habit"),
+        [note(-3)]: older,
+      }),
+      settings: lookBack({
+        onRolloverSourceAction: action,
+        rules: [HABIT_RULE],
+      }),
+    });
+
+    await rollOver();
+
+    expect(await lines(today())).toContain("- [ ] Water plants");
+    expect(await readNote(today())).not.toContain("Exercise");
+    expect(await readNote(note(-3))).toBe(older);
+  }
+);
+
 test("a todo left by hand is offered again by the next rollover", async () => {
   await reset({
     notes: notesWith({

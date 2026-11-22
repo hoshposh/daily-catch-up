@@ -926,7 +926,7 @@ describe("earlier sources", () => {
     expect(Object.values(decisions)).toEqual(["leave", "leave", "leave"]);
   });
 
-  test("an item done in a newer note is handled, hidden and rolled, whatever its rule", () => {
+  test("an item done in a newer note is handled, hidden and rolled, whatever a Backlog rule says", () => {
     const sources = [
       earlier(
         "Daily/2026-11-15.md",
@@ -945,6 +945,24 @@ describe("earlier sources", () => {
     expect(reviewItems.map((i) => i.id)).toEqual([fresh.id]);
     expect(decisions[old.id]).toBe("roll");
     expect(decisions[fresh.id]).toBe("backlog");
+  });
+
+  test("a rule-chosen Leave done in a newer note stays Leave and is not handled", () => {
+    const sources = [
+      earlier(
+        "Daily/2026-11-15.md",
+        ["- [ ] Stretch #habit"],
+        new Set(["Stretch #habit"])
+      ),
+    ];
+    const { items, reviewItems, decisions } = planSources({
+      sources,
+      settings: { ...SETTINGS, rules: [HABIT] },
+    });
+    expect(items[0].hidden).toBe(true);
+    expect(items[0].handled).toBeUndefined();
+    expect(reviewItems).toEqual([]);
+    expect(decisions[items[0].id]).toBe("leave");
   });
 
   test("without newer done keys nothing is handled", () => {

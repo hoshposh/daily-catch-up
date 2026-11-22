@@ -141,9 +141,10 @@ export function earlierSources({
 }
 
 /**
- * An earlier source's items, marked: `handled` and `hidden` when done in a
- * newer note (their decision becomes "roll"), `hidden` when a rule leaves
- * them. Handled wins over every rule.
+ * An earlier source's items, marked: `hidden` when a rule leaves them (they
+ * stay Leave and are never touched, even when done in a newer note), else
+ * `handled` and `hidden` when done in a newer note (their decision becomes
+ * "roll"). Handled wins over a rule's Backlog or Cancel, never over its Leave.
  */
 function markEarlierItems(plan, source, doneStatusMarkers) {
   const handled = handledItemIds(
@@ -153,13 +154,15 @@ function markEarlierItems(plan, source, doneStatusMarkers) {
   );
   const decisions = { ...plan.decisions };
   const items = plan.items.map((item) => {
+    // a rule-chosen Leave stays put, as it does every day the rule matches
+    if (item.rule?.outcome === "leave") return { ...item, hidden: true };
     if (handled.has(item.id)) {
       // rolled, so the source action marks or deletes it; planInsert() keeps
       // it out of today's note
       decisions[item.id] = "roll";
       return { ...item, handled: true, hidden: true };
     }
-    return item.rule?.outcome === "leave" ? { ...item, hidden: true } : item;
+    return item;
   });
   return { ...plan, items, decisions };
 }
@@ -254,10 +257,11 @@ export function backlogPathConflict({
  * so a duplicate id throws instead of one item silently taking another's
  * outcome.
  *
- * Items of an earlier source done in a newer note get `handled: true,
- * hidden: true` and the decision "roll", whatever a rule says; its other items
- * whose rule outcome is Leave get `hidden: true`. Hidden items are kept out
- * of `reviewItems`. Other sources' items are not marked.
+ * Items of an earlier source whose rule outcome is Leave get `hidden: true`
+ * and stay Leave; its other items done in a newer note get `handled: true,
+ * hidden: true` and the decision "roll", whatever a rule's Backlog or Cancel
+ * says. Hidden items are kept out of `reviewItems`. Other sources' items are
+ * not marked.
  *
  * @param {object} args
  * @param {object[]} args.sources
