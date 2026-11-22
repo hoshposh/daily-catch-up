@@ -14,6 +14,7 @@ import {
 } from "../settings-text";
 import { getDailyNoteSettings } from "../daily-notes";
 import {
+  isValidDay,
   lookBackApplies,
   lookBackDoneMarkers,
   nextLookBackSince,
@@ -42,6 +43,12 @@ export default class RolloverSettingTab extends PluginSettingTab {
     // markers it used then
     this.lookBackWasApplying = false;
     this.lookBackDoneMarkersBefore = null;
+    // this settings session only (reset each time the tab is shown): the day
+    // Read notes from last held with Look back applying, and its done markers,
+    // so toggling a setting off and on again brings it back; plus the stored
+    // day after the latest change, to notice one typed into the field
+    this.lookBackRemembered = null;
+    this.lookBackSinceKnown = "";
   }
 
   // Never throws: a broken template path or an unreadable daily-notes config
@@ -83,17 +90,23 @@ export default class RolloverSettingTab extends PluginSettingTab {
   }
 
   // Read notes from becomes today when Look back starts applying or loses a
-  // done marker, and is cleared when it stops; the field is updated in place
+  // done marker, and is cleared when it stops, unless a day remembered in this
+  // session can come back; the field is updated in place
   settleLookBackSince() {
     const settings = this.plugin.settings;
+    // a day typed into Read notes from is the one to bring back later
+    const typed = settings.lookBackSince ?? "";
+    if (typed !== this.lookBackSinceKnown) this.rememberSince(settings);
     const since = nextLookBackSince({
       wasApplying: this.lookBackWasApplying,
       previousDoneMarkers: this.lookBackDoneMarkersBefore,
       settings,
       today: today(),
+      remembered: this.lookBackRemembered,
     });
     this.rememberLookBack(settings);
-    if (since === (settings.lookBackSince ?? "")) return;
+    this.lookBackSinceKnown = since;
+    if (since === typed) return;
     settings.lookBackSince = since;
     this.dependents.lookBackSince?.component.setValue(since);
   }
@@ -102,6 +115,17 @@ export default class RolloverSettingTab extends PluginSettingTab {
   rememberLookBack(settings) {
     this.lookBackWasApplying = lookBackApplies(settings);
     this.lookBackDoneMarkersBefore = lookBackDoneMarkers(settings);
+  }
+
+  // the stored day, while Look back applies with it, as the one to bring back
+  rememberSince(settings) {
+    const since = settings.lookBackSince ?? "";
+    if (lookBackApplies(settings) && isValidDay(since)) {
+      this.lookBackRemembered = {
+        since,
+        doneMarkers: lookBackDoneMarkers(settings),
+      };
+    }
   }
 
   // A group heading with a `?` button that toggles its help panel, which sits
@@ -216,6 +240,10 @@ export default class RolloverSettingTab extends PluginSettingTab {
     this.containerEl.empty();
     this.dependents = {};
     this.rememberLookBack(settings);
+    // a new settings session: nothing from an earlier one comes back
+    this.lookBackRemembered = null;
+    this.rememberSince(settings);
+    this.lookBackSinceKnown = settings.lookBackSince ?? "";
 
     // When it runs
     this.addGroup(GROUP.when);

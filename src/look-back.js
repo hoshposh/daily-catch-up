@@ -60,24 +60,39 @@ export function isValidDay(text) {
  * lack: After rollover switched from Mark to Delete, a new Marker character,
  * a character taken out of Done status markers): the lines the rollover
  * marked or the user finished with it would read as open todos again.
+ *
+ * While Look back applies, `remembered` (the day Read notes from last held in
+ * the same settings session, with the lookBackDoneMarkers() of that moment)
+ * wins over both whenever every one of those done markers counts: notes don't
+ * change while the settings are open, so a toggle back and forth (days to 0
+ * and back, Mark to Delete and back) cannot make a finished todo open, and the
+ * day comes back. A session that starts with Look back not applying has
+ * nothing remembered, so a real switch from "Leave them alone" still starts
+ * today.
  */
 export function nextLookBackSince({
   wasApplying,
   settings,
   today,
   previousDoneMarkers,
+  remembered = null,
 }) {
   const applies = lookBackApplies(settings);
-  if (!wasApplying && applies) return today;
-  if (wasApplying && !applies) return "";
+  if (!applies) return wasApplying ? "" : settings.lookBackSince ?? "";
+  const doneMarkers = lookBackDoneMarkers(settings);
   if (
-    applies &&
-    previousDoneMarkers != null &&
-    lostDoneMarker(previousDoneMarkers, lookBackDoneMarkers(settings))
+    remembered != null &&
+    isValidDay(remembered.since) &&
+    remembered.since <= today &&
+    !lostDoneMarker(remembered.doneMarkers, doneMarkers)
   ) {
-    return today;
+    return remembered.since;
   }
-  return settings.lookBackSince ?? "";
+  const restart =
+    !wasApplying ||
+    (previousDoneMarkers != null &&
+      lostDoneMarker(previousDoneMarkers, doneMarkers));
+  return restart ? today : settings.lookBackSince ?? "";
 }
 
 /** Whether a character of `before` is missing from `after`. */

@@ -156,6 +156,77 @@ describe("nextLookBackSince when the done markers change", () => {
   });
 });
 
+describe("nextLookBackSince with a day remembered in this settings session", () => {
+  // the day Read notes from held, and the done markers when it held it
+  const remembered = { since: "2026-10-01", doneMarkers: "xX->" };
+  const marking = { ...on, doneStatusMarkers: "xX-" };
+
+  test("starting to apply again brings the remembered day back", () => {
+    expect(
+      nextLookBackSince({
+        wasApplying: false,
+        settings: marking,
+        today: TODAY,
+        remembered,
+      })
+    ).toBe("2026-10-01");
+  });
+  test("a done marker back again brings the remembered day back", () => {
+    // Delete -> Mark: ">" counts again
+    expect(
+      nextLookBackSince({
+        wasApplying: true,
+        previousDoneMarkers: "xX-",
+        settings: marking,
+        today: TODAY,
+        remembered: { since: "2026-10-01", doneMarkers: "xX-" },
+      })
+    ).toBe("2026-10-01");
+  });
+  test("still today while a remembered done marker is missing", () => {
+    const deleting = { ...marking, onRolloverSourceAction: "delete" };
+    // Mark -> Delete: ">" no longer counts
+    expect(
+      nextLookBackSince({
+        wasApplying: true,
+        previousDoneMarkers: "xX->",
+        settings: deleting,
+        today: TODAY,
+        remembered,
+      })
+    ).toBe(TODAY);
+    // starting to apply under Delete, after the day was set under Mark
+    expect(
+      nextLookBackSince({
+        wasApplying: false,
+        settings: deleting,
+        today: TODAY,
+        remembered,
+      })
+    ).toBe(TODAY);
+  });
+  test("stopping still clears it", () => {
+    expect(
+      nextLookBackSince({
+        wasApplying: true,
+        settings: { ...marking, lookBackDays: 0 },
+        today: TODAY,
+        remembered,
+      })
+    ).toBe("");
+  });
+  test("an invalid remembered day is not brought back", () => {
+    expect(
+      nextLookBackSince({
+        wasApplying: false,
+        settings: marking,
+        today: TODAY,
+        remembered: { since: "", doneMarkers: "xX->" },
+      })
+    ).toBe(TODAY);
+  });
+});
+
 describe("settledLookBackSince", () => {
   test.each(["", "2026-13-40", "yesterday", undefined])(
     "applying with %j starts today",

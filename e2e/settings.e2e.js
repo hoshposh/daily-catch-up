@@ -40,6 +40,7 @@ import {
 } from "./helpers/settings-tab";
 import {
   CHECKLIST_PROFILE,
+  closeModals,
   day,
   expectNoErrors,
   fixture,
@@ -563,7 +564,7 @@ test("Read notes from saves an earlier date and ignores a later one", async () =
   expect(await storedSince()).toEqual({ memory: day(-10), file: day(-10) });
 });
 
-test("switching After rollover off and on again starts Look back today", async () => {
+test("switching After rollover off and on again keeps the date within one settings session", async () => {
   await reset({
     notes: standardNotes(),
     settings: {
@@ -582,12 +583,53 @@ test("switching After rollover off and on again starts Look back today", async (
     value: "",
   });
 
+  // no note changed while the settings were open: the date comes back
   await setDropdownSetting(AFTER_ROLLOVER, "mark");
-  await waitForSince(day());
+  await waitForSince(day(-10));
   expect(await settingState(READ_FROM)).toMatchObject({
     disabled: false,
-    value: day(),
+    value: day(-10),
   });
+});
+
+test("switching from Leave them alone in a new settings session starts Look back today", async () => {
+  await reset({
+    notes: standardNotes(),
+    settings: {
+      ...CHECKLIST_PROFILE,
+      lookBackDays: 7,
+      lookBackSince: day(-10),
+    },
+  });
+  await openSettings();
+  await setDropdownSetting(AFTER_ROLLOVER, "none");
+  await waitForSince("");
+
+  // a later session does not remember the date of an earlier one
+  await closeModals();
+  await openSettings();
+  await setDropdownSetting(AFTER_ROLLOVER, "mark");
+  await waitForSince(day());
+  expect((await settingState(READ_FROM)).value).toBe(day());
+});
+
+test("setting Look back to 0 and back keeps the date within one settings session", async () => {
+  await reset({
+    notes: standardNotes(),
+    settings: {
+      ...CHECKLIST_PROFILE,
+      lookBackDays: 10,
+      lookBackSince: day(-10),
+    },
+  });
+  await openSettings();
+
+  // typing 10 -> 20 one key at a time passes through 0
+  await setTextSetting(LOOK_BACK, "0");
+  await waitForSince("");
+  await setTextSetting(LOOK_BACK, "20");
+  await waitForSince(day(-10));
+  expect((await settingState(READ_FROM)).value).toBe(day(-10));
 });
 
 test("switching After rollover from Mark to Delete starts Look back today", async () => {
@@ -609,4 +651,9 @@ test("switching After rollover from Mark to Delete starts Look back today", asyn
     disabled: false,
     value: day(),
   });
+
+  // back to Mark in the same session: ">" counts again, the date comes back
+  await setDropdownSetting(AFTER_ROLLOVER, "mark");
+  await waitForSince(day(-10));
+  expect((await settingState(READ_FROM)).value).toBe(day(-10));
 });
