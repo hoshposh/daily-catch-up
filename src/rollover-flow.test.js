@@ -1181,6 +1181,17 @@ describe("earlier notes", () => {
     ]);
   });
 
+  test("a todo completed with Obsidian Tasks in a newer note is not offered", () => {
+    const r = reviewedRollover({
+      yesterday: "- [x] Call Sam ✅ 2026-11-06\n",
+      action: "mark",
+      skipExisting: true,
+      earlier: older("- [ ] Call Sam\n"),
+    });
+    expect(r.today).not.toContain("Call Sam");
+    expect(r.earlier).toEqual(["- [>] Call Sam\n"]);
+  });
+
   test("an open nested todo not done anywhere makes the whole item roll", () => {
     const r = reviewedRollover({
       yesterday: "- [x] Call Sam\n",

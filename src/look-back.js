@@ -99,15 +99,24 @@ function matchCheckbox(line) {
   return { prefix: match[0], marker: match[1] };
 }
 
+// the done and cancelled dates Obsidian Tasks adds when a todo is completed
+// or cancelled: an open todo has neither, so its done copy must match without
+const TASKS_DONE_DATES = /(?:^|\s)[✅❌]\uFE0F?\s*\d{4}-\d{2}-\d{2}(?=\s|$)/gu;
+
 /**
  * A checkbox line's text after the checkbox, without its `[rolled:: n]`
- * counter, trimmed: the same for a todo and its copy in another note whatever
- * the indentation, quote prefix, list marker or counter. Null for any other line.
+ * counter and without an Obsidian Tasks done (✅) or cancelled (❌) date,
+ * runs of spaces made one, trimmed: the same for a todo and its copy in
+ * another note whatever the indentation, quote prefix, list marker, counter
+ * or completion date. Null for any other line.
  */
 export function todoKey(line) {
   const match = matchCheckbox(line);
   if (!match) return null;
-  return stripRolledCount(line.slice(match.prefix.length)).trim();
+  return stripRolledCount(line.slice(match.prefix.length))
+    .replace(TASKS_DONE_DATES, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** What sits inside a checkbox line's brackets; null for any other line. */

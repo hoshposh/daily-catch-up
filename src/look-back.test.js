@@ -154,6 +154,17 @@ describe("todoKey", () => {
     expect(todoKey("- [x]y")).toBeNull();
   });
 
+  test("leaves out an Obsidian Tasks done or cancelled date", () => {
+    expect(todoKey("- [x] Call Sam ✅ 2026-11-20")).toBe("Call Sam");
+    expect(todoKey("- [-] Call Sam ❌ 2026-11-20")).toBe("Call Sam");
+    expect(todoKey("- [x] Call Sam 📅 2026-11-25 ✅ 2026-11-20 ^abc")).toBe(
+      "Call Sam 📅 2026-11-25 ^abc"
+    );
+    expect(todoKey("- [ ] Call Sam 📅 2026-11-25 ^abc")).toBe(
+      "Call Sam 📅 2026-11-25 ^abc"
+    );
+  });
+
   test("takes an emoji status as one checkbox", () => {
     expect(todoKey("- [👍🏽] Call Sam")).toBe("Call Sam");
     expect(todoKey("- [👨‍👩‍👧] Call Sam")).toBe("Call Sam");
@@ -222,6 +233,12 @@ describe("handledItemIds", () => {
     expect(handledItemIds(items, new Set(["A", "sub"]), DONE)).toEqual(
       new Set(["0:0"])
     );
+  });
+
+  test("a copy completed with Obsidian Tasks counts as done", () => {
+    const keys = doneKeys(["- [x] Call Sam ✅ 2026-11-20"], DONE);
+    const items = [item("0:0", "- [ ] Call Sam")];
+    expect(handledItemIds(items, keys, DONE)).toEqual(new Set(["0:0"]));
   });
 
   test("a nested bullet starting with a link does not block", () => {
