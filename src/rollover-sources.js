@@ -134,26 +134,81 @@ function markEarlierItems(plan, source, doneStatusMarkers) {
 export const INBOX_GUARD_NOTICE =
   "The inbox note can't be today's note, the previous daily note or the backlog note. Change it in settings.";
 
+const INBOX_GUARD_EARLIER_NOTICE =
+  "The inbox note can't be today's note, a daily note the rollover reads or the backlog note. Change it in settings.";
+
+export const BACKLOG_GUARD_NOTICE =
+  "The backlog note can't be today's or the previous daily note. Change it in settings.";
+
+export const BACKLOG_GUARD_EARLIER_NOTICE =
+  "The backlog note can't be today's note or a daily note the rollover reads. Change it in settings.";
+
 /**
  * Whether the inbox note is a note it must never be: today's note, the
- * previous daily note or the backlog note. A missing previous note or backlog
- * note (null or undefined) is not compared.
+ * previous daily note, an older daily note the rollover reads, or the backlog
+ * note. A missing previous note or backlog note (null or undefined) is not
+ * compared.
  *
  * @param {object} args
  * @param {string} args.inboxPath
  * @param {string} args.todayPath
  * @param {string} [args.previousPath]
  * @param {string|null} [args.backlogPath]
+ * @param {string[]} [args.earlierPaths] - paths of the older daily notes read
  */
 export function inboxPathConflicts({
   inboxPath,
   todayPath,
   previousPath,
   backlogPath,
+  earlierPaths = [],
 }) {
-  return [todayPath, previousPath, backlogPath].some(
+  return [todayPath, previousPath, backlogPath, ...earlierPaths].some(
     (path) => path != null && path === inboxPath
   );
+}
+
+/**
+ * The notice for an inbox note that conflicts (see `inboxPathConflicts()`,
+ * which must have returned true): the one naming older daily notes when the
+ * inbox is one of them, else `INBOX_GUARD_NOTICE`.
+ *
+ * @param {object} args
+ * @param {string} args.inboxPath
+ * @param {string[]} [args.earlierPaths]
+ */
+export function inboxGuardNotice({ inboxPath, earlierPaths = [] }) {
+  return earlierPaths.includes(inboxPath)
+    ? INBOX_GUARD_EARLIER_NOTICE
+    : INBOX_GUARD_NOTICE;
+}
+
+/**
+ * The notice to show when the backlog note is a note it must never be, or
+ * `null` when it is fine (also when there is no backlog note): today's note or
+ * the previous daily note gives `BACKLOG_GUARD_NOTICE`, an older daily note
+ * the rollover reads gives `BACKLOG_GUARD_EARLIER_NOTICE`.
+ *
+ * @param {object} args
+ * @param {string|null} [args.backlogPath]
+ * @param {string} args.todayPath
+ * @param {string} [args.previousPath]
+ * @param {string[]} [args.earlierPaths]
+ * @returns {string|null}
+ */
+export function backlogPathConflict({
+  backlogPath,
+  todayPath,
+  previousPath,
+  earlierPaths = [],
+}) {
+  if (!backlogPath) return null;
+  if (backlogPath === todayPath || backlogPath === previousPath) {
+    return BACKLOG_GUARD_NOTICE;
+  }
+  return earlierPaths.includes(backlogPath)
+    ? BACKLOG_GUARD_EARLIER_NOTICE
+    : null;
 }
 
 /**
@@ -409,13 +464,16 @@ const plural = (count) => (count > 1 ? "s" : "");
  * @param {string} args.templateHeading
  * @param {number} args.todosAdded - rolled todos, all sources
  * @param {number} args.todosAlreadyPresent - lines skipped, all sources
+ * @param {number} [args.doneElsewhereCount] - items of older notes already
+ *   done in a newer note
  * @param {number} args.backlogCount
  * @param {string} args.backlogPath
  * @param {number} args.cancelledCount - 0 when the cancel marks were not applied
  * @param {{ kind?: string, name: string, sourceAction: string, removedEmptyTodos: number, leftCount: number, rolledCount?: number }[]} args.sources
  *   `rolledCount` is the todos of that source actually inserted; when more
- *   than one source contributed, the rolled line names every source that is
- *   not the previous day's note and contributed some
+ *   than one source contributed, the rolled line names the sources that are
+ *   not the previous day's note and contributed some: the older notes
+ *   (`kind: "earlier"`) summed into one part, then the inbox
  * @returns {string} "" when there is nothing to say
  */
 export function rolloverNotice({
@@ -423,6 +481,7 @@ export function rolloverNotice({
   templateHeading,
   todosAdded,
   todosAlreadyPresent,
+  doneElsewhereCount = 0,
   backlogCount,
   backlogPath,
   cancelledCount,
@@ -436,13 +495,26 @@ export function rolloverNotice({
   }
   if (todosAdded > 0) {
     const contributors = sources.filter(({ rolledCount }) => rolledCount > 0);
-    const fromInboxes = contributors
-      .filter(({ kind }) => kind !== "previous")
-      .map(({ name, rolledCount }) => `${rolledCount} from ${name}`);
+    const fromEarlier = contributors
+      .filter(({ kind }) => kind === "earlier")
+      .reduce((sum, { rolledCount }) => sum + rolledCount, 0);
+    const named = [];
+    if (fromEarlier > 0) {
+      named.push(
+        `${fromEarlier} from ${
+          fromEarlier === 1 ? "an earlier note" : "earlier notes"
+        }`
+      );
+    }
+    for (const { kind, name, rolledCount } of contributors) {
+      if (kind !== "previous" && kind !== "earlier") {
+        named.push(`${rolledCount} from ${name}`);
+      }
+    }
     // with a single contributing source, naming it would only repeat the count
     const parts =
-      fromInboxes.length > 0 && contributors.length > 1
-        ? ` (${fromInboxes.join(", ")})`
+      named.length > 0 && contributors.length > 1
+        ? ` (${named.join(", ")})`
         : "";
     lines.push(
       `- ${todosAdded} todo${plural(todosAdded)} rolled over${parts}. `
@@ -464,6 +536,9 @@ export function rolloverNotice({
       )} skipped (already in today's note).`
     );
   }
+  if (doneElsewhereCount > 0) {
+    lines.push(`- ${doneElsewhereCount} already done in a newer note.`);
+  }
   if (backlogCount > 0) {
     lines.push(`- ${backlogCount} moved to backlog (${backlogPath}).`);
   }
@@ -477,15 +552,15 @@ export function rolloverNotice({
 }
 
 /**
- * How a notice names a source: "the previous day's note" or "the inbox note
- * 'Inbox'".
+ * How a notice names a source: "the previous day's note", "the inbox note
+ * 'Inbox'" or, for an older daily note, "the daily note '2026-11-14'".
  *
  * @param {{ kind: string, name: string }} source
  */
 export function sourceLabel(source) {
-  return source.kind === "inbox"
-    ? `the inbox note '${source.name}'`
-    : "the previous day's note";
+  if (source.kind === "inbox") return `the inbox note '${source.name}'`;
+  if (source.kind === "earlier") return `the daily note '${source.name}'`;
+  return "the previous day's note";
 }
 
 const labelsOf = (sources) => sources.map(sourceLabel).join(" and ");
@@ -502,7 +577,9 @@ export function sourceUnchangedNotice(source) {
       source
     )} unchanged: it was edited while the rollover was running. Its todos were still added to today's note; remove them from the inbox yourself.`;
   }
-  return "Rollover left the previous day's note unchanged: it was edited while the rollover was running.";
+  return `Rollover left ${sourceLabel(
+    source
+  )} unchanged: it was edited while the rollover was running.`;
 }
 
 /**

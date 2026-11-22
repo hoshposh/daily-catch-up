@@ -6,7 +6,11 @@ import {
   earlierSource,
   planSources,
   backlogFailedNotice,
+  BACKLOG_GUARD_EARLIER_NOTICE,
+  BACKLOG_GUARD_NOTICE,
   INBOX_GUARD_NOTICE,
+  backlogPathConflict,
+  inboxGuardNotice,
   inboxPathConflicts,
   inboxSource,
   inboxSourceAction,
@@ -593,9 +597,9 @@ describe("rolloverNotice with an inbox", () => {
       })
     ).toBe("- 2 todos rolled over. ");
     // no previous note at all
-    expect(
-      rolloverNotice({ ...NOTICE, todosAdded: 2, sources: [INBOX] })
-    ).toBe("- 2 todos rolled over. ");
+    expect(rolloverNotice({ ...NOTICE, todosAdded: 2, sources: [INBOX] })).toBe(
+      "- 2 todos rolled over. "
+    );
   });
 
   test("left lines per source", () => {
@@ -934,5 +938,198 @@ describe("earlier sources", () => {
     expect(result.perSource[0].todosDoneElsewhere).toBe(2);
     expect(result.perSource[0].retainedLineIndices).toEqual([0, 1]);
     expect(result.perSource[0].insertedTodos).toEqual(["- [ ] Stranded"]);
+  });
+});
+
+describe("notices and guards for earlier notes", () => {
+  const EARLIER = { kind: "earlier", name: "2026-11-14" };
+
+  test("the label and the unchanged notice name the daily note", () => {
+    expect(sourceLabel(EARLIER)).toBe("the daily note '2026-11-14'");
+    expect(sourceUnchangedNotice(EARLIER)).toBe(
+      "Rollover left the daily note '2026-11-14' unchanged: it was edited while the rollover was running."
+    );
+    expect(templaterNotice([EARLIER])).toContain(
+      "Rollover left the daily note '2026-11-14' unchanged:"
+    );
+    expect(sourceWriteFailedNotice(EARLIER, new Error("boom"))).toContain(
+      "the daily note '2026-11-14'"
+    );
+  });
+
+  describe("rolloverNotice", () => {
+    const base = (kind, name, rolledCount) => ({
+      kind,
+      name,
+      sourceAction: "delete",
+      removedEmptyTodos: 0,
+      leftCount: 0,
+      rolledCount,
+    });
+    const NOTICE = {
+      templateHeadingNotFound: false,
+      templateHeading: "none",
+      todosAdded: 0,
+      todosAlreadyPresent: 0,
+      backlogCount: 0,
+      backlogPath: "",
+      cancelledCount: 0,
+      sources: [],
+    };
+
+    test("earlier sources are summed before the inbox part", () => {
+      expect(
+        rolloverNotice({
+          ...NOTICE,
+          todosAdded: 7,
+          sources: [
+            base("previous", "2026-11-16", 2),
+            base("earlier", "2026-11-15", 2),
+            base("earlier", "2026-11-14", 1),
+            base("inbox", "Inbox", 2),
+          ],
+        })
+      ).toBe("- 7 todos rolled over (3 from earlier notes, 2 from Inbox). ");
+    });
+
+    test("one earlier source contributing", () => {
+      expect(
+        rolloverNotice({
+          ...NOTICE,
+          todosAdded: 3,
+          sources: [
+            base("previous", "2026-11-16", 2),
+            base("earlier", "2026-11-15", 1),
+          ],
+        })
+      ).toBe("- 3 todos rolled over (1 from an earlier note). ");
+    });
+
+    test("an earlier source that rolled nothing is not named", () => {
+      expect(
+        rolloverNotice({
+          ...NOTICE,
+          todosAdded: 2,
+          sources: [
+            base("previous", "2026-11-16", 2),
+            base("earlier", "2026-11-15", 0),
+          ],
+        })
+      ).toBe("- 2 todos rolled over. ");
+    });
+
+    test("done in a newer note, after the skipped line", () => {
+      expect(rolloverNotice({ ...NOTICE, doneElsewhereCount: 2 })).toBe(
+        "- 2 already done in a newer note."
+      );
+      expect(
+        rolloverNotice({
+          ...NOTICE,
+          todosAlreadyPresent: 1,
+          doneElsewhereCount: 1,
+          backlogCount: 1,
+          backlogPath: "Backlog",
+        })
+      ).toBe(
+        [
+          "- 1 line skipped (already in today's note).",
+          "- 1 already done in a newer note.",
+          "- 1 moved to backlog (Backlog).",
+        ].join("\n")
+      );
+      expect(rolloverNotice({ ...NOTICE, doneElsewhereCount: 0 })).toBe("");
+    });
+
+    test("one left line per source", () => {
+      expect(
+        rolloverNotice({
+          ...NOTICE,
+          sources: [
+            { ...base("previous", "2026-11-16", 0), leftCount: 1 },
+            { ...base("earlier", "2026-11-15", 0), leftCount: 2 },
+          ],
+        })
+      ).toBe("- 1 left in 2026-11-16.\n- 2 left in 2026-11-15.");
+    });
+  });
+
+  describe("the inbox guard", () => {
+    const paths = {
+      inboxPath: "Inbox.md",
+      todayPath: "Daily/2026-11-18.md",
+      previousPath: "Daily/2026-11-17.md",
+      backlogPath: "Backlog.md",
+      earlierPaths: ["Daily/2026-11-15.md", "Daily/2026-11-14.md"],
+    };
+
+    test("an older note as the inbox conflicts", () => {
+      expect(inboxPathConflicts(paths)).toBe(false);
+      expect(
+        inboxPathConflicts({ ...paths, inboxPath: "Daily/2026-11-14.md" })
+      ).toBe(true);
+      // earlierPaths is optional
+      expect(inboxPathConflicts({ ...paths, earlierPaths: undefined })).toBe(
+        false
+      );
+    });
+
+    test("the notice", () => {
+      expect(
+        inboxGuardNotice({ inboxPath: "Daily/2026-11-17.md", earlierPaths: [] })
+      ).toBe(INBOX_GUARD_NOTICE);
+      expect(
+        inboxGuardNotice({
+          inboxPath: "Daily/2026-11-14.md",
+          earlierPaths: paths.earlierPaths,
+        })
+      ).toBe(
+        "The inbox note can't be today's note, a daily note the rollover reads or the backlog note. Change it in settings."
+      );
+    });
+  });
+
+  describe("the backlog guard", () => {
+    const paths = {
+      backlogPath: "Backlog.md",
+      todayPath: "Daily/2026-11-18.md",
+      previousPath: "Daily/2026-11-17.md",
+      earlierPaths: ["Daily/2026-11-15.md"],
+    };
+
+    test("texts", () => {
+      expect(BACKLOG_GUARD_NOTICE).toBe(
+        "The backlog note can't be today's or the previous daily note. Change it in settings."
+      );
+      expect(BACKLOG_GUARD_EARLIER_NOTICE).toBe(
+        "The backlog note can't be today's note or a daily note the rollover reads. Change it in settings."
+      );
+    });
+
+    test("no conflict gives null", () => {
+      expect(backlogPathConflict(paths)).toBe(null);
+      expect(backlogPathConflict({ ...paths, backlogPath: null })).toBe(null);
+      expect(backlogPathConflict({ ...paths, backlogPath: "" })).toBe(null);
+      expect(
+        backlogPathConflict({
+          backlogPath: "Backlog.md",
+          todayPath: paths.todayPath,
+        })
+      ).toBe(null);
+    });
+
+    test("today's or the previous note gives the existing text", () => {
+      expect(
+        backlogPathConflict({ ...paths, backlogPath: paths.todayPath })
+      ).toBe(BACKLOG_GUARD_NOTICE);
+      expect(
+        backlogPathConflict({ ...paths, backlogPath: paths.previousPath })
+      ).toBe(BACKLOG_GUARD_NOTICE);
+    });
+
+    test("an older note gives the new text", () => {
+      expect(
+        backlogPathConflict({ ...paths, backlogPath: "Daily/2026-11-15.md" })
+      ).toBe(BACKLOG_GUARD_EARLIER_NOTICE);
+    });
   });
 });
