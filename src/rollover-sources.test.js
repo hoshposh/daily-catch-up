@@ -21,6 +21,7 @@ import {
   sourceUnchangedNotice,
   sourceWriteFailedNotice,
   templaterNotice,
+  templaterNoticeSources,
   writeSource,
 } from "./rollover-sources";
 import { applySourceAction, markCancelled } from "./source-action";
@@ -1035,6 +1036,32 @@ describe("earlier sources", () => {
         ).toBe(true);
       }
     });
+  });
+
+  test("the Templater notice names only the older notes that had something to write", () => {
+    const sources = [
+      { kind: "previous", name: "2026-11-20", sourceAction: "none" },
+      earlier("Daily/2026-11-16.md", ["- [ ] Pay rent"]),
+      earlier("Daily/2026-11-15.md", ["- [ ] Stretch #habit"]),
+      { kind: "inbox", name: "Inbox", sourceAction: "delete" },
+    ];
+    const nothing = {
+      movedLineIndices: [],
+      cancelledLineIndices: [],
+      deleteLineIndices: [],
+      skippedLineIndices: [],
+    };
+    const perSource = [
+      nothing,
+      { ...nothing, movedLineIndices: [0] },
+      nothing,
+      nothing,
+    ];
+    // the previous note and the inbox are named as before, even with nothing
+    // to write, so their notices keep their texts
+    expect(
+      templaterNoticeSources(sources, perSource).map((s) => s.name)
+    ).toEqual(["2026-11-20", "2026-11-16", "Inbox"]);
   });
 
   test("without newer done keys nothing is handled", () => {

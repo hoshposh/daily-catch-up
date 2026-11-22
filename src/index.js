@@ -33,6 +33,7 @@ import {
   sourceUnchangedNotice,
   sourceWriteFailedNotice,
   templaterNotice,
+  templaterNoticeSources,
   writeSource,
 } from "./rollover-sources";
 import { appendToBacklog } from "./backlog";
@@ -617,7 +618,10 @@ export default class RolloverTodosPlugin extends Plugin {
             // state before Templater rendered it. An earlier rollover must not
             // stay undoable as if it were the latest one.
             this.undoHistory = [];
-            new Notice(templaterNotice(sources), 15000);
+            new Notice(
+              templaterNotice(templaterNoticeSources(sources, perSource)),
+              15000
+            );
             return;
           }
         }

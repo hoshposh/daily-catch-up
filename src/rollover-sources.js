@@ -644,6 +644,22 @@ export function sourceUnchangedNotice(source) {
 }
 
 /**
+ * The sources templaterNotice() names: every one but an older daily note with
+ * nothing to write (only Leave items), which would have stayed unchanged
+ * anyway. The previous note and the inbox are always named, so their notice
+ * keeps its text.
+ *
+ * @param {object[]} sources
+ * @param {object[]} perSource - applySources().perSource, one per source
+ */
+export function templaterNoticeSources(sources, perSource) {
+  return sources.filter(
+    (source, i) =>
+      source.kind !== "earlier" || sourceNeedsWrite(source, perSource[i])
+  );
+}
+
+/**
  * The notice when the Templater safeguard found today's note changed by
  * another plugin, so the source notes were left unchanged.
  *
