@@ -5,7 +5,11 @@
 
 import { splitGraphemes } from "./get-todos";
 import { stripRolledCount } from "./rolled-count";
-import { resolveSourceAction } from "./source-action";
+import {
+  DEFAULT_DONE_MARKERS,
+  effectiveDoneStatusMarkers,
+  resolveSourceAction,
+} from "./source-action";
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -23,6 +27,16 @@ export function lookBackApplies(settings) {
     Number.isInteger(settings.lookBackDays) &&
     settings.lookBackDays > 0
   );
+}
+
+/**
+ * The done markers that make a todo in a newer note count as done: the
+ * effective ones (the rollover marker counts while marking), or the parser's
+ * default when the Done status markers field is empty and nothing marks, as
+ * the parser itself falls back.
+ */
+export function lookBackDoneMarkers(settings) {
+  return effectiveDoneStatusMarkers(settings) || DEFAULT_DONE_MARKERS;
 }
 
 /** A "YYYY-MM-DD" text that is a real calendar date. */

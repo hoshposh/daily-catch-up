@@ -37,7 +37,11 @@ import {
 import { appendToBacklog } from "./backlog";
 import { followRename } from "./note-paths";
 import { EXAMPLE_RULES, isIgnoredByRules, sanitizeRules } from "./rules";
-import { lookBackApplies, settledLookBackSince } from "./look-back";
+import {
+  lookBackApplies,
+  lookBackDoneMarkers,
+  settledLookBackSince,
+} from "./look-back";
 
 const MAX_TIME_SINCE_CREATION = 5000; // 5 seconds
 
@@ -358,7 +362,7 @@ export default class RolloverTodosPlugin extends Plugin {
             previousLines: lastDailyNoteLines,
             notes,
             settings: this.settings,
-            doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
+            doneStatusMarkers: lookBackDoneMarkers(this.settings),
           })
         );
       }
@@ -439,8 +443,9 @@ export default class RolloverTodosPlugin extends Plugin {
           backlogEnabled,
           cancelEnabled,
           rules,
-          // the effective ones: an older note's todo done in a newer note
-          doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
+          // an older note's todo done in a newer note: the effective ones,
+          // or the parser's default when the field is empty
+          doneStatusMarkers: lookBackDoneMarkers(this.settings),
         },
       });
       // reviewItems: the items the review shows (an older note's todos done

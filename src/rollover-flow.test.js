@@ -17,6 +17,7 @@ import {
   resolveSourceAction,
 } from "./source-action";
 import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
+import { lookBackDoneMarkers } from "./look-back";
 
 // The parts of rollover() that do not need Obsidian, run end to end
 function rollover({
@@ -83,13 +84,14 @@ function reviewedRollover({
   templateHeading = "none",
   earlier = [],
   inbox,
+  doneStatusMarkers = "xX-",
 }) {
   // one settings object for every source, as index.js has
   const settings = {
     onRolloverSourceAction: action,
     rolloverSourceMarker: ">",
     cancelMarker: "-",
-    doneStatusMarkers: "xX-",
+    doneStatusMarkers,
     ignoreBlockquotes: false,
     moveNestedItemsOnMark: false,
     rolloverChildren: children,
@@ -132,7 +134,7 @@ function reviewedRollover({
         ...parse(content),
       })),
       settings,
-      doneStatusMarkers: effectiveDoneStatusMarkers(settings),
+      doneStatusMarkers: lookBackDoneMarkers(settings),
     })
   );
   if (inbox) {
@@ -156,7 +158,7 @@ function reviewedRollover({
       backlogEnabled,
       cancelEnabled,
       rules,
-      doneStatusMarkers: effectiveDoneStatusMarkers(settings),
+      doneStatusMarkers: lookBackDoneMarkers(settings),
     },
   });
   const plan = { items: planned.items };
@@ -1190,6 +1192,18 @@ describe("earlier notes", () => {
     });
     expect(r.today).not.toContain("Call Sam");
     expect(r.earlier).toEqual(["- [>] Call Sam\n"]);
+  });
+
+  test("with Done status markers empty, a todo done in a newer note is still found", () => {
+    const r = reviewedRollover({
+      yesterday: "- [x] Call Sam\n",
+      action: "delete",
+      skipExisting: true,
+      doneStatusMarkers: "",
+      earlier: older("## Calls\n- [ ] Call Sam\n- [x] Book room\n"),
+    });
+    expect(r.today).not.toContain("Call Sam");
+    expect(r.earlier).toEqual(["## Calls\n- [x] Book room\n"]);
   });
 
   test("an open nested todo not done anywhere makes the whole item roll", () => {

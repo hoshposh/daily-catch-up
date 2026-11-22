@@ -7,6 +7,7 @@ import {
   isValidDay,
   lookBackApplies,
   lookBackDependenciesMet,
+  lookBackDoneMarkers,
   nextLookBackSince,
   parseLookBackDays,
   parseLookBackSince,
@@ -50,6 +51,28 @@ describe("lookBackApplies", () => {
     expect(lookBackDependenciesMet({ ...on, skipExistingTodos: false })).toBe(
       false
     );
+  });
+});
+
+describe("lookBackDoneMarkers", () => {
+  test("are the effective done markers", () => {
+    expect(lookBackDoneMarkers(on)).toBe("xX->");
+    expect(
+      lookBackDoneMarkers({
+        ...on,
+        doneStatusMarkers: "x",
+        rolloverSourceMarker: "!",
+      })
+    ).toBe("x!");
+  });
+  test("an empty Done status markers field means the parser's default", () => {
+    expect(
+      lookBackDoneMarkers({
+        ...on,
+        onRolloverSourceAction: "delete",
+        doneStatusMarkers: "",
+      })
+    ).toBe("xX-");
   });
 });
 

@@ -10,7 +10,7 @@ import { getTodos, removeEmptiedHeadings, splitGraphemes } from "./get-todos";
 const ACTIONS = ["none", "delete", "mark"];
 const DEFAULT_MARKER = ">";
 const DEFAULT_CANCEL_MARKER = "-";
-const DEFAULT_DONE_MARKERS = "xX-"; // same as the parser's default
+export const DEFAULT_DONE_MARKERS = "xX-"; // same as the parser's default
 
 // Captures the text around the checkbox content so it can be swapped out
 const CHECKBOX_RE = /^(\s*(?:>\s*)*[*+-] \[).+?(\])/;
