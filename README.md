@@ -33,7 +33,7 @@ Daily Catch-Up is not yet listed in Obsidian's community plugins. Until it is, i
 
 Just create a new daily note using the `Daily notes` or `Periodic Notes` plugin. The previous day's incomplete todos will be rolled over to today's daily note.
 
-**Note:** Automatic rollover can conflict with other plugins that rewrite new notes, particularly Templater. If Templater is enabled and **After rollover** is set to mark or delete, the plugin waits 3 seconds after adding the todos and checks that they are still in today's note before changing the previous day's note (see Bugs/Issues).
+**Note:** Automatic rollover can conflict with other plugins that rewrite new notes, particularly Templater. If Templater is enabled and **After rollover** is set to mark or delete, the plugin waits 3 seconds after adding the todos and checks that they are still in today's note before changing the previous day's note, the older daily notes **Look back** reads and the inbox note (see Bugs/Issues).
 
 ### 2. Command: Roll over todos now
 
@@ -184,9 +184,9 @@ Look back only works when it can tell a todo that never rolled from one that did
 
 It starts from the day you turn it on: a note dated before that is never read (see **Read notes from**), so switching from **Leave them alone** to **Mark them** does not bring back every old copy of a todo you finished long ago. The reach then grows by a day each day, up to the number of days you set. The previous day's note is read as always, however old it is.
 
-A todo that is open in an older note but done in a newer one (today's note, the previous day's note or a note in between) is not brought back. It counts as handled: it is skipped and marked or deleted in its older note, and the notice says how many ("2 already done in a newer note"). A copy counts as done when its checkbox holds one of your **Done status markers** (so a cancelled one does, with the default **Cancel marker**) or the marker **After rollover** sets when marking. As with **Skip todos already in today's note**, a todo with nested items is only skipped when every open todo nested under it is done in a newer note too. The cost is that a late addition worded exactly like a todo done in a newer note, such as a recurring "Call Mom", is not offered.
+A todo that is open in an older note but done in a newer one (today's note, the previous day's note or a note in between) is not brought back. It counts as handled: it is skipped and marked or deleted in its older note, and the notice says how many ("2 already done in a newer note"). A copy counts as done when its checkbox holds one of your **Done status markers** (`xX-` when the field is empty; so a cancelled one does, with the default **Cancel marker**) or the marker **After rollover** sets when marking. A done (✅) or cancelled (❌) date that Obsidian Tasks added to the copy does not stop the match. As with **Skip todos already in today's note**, a todo with nested items is only skipped when every open todo nested under it is done in a newer note too. The cost is that a late addition worded exactly like a todo done in a newer note, such as a recurring "Call Mom", is not offered.
 
-With Look back on, **Leave** in the review dialog means "not today": the todo stays open in its note, so the next rollover finds it again, until the note is older than the number of days you set. Pick **Cancel** to drop a todo for good. Todos in an older note that a rule leaves (such as `#habit → Leave`) stay where they are and are kept out of the review, so a week of habit lists does not fill it every day; they are not counted by **Review automatic rollovers**, and the dialog does not open for them alone.
+With Look back on, **Leave** in the review dialog means "not today": the todo stays open in its note, so the next rollover finds it again, until the note is older than the number of days you set. Pick **Cancel** to drop a todo for good. Todos in an older note that a rule leaves (such as `#habit → Leave`) stay where they are, even when they are done in a newer note, and are kept out of the review, so a week of habit lists does not fill it every day; they are not counted by **Review automatic rollovers**, and the dialog does not open for them alone.
 
 There is one case Look back cannot catch. If a todo's source note could not be marked (it was edited while the rollover ran, a write failed, or the Templater check stopped the rollover) and you then delete the todo on purpose from today's note, it comes back from that note the next day. Nothing is stored about what was rolled, so there is nothing to tell it apart from a late addition.
 
@@ -208,7 +208,7 @@ The rules, the review dialog (where the inbox's todos get a group of their own, 
 
 #### Inbox note
 
-The path of the inbox note, for example `Inbox.md`. Leave it empty (the default) to turn the inbox off. A missing inbox note is skipped without a word, since it may not exist until your first capture. It cannot be today's note, the previous daily note or the **Backlog note**: the rollover stops with a notice if it is. If you rename or move the inbox note, or a folder that holds it, the setting follows.
+The path of the inbox note, for example `Inbox.md`. Leave it empty (the default) to turn the inbox off. A missing inbox note is skipped without a word, since it may not exist until your first capture. It cannot be today's note, the previous daily note, an older daily note **Look back** reads or the **Backlog note**: the rollover stops with a notice if it is. If you rename or move the inbox note, or a folder that holds it, the setting follows.
 
 #### After rollover, in the inbox
 
@@ -228,7 +228,7 @@ The checkbox character a todo gets when you choose **Cancel** in the review (def
 
 #### Backlog note
 
-The path of the note that receives todos you send to the backlog, for example `Backlog.md` (the plugin creates the note, and any missing folder, if needed). Leave it empty to turn the **Backlog** outcome off. It cannot be today's note or the previous daily note. If you rename or move the backlog note, or a folder that holds it, the setting follows.
+The path of the note that receives todos you send to the backlog, for example `Backlog.md` (the plugin creates the note, and any missing folder, if needed). Leave it empty to turn the **Backlog** outcome off. It cannot be today's note, the previous daily note or an older daily note **Look back** reads. If you rename or move the backlog note, or a folder that holds it, the setting follows.
 
 #### Backlog heading
 
@@ -300,7 +300,7 @@ The plugin comes with example rules, all switched off. Turn on the ones that fit
 
 1. Sometimes, if you trigger the `rollover` function too quickly, it will read the state of a file before the new data was saved to disk. For example, if you add a new incomplete todo to yesterday's daily note, and then quickly run the `Roll over todos now` command, it may grab the state of the file a second or two before you ran the command. If this happens, just run the `Undo last rollover` command. Wait a second or two, then try rolling over todos again.
 
-1. There are sometimes conflicts with other plugins that deal with new notes -- particularly the Templater plugin, which rewrites a new note shortly after it is created and can overwrite the rolled todos. When Templater is enabled and **After rollover** is set to mark or delete, the plugin waits 3 seconds, checks that the rolled todos are still in today's note, and otherwise leaves the previous day's note unchanged and shows a notice; run `Roll over todos now` to try again. This is a safety net, not a fix: a template slower than 3 seconds (for example one that calls the web) can still overwrite the todos after the check, and plugins other than Templater are not covered. If that affects you, disable the automatic rollover and trigger it manually after the note is created.
+1. There are sometimes conflicts with other plugins that deal with new notes -- particularly the Templater plugin, which rewrites a new note shortly after it is created and can overwrite the rolled todos. When Templater is enabled and **After rollover** is set to mark or delete, the plugin waits 3 seconds, checks that the rolled todos are still in today's note, and otherwise leaves the previous day's note, the older daily notes **Look back** reads and the inbox note unchanged and shows a notice; run `Roll over todos now` to try again. This is a safety net, not a fix: a template slower than 3 seconds (for example one that calls the web) can still overwrite the todos after the check, and plugins other than Templater are not covered. If that affects you, disable the automatic rollover and trigger it manually after the note is created.
 
 ## Installation
 
