@@ -69,9 +69,9 @@ This is Daily Catch-Up (plugin id `daily-catch-up`), an [Obsidian](https://obsid
 - `trackRolloverCount` — default `false`: write `[rolled:: n]` on each rolled todo, raised by 1 per rollover
 - `staleAfterRollovers` — default `5`: a todo is stale once its count is at least this (0 disables); only used with `trackRolloverCount`
 - `staleBehavior` — `"keep"` (default) or `"backlog"`: default outcome of stale todos, and what happens to them when no review is shown (needs a backlog note)
-- `backlogNotePath` — default `""`: note that receives Backlog items; empty disables the Backlog outcome. Cannot be today's or the previous note
+- `backlogNotePath` — default `""`: note that receives Backlog items; empty disables the Backlog outcome. Cannot be today's or the previous note, or an older daily note Look back reads
 - `backlogHeading` — default `""`: heading in the backlog note to add items under (empty = end of note); text that does not match `/^#{1,6}\s/` gets a `## ` prefix
-- `inboxNotePath` — default `""`: the inbox note whose open todos every rollover pulls in (`.md` added when missing, like the backlog note); empty turns the inbox off. Cannot be today's note, the previous daily note or the backlog note
+- `inboxNotePath` — default `""`: the inbox note whose open todos every rollover pulls in (`.md` added when missing, like the backlog note); empty turns the inbox off. Cannot be today's note, the previous daily note, an older daily note Look back reads or the backlog note
 - `inboxSourceAction` — `"delete"` (default) or `"mark"`: what happens to pulled todos in the inbox (no `"none"`; any other stored value counts as `"delete"`). Mark uses `rolloverSourceMarker` and `moveNestedItemsOnMark`, like the previous note; delete keeps the inbox's headings and the note itself
 - `inboxHeading` — default `""`: heading in today's note for inbox todos, used like a Move to heading target (`normalizeHeading()`); empty puts them where rolled todos go
 - `rules` — ordered list of `{ id, enabled, match: "tag"|"heading"|"regex", value, effect: "roll"|"backlog"|"cancel"|"leave"|"ignore"|"noStale"|"move", target? }`. Seeded with `EXAMPLE_RULES` (all off) when the stored settings have no `rules` key, never reseeded

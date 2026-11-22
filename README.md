@@ -66,7 +66,7 @@ Todos sent to the backlog are added to the **Backlog note** with their nested it
 
 Run `Undo last rollover` from the command palette within **2 minutes** of a rollover to fully reverse it. Only the most recent rollover can be undone.
 
-The undo works by restoring complete snapshots of the files the rollover changed — today's note, the previous day's note, the inbox note and the backlog note — to their exact state before the rollover ran. This means:
+The undo works by restoring complete snapshots of the files the rollover changed — today's note, the previous day's note, the older daily notes **Look back** read, the inbox note and the backlog note — to their exact state before the rollover ran. This means:
 
 - All inserted todos and headings are removed from today's note
 - If **After rollover** changed the previous note (**Mark them** or **Delete them**), the marked or deleted todos, and any headings removed with them, are restored
@@ -75,7 +75,7 @@ The undo works by restoring complete snapshots of the files the rollover changed
 - The restoration is complete regardless of how many todos or sub-headings were involved
 - Anything you typed into the other notes after the rollover is overwritten too (the inbox keeps the lines added to it, as above), so use undo right away
 
-If the Templater plugin is enabled, `Undo last rollover` only restores the previous day's note, the inbox note and the backlog note, and leaves today's note as it is, because Templater rewrites a new note after the todos are added and restoring an earlier version would replace its output. Remove the rolled over todos from today's note yourself in that case. There is nothing to undo if the rollover changed neither of them.
+If the Templater plugin is enabled, `Undo last rollover` only restores the previous day's note, the older daily notes **Look back** read, the inbox note and the backlog note, and leaves today's note as it is, because Templater rewrites a new note after the todos are added and restoring an earlier version would replace its output. Remove the rolled over todos from today's note yourself in that case. There is nothing to undo if the rollover changed neither of them.
 
 Note that if you create a daily note in the future, and you try to run this command, todos will not be rolled into a future date. They will always be rolled to today's note (if it doesn't exist, nothing will happen), from the chronologically closest (in the past) daily note.
 
