@@ -589,3 +589,24 @@ test("switching After rollover off and on again starts Look back today", async (
     value: day(),
   });
 });
+
+test("switching After rollover from Mark to Delete starts Look back today", async () => {
+  await reset({
+    notes: standardNotes(),
+    settings: {
+      ...CHECKLIST_PROFILE,
+      lookBackDays: 7,
+      lookBackSince: day(-10),
+    },
+  });
+  await openSettings();
+  expect((await settingState(READ_FROM)).value).toBe(day(-10));
+
+  // the lines Mark forwarded with ">" would read as open todos under Delete
+  await setDropdownSetting(AFTER_ROLLOVER, "delete");
+  await waitForSince(day());
+  expect(await settingState(READ_FROM)).toMatchObject({
+    disabled: false,
+    value: day(),
+  });
+});

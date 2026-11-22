@@ -15,6 +15,7 @@ import {
 import { getDailyNoteSettings } from "../daily-notes";
 import {
   lookBackApplies,
+  lookBackDoneMarkers,
   nextLookBackSince,
   parseLookBackDays,
   parseLookBackSince,
@@ -37,8 +38,10 @@ export default class RolloverSettingTab extends PluginSettingTab {
     this.rulesEl = null;
     // [{ rule, setting }] for each row, so notes can be refreshed in place
     this.ruleRows = [];
-    // whether Look back applied before the latest change
+    // whether Look back applied before the latest change, and the done
+    // markers it used then
     this.lookBackWasApplying = false;
+    this.lookBackDoneMarkersBefore = null;
   }
 
   // Never throws: a broken template path or an unreadable daily-notes config
@@ -79,19 +82,26 @@ export default class RolloverSettingTab extends PluginSettingTab {
     this.refreshDependents();
   }
 
-  // Read notes from becomes today when Look back starts applying and is
-  // cleared when it stops; the field is updated in place
+  // Read notes from becomes today when Look back starts applying or loses a
+  // done marker, and is cleared when it stops; the field is updated in place
   settleLookBackSince() {
     const settings = this.plugin.settings;
     const since = nextLookBackSince({
       wasApplying: this.lookBackWasApplying,
+      previousDoneMarkers: this.lookBackDoneMarkersBefore,
       settings,
       today: today(),
     });
-    this.lookBackWasApplying = lookBackApplies(settings);
+    this.rememberLookBack(settings);
     if (since === (settings.lookBackSince ?? "")) return;
     settings.lookBackSince = since;
     this.dependents.lookBackSince?.component.setValue(since);
+  }
+
+  // what the next change is compared with
+  rememberLookBack(settings) {
+    this.lookBackWasApplying = lookBackApplies(settings);
+    this.lookBackDoneMarkersBefore = lookBackDoneMarkers(settings);
   }
 
   // A group heading with a `?` button that toggles its help panel, which sits
@@ -205,7 +215,7 @@ export default class RolloverSettingTab extends PluginSettingTab {
 
     this.containerEl.empty();
     this.dependents = {};
-    this.lookBackWasApplying = lookBackApplies(settings);
+    this.rememberLookBack(settings);
 
     // When it runs
     this.addGroup(GROUP.when);

@@ -54,13 +54,36 @@ export function isValidDay(text) {
 
 /**
  * The stored start day after a settings change: today when Look back has just
- * started applying, cleared when it has stopped, else as stored.
+ * started applying, cleared when it has stopped, else as stored. Also today
+ * when it keeps applying but a done marker was lost (`previousDoneMarkers`,
+ * the lookBackDoneMarkers() before the change, has a character the new ones
+ * lack: After rollover switched from Mark to Delete, a new Marker character,
+ * a character taken out of Done status markers): the lines the rollover
+ * marked or the user finished with it would read as open todos again.
  */
-export function nextLookBackSince({ wasApplying, settings, today }) {
+export function nextLookBackSince({
+  wasApplying,
+  settings,
+  today,
+  previousDoneMarkers,
+}) {
   const applies = lookBackApplies(settings);
   if (!wasApplying && applies) return today;
   if (wasApplying && !applies) return "";
+  if (
+    applies &&
+    previousDoneMarkers != null &&
+    lostDoneMarker(previousDoneMarkers, lookBackDoneMarkers(settings))
+  ) {
+    return today;
+  }
   return settings.lookBackSince ?? "";
+}
+
+/** Whether a character of `before` is missing from `after`. */
+function lostDoneMarker(before, after) {
+  const kept = new Set(splitGraphemes(after));
+  return splitGraphemes(before).some((marker) => !kept.has(marker));
 }
 
 /**

@@ -108,6 +108,54 @@ describe("nextLookBackSince", () => {
   });
 });
 
+describe("nextLookBackSince when the done markers change", () => {
+  const stored = { ...on, lookBackSince: "2026-10-01" };
+  const next = (before, after) =>
+    nextLookBackSince({
+      wasApplying: true,
+      previousDoneMarkers: lookBackDoneMarkers(before),
+      settings: after,
+      today: TODAY,
+    });
+
+  test("Mark to Delete starts today: the rollover marker is no longer done", () => {
+    expect(next(stored, { ...stored, onRolloverSourceAction: "delete" })).toBe(
+      TODAY
+    );
+  });
+  test("a new rollover marker starts today", () => {
+    expect(next(stored, { ...stored, rolloverSourceMarker: "!" })).toBe(TODAY);
+  });
+  test("a done marker removed starts today", () => {
+    const before = { ...stored, doneStatusMarkers: "xX-" };
+    expect(next(before, { ...before, doneStatusMarkers: "xX" })).toBe(TODAY);
+  });
+  test("a done marker added keeps the stored day", () => {
+    const before = { ...stored, doneStatusMarkers: "xX-" };
+    expect(next(before, { ...before, doneStatusMarkers: "xX-?" })).toBe(
+      "2026-10-01"
+    );
+  });
+  test("an unrelated change keeps the stored day", () => {
+    expect(next(stored, { ...stored, lookBackDays: 14 })).toBe("2026-10-01");
+  });
+  test("emptying Done status markers loses nothing: the default applies", () => {
+    const before = {
+      ...stored,
+      onRolloverSourceAction: "delete",
+      doneStatusMarkers: "xX-",
+    };
+    expect(next(before, { ...before, doneStatusMarkers: "" })).toBe(
+      "2026-10-01"
+    );
+  });
+  test("a lost marker while Look back stops still clears it", () => {
+    expect(next(stored, { ...stored, onRolloverSourceAction: "none" })).toBe(
+      ""
+    );
+  });
+});
+
 describe("settledLookBackSince", () => {
   test.each(["", "2026-13-40", "yesterday", undefined])(
     "applying with %j starts today",
