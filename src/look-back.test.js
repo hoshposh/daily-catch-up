@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
+  checkboxMarker,
+  cumulativeDoneKeys,
+  doneKeys,
+  handledItemIds,
   isValidDay,
   lookBackApplies,
   lookBackDependenciesMet,
@@ -7,6 +11,7 @@ import {
   parseLookBackDays,
   parseLookBackSince,
   settledLookBackSince,
+  todoKey,
 } from "./look-back";
 
 const on = {
@@ -126,4 +131,92 @@ test("parseLookBackSince", () => {
   expect(parseLookBackSince("2026-11-22", TODAY)).toBeUndefined();
   expect(parseLookBackSince("2026-02-30", TODAY)).toBeUndefined();
   expect(parseLookBackSince("yesterday", TODAY)).toBeUndefined();
+});
+
+const DONE = "xX->";
+
+describe("todoKey", () => {
+  test("is the text after the checkbox, without the rolled counter", () => {
+    expect(todoKey("- [ ] Call Sam [rolled:: 2]")).toBe("Call Sam");
+    expect(todoKey("    * [x] Call Sam")).toBe("Call Sam");
+    expect(todoKey("> 1. [>] Call Sam [rolled:: 5]")).toBe("Call Sam");
+  });
+
+  test("is null for a line that is not a checkbox", () => {
+    expect(todoKey("- Call Sam")).toBeNull();
+    expect(todoKey("Call Sam")).toBeNull();
+  });
+});
+
+describe("checkboxMarker", () => {
+  test("is what sits inside the brackets", () => {
+    expect(checkboxMarker("- [ ] A")).toBe(" ");
+    expect(checkboxMarker("  > * [x] A")).toBe("x");
+  });
+
+  test("is null for a line that is not a checkbox", () => {
+    expect(checkboxMarker("- A")).toBeNull();
+  });
+});
+
+describe("doneKeys", () => {
+  test("holds the key of every checkbox with a done marker", () => {
+    const lines = ["- [x] A", "- [ ] B", "- [>] C", "- [-] D", "text"];
+    expect(doneKeys(lines, DONE)).toEqual(new Set(["A", "C", "D"]));
+  });
+});
+
+describe("cumulativeDoneKeys", () => {
+  test("entry k holds the done keys of the notes before k", () => {
+    expect(
+      cumulativeDoneKeys([["- [x] A"], ["- [x] B"], ["- [ ] C"]], DONE)
+    ).toEqual([new Set(), new Set(["A"]), new Set(["A", "B"])]);
+  });
+});
+
+describe("handledItemIds", () => {
+  const item = (id, ...lines) => ({ id, lines });
+
+  test("an item whose head is done in a newer note is handled", () => {
+    const items = [item("0:0", "- [ ] Call Sam [rolled:: 2]")];
+    expect(handledItemIds(items, new Set(["Call Sam"]), DONE)).toEqual(
+      new Set(["0:0"])
+    );
+  });
+
+  test("a head not done in a newer note is not handled", () => {
+    const items = [item("0:0", "- [ ] Call Sam")];
+    expect(handledItemIds(items, new Set(["Other"]), DONE)).toEqual(new Set());
+  });
+
+  test("an open nested todo not done in a newer note blocks it", () => {
+    const items = [item("0:0", "- [ ] A", "  - [ ] sub")];
+    expect(handledItemIds(items, new Set(["A"]), DONE)).toEqual(new Set());
+  });
+
+  test("an open nested todo done in a newer note too does not block", () => {
+    const items = [item("0:0", "- [ ] A", "  - [ ] sub")];
+    expect(handledItemIds(items, new Set(["A", "sub"]), DONE)).toEqual(
+      new Set(["0:0"])
+    );
+  });
+
+  test("a nested plain bullet or completed child does not block", () => {
+    const items = [item("0:0", "- [ ] A", "  - note", "  - [x] done child")];
+    expect(handledItemIds(items, new Set(["A"]), DONE)).toEqual(
+      new Set(["0:0"])
+    );
+  });
+
+  test("a done copy only in an older note does not count for the note above it", () => {
+    const [forNewest, forMiddle, forOldest] = cumulativeDoneKeys(
+      [["- [ ] A"], ["- [ ] B"], ["- [x] A"]],
+      DONE
+    );
+    const items = [item("0:0", "- [ ] A")];
+    // the done copy is in the oldest note: only notes newer than it see it
+    expect(handledItemIds(items, forNewest, DONE)).toEqual(new Set());
+    expect(handledItemIds(items, forMiddle, DONE)).toEqual(new Set());
+    expect(handledItemIds(items, forOldest, DONE)).toEqual(new Set());
+  });
 });

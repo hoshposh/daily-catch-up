@@ -3,6 +3,8 @@
 // settings. Days are local "YYYY-MM-DD" strings; `today` is passed in, so
 // nothing here reads a clock or a date library.
 
+import { LIST_PREFIX } from "./get-todos";
+import { stripRolledCount } from "./rolled-count";
 import { resolveSourceAction } from "./source-action";
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -75,4 +77,70 @@ export function parseLookBackSince(text, today) {
   if (trimmed === "") return today;
   // "YYYY-MM-DD" strings compare in date order
   return isValidDay(trimmed) && trimmed <= today ? trimmed : undefined;
+}
+
+/**
+ * A checkbox line's text after the checkbox, without its `[rolled:: n]`
+ * counter, trimmed: the same for a todo and its copy in another note whatever
+ * the indentation, quote prefix, list marker or counter. Null for any other line.
+ */
+export function todoKey(line) {
+  const match = LIST_PREFIX.exec(line);
+  if (!match) return null;
+  return stripRolledCount(line.slice(match[0].length)).trim();
+}
+
+/** What sits inside a checkbox line's brackets; null for any other line. */
+export function checkboxMarker(line) {
+  const match = LIST_PREFIX.exec(line);
+  return match ? match[0].slice(match[0].lastIndexOf("[") + 1, -1) : null;
+}
+
+/** The `todoKey` of every checkbox line whose marker is a done marker. */
+export function doneKeys(lines, doneStatusMarkers) {
+  const keys = new Set();
+  for (const line of lines) {
+    const marker = checkboxMarker(line);
+    if (marker !== null && doneStatusMarkers.includes(marker)) {
+      keys.add(todoKey(line));
+    }
+  }
+  return keys;
+}
+
+/**
+ * For notes passed newest first, entry k holds the done keys of the notes
+ * before k, the ones newer than note k (entry 0 is empty).
+ */
+export function cumulativeDoneKeys(linesList, doneStatusMarkers) {
+  const result = [];
+  let keys = new Set();
+  for (const lines of linesList) {
+    result.push(keys);
+    keys = new Set([...keys, ...doneKeys(lines, doneStatusMarkers)]);
+  }
+  return result;
+}
+
+/**
+ * Ids of the items already done in a newer note: the head's key is in
+ * `newerDoneKeys` and so is the key of every open checkbox nested under it
+ * (plain bullets and completed children carry no work, so they never block).
+ */
+export function handledItemIds(items, newerDoneKeys, doneStatusMarkers) {
+  const handled = new Set();
+  for (const item of items) {
+    const [head, ...nested] = item.lines;
+    if (!newerDoneKeys.has(todoKey(head))) continue;
+    const blocked = nested.some((line) => {
+      const marker = checkboxMarker(line);
+      return (
+        marker !== null &&
+        !doneStatusMarkers.includes(marker) &&
+        !newerDoneKeys.has(todoKey(line))
+      );
+    });
+    if (!blocked) handled.add(item.id);
+  }
+  return handled;
 }
