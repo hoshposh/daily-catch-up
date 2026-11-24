@@ -28,6 +28,25 @@ export function withDurations(frames, endT) {
   });
 }
 
+/**
+ * The moments a clip pauses on, for a still image beside the GIF: the frames
+ * (from withDurations()) on screen for at least `minSeconds`, and always the
+ * last one, the final state. With more than `max`, the last and the longest
+ * held of the rest are kept. In clip order.
+ */
+export function stillFrames(frames, { minSeconds = 1, max = 12 } = {}) {
+  if (frames.length === 0) return [];
+  const last = frames.length - 1;
+  const held = frames
+    .map((frame, i) => ({ frame, i }))
+    .filter(({ frame, i }) => i !== last && frame.duration >= minSeconds);
+  const kept = held
+    .sort((a, b) => b.frame.duration - a.frame.duration || a.i - b.i)
+    .slice(0, Math.max(0, max - 1))
+    .map(({ i }) => i);
+  return [...kept, last].sort((a, b) => a - b).map((i) => frames[i]);
+}
+
 /** A path quoted for ffmpeg's concat demuxer: ' becomes '\''. */
 const quote = (file) => `'${file.replaceAll("'", "'\\''")}'`;
 
@@ -43,6 +62,14 @@ export function concatList(frames) {
   if (frames.length > 0) {
     lines.push(`file ${quote(frames[frames.length - 1].file)}`);
   }
+  return `${lines.join("\n")}\n`;
+}
+
+/** ffmpeg concat-demuxer input for the stills image: each file once. */
+export function stillsList(frames) {
+  const lines = ["ffconcat version 1.0"];
+  for (const { file } of frames)
+    lines.push(`file ${quote(file)}`, "duration 1");
   return `${lines.join("\n")}\n`;
 }
 

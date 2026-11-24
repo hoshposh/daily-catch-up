@@ -1,5 +1,12 @@
 import { expect, test } from "vitest";
-import { concatList, mergeRepeats, sizeProblem, withDurations } from "./frames";
+import {
+  concatList,
+  mergeRepeats,
+  sizeProblem,
+  stillFrames,
+  stillsList,
+  withDurations,
+} from "./frames";
 
 const f = (file, t, key) => ({ file, t, key });
 
@@ -69,5 +76,54 @@ test("sizeProblem is empty within the limit or without one", () => {
 test("sizeProblem names both sizes in MB when over the limit", () => {
   expect(sizeProblem(3_145_728, 2_097_152)).toMatch(
     /3\.0 MB.*over the 2\.0 MB limit/
+  );
+});
+
+const d = (file, duration) => ({ file, duration });
+const files = (frames) => frames.map((frame) => frame.file);
+
+test("stillFrames keeps the frames held for a second or more, and the last", () => {
+  expect(
+    files(
+      stillFrames([
+        d("a", 0.1),
+        d("b", 1.5),
+        d("c", 0.2),
+        d("d", 1),
+        d("e", 0.3),
+      ])
+    )
+  ).toEqual(["b", "d", "e"]);
+});
+
+test("stillFrames lists a held last frame once", () => {
+  expect(files(stillFrames([d("a", 2), d("b", 1)]))).toEqual(["a", "b"]);
+});
+
+test("stillFrames keeps the longest-held up to max, in order, the last always", () => {
+  expect(
+    files(
+      stillFrames([d("a", 3), d("b", 1), d("c", 5), d("d", 2), d("e", 0.1)], {
+        max: 3,
+      })
+    )
+  ).toEqual(["a", "c", "e"]);
+});
+
+test("stillFrames takes its own threshold", () => {
+  expect(
+    files(
+      stillFrames([d("a", 0.5), d("b", 0.2), d("c", 0.1)], { minSeconds: 0.4 })
+    )
+  ).toEqual(["a", "c"]);
+});
+
+test("stillFrames of nothing is nothing", () => {
+  expect(stillFrames([])).toEqual([]);
+});
+
+test("stillsList lists each file once, quoted", () => {
+  expect(stillsList([d("/a/it's.png", 2), d("/a/b.png", 1)])).toBe(
+    "ffconcat version 1.0\nfile '/a/it'\\''s.png'\nduration 1\nfile '/a/b.png'\nduration 1\n"
   );
 });

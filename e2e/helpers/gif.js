@@ -5,7 +5,14 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { concatList, mergeRepeats, sizeProblem, withDurations } from "./frames";
+import {
+  concatList,
+  mergeRepeats,
+  sizeProblem,
+  stillFrames,
+  stillsList,
+  withDurations,
+} from "./frames";
 
 const run = promisify(execFile);
 
@@ -31,11 +38,44 @@ async function gifSeconds(file) {
   return Number(stdout.trim());
 }
 
+/** The columns of the stills image: up to three side by side. */
+const STILL_COLUMNS = 3;
+const STILL_GAP = 8;
+
+/**
+ * Lays `stills` (from stillFrames()) out in a grid, each `stillWidth` wide,
+ * in one PNG at `output`.
+ */
+async function writeStills(stills, dir, output, stillWidth) {
+  const list = path.join(dir, "stills.txt");
+  await writeFile(list, stillsList(stills));
+  const columns = Math.min(STILL_COLUMNS, stills.length);
+  const rows = Math.ceil(stills.length / columns);
+  await run("ffmpeg", [
+    "-y",
+    "-loglevel",
+    "error",
+    "-f",
+    "concat",
+    "-safe",
+    "0",
+    "-i",
+    list,
+    "-vf",
+    `scale=${stillWidth}:-1:flags=lanczos,tile=${columns}x${rows}:padding=${STILL_GAP}:margin=${STILL_GAP}:color=white`,
+    "-frames:v",
+    "1",
+    output,
+  ]);
+}
+
 /**
  * Builds `output` from the PNG frames and `frames.json` in `dir`
  * (`{ frames: {file, t}[], endT }`, files relative to `dir`). Repeated frames
- * are merged into one held frame. Deletes `dir` afterwards unless
- * `keepFrames` (or KEEP_FRAMES=1).
+ * are merged into one held frame. Also writes `<output>-stills.png` (the
+ * `.gif` replaced): the moments the clip pauses on (stillFrames()), side by
+ * side, each `stillWidth` wide, to check a clip at a glance. Deletes `dir`
+ * afterwards unless `keepFrames` (or KEEP_FRAMES=1).
  */
 export async function assemble({
   dir,
@@ -43,6 +83,7 @@ export async function assemble({
   width,
   maxBytes = null,
   keepFrames = process.env.KEEP_FRAMES === "1",
+  stillWidth = 480,
 }) {
   const { frames, endT } = JSON.parse(
     await readFile(path.join(dir, "frames.json"), "utf8")
@@ -89,6 +130,9 @@ export async function assemble({
   if (tooBig) warnings.push(tooBig);
   const seconds = await gifSeconds(output);
 
+  const stills = output.replace(/\.gif$/i, "") + "-stills.png";
+  await writeStills(stillFrames(kept), dir, stills, stillWidth);
+
   if (!keepFrames) await rm(dir, { recursive: true, force: true });
 
   console.log(
@@ -98,8 +142,9 @@ export async function assemble({
         1024 /
         1024
       ).toFixed(2)} MB`,
+      `${stills}: the moments it pauses on`,
       ...warnings.map((w) => `  warning: ${w}`),
     ].join("\n")
   );
-  return { output, bytes, seconds, frames: kept.length, warnings };
+  return { output, stills, bytes, seconds, frames: kept.length, warnings };
 }

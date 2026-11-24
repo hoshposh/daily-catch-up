@@ -101,3 +101,59 @@ test.skipIf(noFfmpeg)("assemble keeps the frames when asked", async () => {
   await assemble({ dir, output, width: 32, keepFrames: true });
   expect(existsSync(path.join(dir, "frame-000000.png"))).toBe(true);
 });
+
+test.skipIf(noFfmpeg)(
+  "assemble lays the held frames out in a stills image beside the GIF",
+  async () => {
+    const output = path.join(tmp, "out.gif");
+    const result = await assemble({ dir, output, width: 32, stillWidth: 16 });
+    // red and blue are each on screen for a second: two 16 x 12 stills side
+    // by side, 8 px apart and 8 px from the edges
+    expect(result.stills).toBe(path.join(tmp, "out-stills.png"));
+    const { stdout } = await run("ffprobe", [
+      "-v",
+      "error",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "csv=p=0",
+      result.stills,
+    ]);
+    expect(stdout.trim()).toBe("56,28");
+    // built before the frames were deleted
+    expect(existsSync(dir)).toBe(false);
+  }
+);
+
+test.skipIf(noFfmpeg)(
+  "a stills grid that isn't full is still written",
+  async () => {
+    // four held frames: three columns, two rows, two cells empty
+    const colours = ["red", "green", "blue", "yellow"];
+    for (const [i, colour] of colours.entries()) {
+      await frame(`frame-00001${i}.png`, colour);
+    }
+    await writeFile(
+      path.join(dir, "frames.json"),
+      JSON.stringify({
+        frames: colours.map((_, i) => ({
+          file: `frame-00001${i}.png`,
+          t: i * 1000,
+        })),
+        endT: 4000,
+      })
+    );
+    const output = path.join(tmp, "out.gif");
+    const result = await assemble({ dir, output, width: 32, stillWidth: 16 });
+    const { stdout } = await run("ffprobe", [
+      "-v",
+      "error",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "csv=p=0",
+      result.stills,
+    ]);
+    expect(stdout.trim()).toBe("80,48");
+  }
+);
