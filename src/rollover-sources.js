@@ -370,8 +370,7 @@ function backlogReturns(sections, items, flatten) {
   const heads = new Set(items.map((item) => item.lineIndices[0]));
   return sections.map((section) => ({
     ...section,
-    headingPath:
-      flatten && !section.moveTo ? [] : section.headingPath,
+    headingPath: flatten && !section.moveTo ? [] : section.headingPath,
     incompleteTodos: section.incompleteTodos.map((line, i) =>
       heads.has(section.incompleteLineIndices[i]) ? stripFromField(line) : line
     ),

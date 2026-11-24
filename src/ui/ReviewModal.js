@@ -3,8 +3,10 @@ import {
   headingLabel,
   isStale,
   itemLabel,
+  summarizeBringBack,
   summarizeDecisions,
 } from "../rollover-items";
+import { fromNote, stripFromField } from "../rolled-count";
 import { ruleLabel } from "../rules";
 
 const OUTCOME_LABELS = {
@@ -12,6 +14,14 @@ const OUTCOME_LABELS = {
   backlog: "Backlog",
   cancel: "Cancel",
   leave: "Leave",
+};
+
+// Bring back from backlog: Roll brings a todo back, Leave keeps it in the
+// backlog, and Backlog is never offered
+const BRING_BACK_LABELS = {
+  roll: "Bring back",
+  leave: "Stay",
+  cancel: "Cancel",
 };
 
 // Lets the user pick an outcome for each item before a rollover. Only the UI
@@ -25,9 +35,13 @@ export default class ReviewModal extends Modal {
       staleSettings,
       backlogEnabled,
       cancelEnabled,
+      // "rollover" or "bringBack" (the backlog's own dialog)
+      mode = "rollover",
     }
   ) {
     super(app);
+    this.bringBack = mode === "bringBack";
+    this.labels = this.bringBack ? BRING_BACK_LABELS : OUTCOME_LABELS;
     // [{ name, sections, items }]: each item's sectionIndex is within its
     // own source's sections
     this.sources = sources;
@@ -35,7 +49,7 @@ export default class ReviewModal extends Modal {
     // a copy: the caller's defaults stay as they were if the user cancels
     this.decisions = { ...decisions };
     this.staleSettings = staleSettings;
-    this.outcomes = Object.keys(OUTCOME_LABELS).filter(
+    this.outcomes = Object.keys(this.labels).filter(
       (outcome) =>
         (outcome !== "backlog" || backlogEnabled) &&
         (outcome !== "cancel" || cancelEnabled)
@@ -89,7 +103,9 @@ export default class ReviewModal extends Modal {
       const shown = Object.fromEntries(
         this.items.map((item) => [item.id, this.decisions[item.id]])
       );
-      this.summaryEl.setText(summarizeDecisions(shown));
+      this.summaryEl.setText(
+        this.bringBack ? summarizeBringBack(shown) : summarizeDecisions(shown)
+      );
     }
   }
 
@@ -97,12 +113,12 @@ export default class ReviewModal extends Modal {
     setting
       .addButton((button) =>
         button
-          .setButtonText("All roll")
+          .setButtonText(this.bringBack ? "All back" : "All roll")
           .onClick(() => this.setOutcome(items, "roll"))
       )
       .addButton((button) =>
         button
-          .setButtonText("All leave")
+          .setButtonText(this.bringBack ? "All stay" : "All leave")
           .onClick(() => this.setOutcome(items, "leave"))
       );
   }
@@ -112,10 +128,13 @@ export default class ReviewModal extends Modal {
     // a source whose todos were all dropped (empty todos) has nothing to show
     const sources = this.sources.filter((source) => source.items.length > 0);
     const several = sources.length > 1;
+    const names = sources.map((source) => source.name).join(", ");
     titleEl.setText(
-      several
+      this.bringBack
+        ? `Bring back from ${names}`
+        : several
         ? "Roll over todos"
-        : `Roll over from ${sources.map((source) => source.name).join(", ")}`
+        : `Roll over from ${names}`
     );
     contentEl.addClass("rollover-review");
 
@@ -165,8 +184,24 @@ export default class ReviewModal extends Modal {
       this.addShortcuts(heading, sectionItems);
 
       for (const item of sectionItems) {
-        const row = new Setting(contentEl).setName(itemLabel(item));
-        if (isStale(item, this.staleSettings)) {
+        const head = item.lines[0];
+        const row = new Setting(contentEl).setName(
+          this.bringBack
+            ? itemLabel({
+                ...item,
+                lines: [stripFromField(head), ...item.lines.slice(1)],
+              })
+            : itemLabel(item)
+        );
+        // where a backlog todo was parked from
+        const from = this.bringBack ? fromNote(head) : null;
+        if (from !== null) {
+          row.nameEl.createSpan({
+            cls: "rollover-from-badge",
+            text: `from ${from}`,
+          });
+        }
+        if (!this.bringBack && isStale(item, this.staleSettings)) {
           row.nameEl.createSpan({
             cls: "rollover-stale-badge",
             text: `rolled ${item.count}×`,
@@ -191,7 +226,7 @@ export default class ReviewModal extends Modal {
         }
         row.addDropdown((dropdown) => {
           for (const outcome of this.outcomes) {
-            dropdown.addOption(outcome, OUTCOME_LABELS[outcome]);
+            dropdown.addOption(outcome, this.labels[outcome]);
           }
           dropdown
             .setValue(this.decisions[item.id] ?? "roll")

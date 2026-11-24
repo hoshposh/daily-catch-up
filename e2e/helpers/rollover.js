@@ -89,7 +89,7 @@ const REVIEW_ROWS_JS = `(() => {
       .map((n) => n.textContent)
       .join('')
       .trim();
-    const badges = [...nameEl.querySelectorAll('.rollover-stale-badge, .rollover-rule-badge')]
+    const badges = [...nameEl.querySelectorAll('.rollover-stale-badge, .rollover-rule-badge, .rollover-from-badge')]
       .filter((b) => b.style.display !== 'none')
       .map((b) => b.textContent);
     rows.push({ section, label, outcome: select.value, badges });

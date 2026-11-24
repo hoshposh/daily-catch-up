@@ -82,7 +82,10 @@ export default class UndoModal extends Modal {
     titleEl.setText('Undo last rollover')
     // the inbox note is only named to those who set one
     const inboxSet = (plugin.settings.inboxNotePath ?? '').trim() !== ''
-    const description = inboxSet
+    const bringBack = plugin.undoHistory[0]?.kind === 'bring-back'
+    const description = bringBack
+      ? "Undoing a bring back puts today's note and the backlog note back as they were before it. Any text you added to them since may be lost."
+      : inboxSet
       ? "A single rollover command can be undone, which will load the state of the files the rollover modified before it occurred: today's note, the previous day's note and the inbox note if their todos were marked, cancelled or deleted, and the backlog note if todos were sent to it (a backlog note the rollover created is deleted). With Templater enabled, only the previous day's note, the inbox note and the backlog note are restored. Any text you may have added to those file(s) during that time may be deleted, except lines added to the inbox note, which are kept."
       : "A single rollover command can be undone, which will load the state of the files the rollover modified before it occurred: today's note, the previous day's note if its todos were marked, cancelled or deleted, and the backlog note if todos were sent to it (a backlog note the rollover created is deleted). With Templater enabled, only the previous day's note and the backlog note are restored. Any text you may have added to those file(s) during that time may be deleted."
     contentEl.createDiv({ text: description });

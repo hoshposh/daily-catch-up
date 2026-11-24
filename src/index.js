@@ -20,8 +20,11 @@ import {
 import { needsReview } from "./rollover-items";
 import {
   applySources,
+  BACKLOG_GUARD_NOTICE,
   backlogFailedNotice,
   backlogPathConflict,
+  backlogSource,
+  bringBackNotice,
   earlierSources,
   inboxGuardNotice,
   inboxPathConflicts,
@@ -273,6 +276,139 @@ export default class RolloverTodosPlugin extends Plugin {
     } finally {
       this.rolloverInProgress = false;
     }
+  }
+
+  // Bring back from backlog: the backlog's open todos in the review dialog,
+  // all on Stay, and the chosen ones moved into today's note
+  async bringBack() {
+    const dailyNoteSettings = getDailyNoteSettings(this.app);
+    if (!dailyNoteSettings) {
+      new Notice(
+        "Rollover couldn't read your daily note settings. Check that Daily Notes (or Periodic Notes) is enabled and configured.",
+        10000
+      );
+      return;
+    }
+    if (!isDailyNotesEnabled(this.app)) {
+      new Notice(
+        "Couldn't roll over unfinished todos. Enable Daily Notes, or Periodic Notes with daily notes turned on.",
+        10000
+      );
+      return;
+    }
+    const todayPath = todayNotePath(dailyNoteSettings, window.moment());
+    const file = this.app.vault.getAbstractFileByPath(todayPath);
+    if (!(file instanceof TFile)) {
+      new Notice("Create today's daily note first, then bring todos back.");
+      return;
+    }
+    // it writes today's note and the backlog, as a rollover does
+    if (this.rolloverInProgress) {
+      new Notice("A rollover is already in progress.");
+      return;
+    }
+    this.rolloverInProgress = true;
+    try {
+      await this.bringBackInto(file);
+    } finally {
+      this.rolloverInProgress = false;
+    }
+  }
+
+  // Bring back into `file`, today's daily note, once bringBack() checked it
+  async bringBackInto(file) {
+    const backlogPath = this.getBacklogPath();
+    if (backlogPath === file.path) {
+      new Notice(BACKLOG_GUARD_NOTICE, 10000);
+      return;
+    }
+    const backlogFile = this.app.vault.getAbstractFileByPath(backlogPath);
+    if (!(backlogFile instanceof TFile)) {
+      new Notice(`There is no backlog note at '${backlogPath}' yet.`);
+      return;
+    }
+    const content = await this.app.vault.read(backlogFile);
+    const lines = splitLines(content);
+    const source = backlogSource({
+      file: backlogFile,
+      content,
+      lines,
+      sections: this.parseNote(lines),
+    });
+    if (!source.sections.some((s) => s.incompleteTodos.length > 0)) {
+      new Notice(
+        `The backlog note '${backlogFile.basename}' has no open todos.`
+      );
+      return;
+    }
+    const sources = [source];
+
+    const staleSettings = {
+      trackRolloverCount: this.settings.trackRolloverCount,
+      staleAfterRollovers: this.settings.staleAfterRollovers,
+    };
+    const cancelEnabled = isCancelAvailable(this.settings);
+    const { plans, reviewItems, decisions: defaults } = planSources({
+      sources,
+      settings: {
+        removeEmptyTodos: this.settings.removeEmptyTodos,
+        rolloverChildren: this.settings.rolloverChildren,
+        ...staleSettings,
+        staleBehavior: this.settings.staleBehavior,
+        // Backlog is never offered for a todo already in the backlog
+        backlogEnabled: false,
+        cancelEnabled,
+        rules: this.settings.rules ?? [],
+        doneStatusMarkers: lookBackDoneMarkers(this.settings),
+      },
+    });
+    // every todo may be an empty one Remove empty todos dropped
+    if (reviewItems.length === 0) {
+      new Notice(
+        `The backlog note '${backlogFile.basename}' has no open todos.`
+      );
+      return;
+    }
+
+    const decisions = await new ReviewModal(this.app, {
+      sources: [
+        { name: source.name, sections: plans[0].sections, items: reviewItems },
+      ],
+      decisions: defaults,
+      staleSettings,
+      backlogEnabled: false,
+      cancelEnabled,
+      mode: "bringBack",
+    }).openAndWait();
+    if (decisions == null) return;
+    const chosen = reviewItems.some((item) =>
+      ["roll", "cancel"].includes(decisions[item.id])
+    );
+    if (!chosen) {
+      new Notice("Nothing brought back.");
+      return;
+    }
+
+    const { templateHeading } = this.settings;
+    await this.writeRollover({
+      file,
+      sources,
+      plans,
+      decisions,
+      backlogPath: null,
+      // today's note is not new: Templater rendered it long ago
+      templaterGuard: false,
+      undoKind: "bring-back",
+      buildNotice: (summary) =>
+        bringBackNotice({
+          broughtBack: summary.todosAdded,
+          alreadyPresent: summary.todosAlreadyPresent,
+          cancelled: summary.cancelledCount,
+          name: source.name,
+          templateHeadingNotFound: summary.templateHeadingNotFound,
+          templateHeading,
+        }),
+    });
   }
 
   // The rollover into `file`, today's daily note, once rollover() checked it
@@ -858,6 +994,17 @@ export default class RolloverTodosPlugin extends Plugin {
       name: "Review and roll over todos…",
       callback: () => {
         void this.rollover(undefined, { review: true });
+      },
+    });
+
+    this.addCommand({
+      id: "bring-back-from-backlog",
+      name: "Bring back from backlog…",
+      // only offered while a backlog note is set
+      checkCallback: (checking) => {
+        if ((this.settings.backlogNotePath ?? "").trim() === "") return false;
+        if (!checking) void this.bringBack();
+        return true;
       },
     });
 
