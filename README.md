@@ -62,7 +62,15 @@ Todos sent to the backlog are added to the **Backlog note** with their nested it
 - [ ] Write the quarterly report [from:: [[2026-11-02]]]
 ```
 
-### 4. Command: Undo last rollover
+### 4. Command: Bring back from backlog…
+
+Parked todos can come back. `Bring back from backlog…` (offered while a **Backlog note** is set) opens the same dialog with the backlog's open todos, grouped under the backlog's headings, each with a "from 2026-11-02" badge naming the note it was parked from. Every todo starts on **Stay**; choose **Bring back** for the ones you want today, or **Cancel** (when it is offered) to mark one cancelled in the backlog. **All back** and **All stay** set a whole section, or everything, at once.
+
+**Apply** moves the chosen todos, with their nested items, into today's note: under the **Template heading** when one is set, otherwise at the end of the note, without the backlog's headings and without their `[from:: …]` link (a **Move to heading** rule still applies). They are deleted from the backlog; its headings stay, and so does everything you did not choose, empty and completed todos included. Their rollover counter starts again, so the next rollover counts 1. Run it any time today's note exists; it doesn't run while a rollover is in progress. `Undo last rollover` undoes it.
+
+A brought-back todo keeps its tags, so a rule that sends a tag to the backlog (such as the example `#someday` rule) sends it back on the next rollover. Remove the tag from the todo in today's note when you bring such a todo back.
+
+### 5. Command: Undo last rollover
 
 Run `Undo last rollover` from the command palette within **2 minutes** of a rollover to fully reverse it. Only the most recent rollover can be undone.
 
@@ -75,7 +83,9 @@ The undo works by restoring complete snapshots of the files the rollover changed
 - The restoration is complete regardless of how many todos or sub-headings were involved
 - Anything you typed into the other notes after the rollover is overwritten too (the inbox keeps the lines added to it, as above), so use undo right away
 
-If the Templater plugin is enabled, `Undo last rollover` only restores the previous day's note, the older daily notes **Look back** read, the inbox note and the backlog note, and leaves today's note as it is, because Templater rewrites a new note after the todos are added and restoring an earlier version would replace its output. Remove the rolled over todos from today's note yourself in that case. There is nothing to undo if the rollover changed neither of them.
+After `Bring back from backlog…`, `Undo last rollover` puts today's note and the backlog note back as they were before it, Templater or not.
+
+If the Templater plugin is enabled, `Undo last rollover` after a rollover only restores the previous day's note, the older daily notes **Look back** read, the inbox note and the backlog note, and leaves today's note as it is, because Templater rewrites a new note after the todos are added and restoring an earlier version would replace its output. Remove the rolled over todos from today's note yourself in that case. There is nothing to undo if the rollover changed neither of them.
 
 Note that if you create a daily note in the future, and you try to run this command, todos will not be rolled into a future date. They will always be rolled to today's note (if it doesn't exist, nothing will happen), from the chronologically closest (in the past) daily note.
 

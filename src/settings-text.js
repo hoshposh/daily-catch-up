@@ -56,6 +56,7 @@ export const SETTING_GROUPS = [
     help: [
       "The review dialog lets you choose for each todo: **Roll** it to today, send it to the **Backlog** note, **Cancel** it (its checkbox gets the cancel marker), or **Leave** it untouched in the previous day's note.",
       "The Backlog choice appears only when a Backlog note is set. The note and its folder are created when missing. Cancel appears only when the cancel marker is one of your done status markers, so a cancelled todo isn't rolled over again.",
+      "Run **Bring back from backlog…** to pick todos from the backlog note and move them back into today's note.",
     ],
   },
   {
