@@ -625,9 +625,7 @@ export function rolloverNotice({
 }) {
   const lines = [];
   if (templateHeadingNotFound) {
-    lines.push(
-      `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`
-    );
+    lines.push(templateHeadingMissing(templateHeading));
   }
   if (todosAdded > 0) {
     const contributors = sources.filter(({ rolledCount }) => rolledCount > 0);
@@ -695,6 +693,7 @@ export function rolloverNotice({
  */
 export function sourceLabel(source) {
   if (source.kind === "inbox") return `the inbox note '${source.name}'`;
+  if (source.kind === "backlog") return `the backlog note '${source.name}'`;
   if (source.kind === "earlier") return `the daily note '${source.name}'`;
   return "the previous day's note";
 }
@@ -708,6 +707,11 @@ const labelsOf = (sources) => sources.map(sourceLabel).join(" and ");
  * @param {{ kind: string, name: string }} source
  */
 export function sourceUnchangedNotice(source) {
+  if (source.kind === "backlog") {
+    return `Bring back left ${sourceLabel(
+      source
+    )} unchanged: it was edited while the dialog was open. Its todos were still added to today's note; remove them from the backlog yourself.`;
+  }
   if (source.kind === "inbox") {
     return `Rollover left ${sourceLabel(
       source
@@ -783,7 +787,53 @@ export function backlogFailedNotice({
  * @param {Error|string} error
  */
 export function sourceWriteFailedNotice(source, error) {
-  return `Rollover couldn't write ${sourceLabel(source)} (${
+  const who = source.kind === "backlog" ? "Bring back" : "Rollover";
+  return `${who} couldn't write ${sourceLabel(source)} (${
     error?.message ?? error
   }), so it was left unchanged. Its todos were still added to today's note.`;
+}
+
+// The template heading line, as rolloverNotice() writes it
+const templateHeadingMissing = (templateHeading) =>
+  `Rollover couldn't find '${templateHeading}' in today's daily note. Rolling todos to end of file.`;
+
+/**
+ * The notice after Bring back from backlog: one line per thing that
+ * happened, blank ones left out.
+ *
+ * @param {object} args
+ * @param {number} args.broughtBack - lines inserted into today's note
+ * @param {number} args.alreadyPresent - lines skip existing left out
+ * @param {number} args.cancelled - items marked cancelled in the backlog
+ * @param {string} args.name - the backlog note's name
+ * @param {boolean} [args.templateHeadingNotFound]
+ * @param {string} [args.templateHeading]
+ * @returns {string} "" when there is nothing to say
+ */
+export function bringBackNotice({
+  broughtBack,
+  alreadyPresent,
+  cancelled,
+  name,
+  templateHeadingNotFound = false,
+  templateHeading,
+}) {
+  const lines = [];
+  if (templateHeadingNotFound) {
+    lines.push(templateHeadingMissing(templateHeading));
+  }
+  if (broughtBack > 0) {
+    lines.push(
+      `Brought back ${broughtBack} todo${plural(broughtBack)} from ${name}.`
+    );
+  }
+  if (alreadyPresent > 0) {
+    lines.push(
+      `- ${alreadyPresent} ${
+        alreadyPresent > 1 ? "were" : "was"
+      } already in today's note.`
+    );
+  }
+  if (cancelled > 0) lines.push(`- ${cancelled} cancelled.`);
+  return lines.join("\n");
 }

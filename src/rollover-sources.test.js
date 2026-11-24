@@ -8,6 +8,7 @@ import {
   planSources,
   backlogFailedNotice,
   backlogSource,
+  bringBackNotice,
   BACKLOG_GUARD_EARLIER_NOTICE,
   BACKLOG_GUARD_NOTICE,
   INBOX_GUARD_NOTICE,
@@ -1398,5 +1399,63 @@ describe("the backlog source", () => {
     expect(sourceNeedsWrite(src, { ...none, movedLineIndices: [2] })).toBe(
       true
     );
+  });
+});
+
+describe("bring back notices", () => {
+  const BACKLOG = { kind: "backlog", name: "Backlog" };
+
+  test("the backlog is named", () => {
+    expect(sourceLabel(BACKLOG)).toBe("the backlog note 'Backlog'");
+  });
+
+  test("edited meanwhile", () => {
+    expect(sourceUnchangedNotice(BACKLOG)).toBe(
+      "Bring back left the backlog note 'Backlog' unchanged: it was edited while the dialog was open. Its todos were still added to today's note; remove them from the backlog yourself."
+    );
+  });
+
+  test("write failed", () => {
+    expect(sourceWriteFailedNotice(BACKLOG, new Error("locked"))).toBe(
+      "Bring back couldn't write the backlog note 'Backlog' (locked), so it was left unchanged. Its todos were still added to today's note."
+    );
+  });
+
+  const none = {
+    broughtBack: 0,
+    alreadyPresent: 0,
+    cancelled: 0,
+    name: "Backlog",
+  };
+
+  test("brought back", () => {
+    expect(bringBackNotice({ ...none, broughtBack: 2 })).toBe(
+      "Brought back 2 todos from Backlog."
+    );
+    expect(bringBackNotice({ ...none, broughtBack: 1 })).toBe(
+      "Brought back 1 todo from Backlog."
+    );
+  });
+
+  test("every part, in order", () => {
+    expect(
+      bringBackNotice({
+        broughtBack: 2,
+        alreadyPresent: 1,
+        cancelled: 1,
+        name: "Backlog",
+        templateHeadingNotFound: true,
+        templateHeading: "## Tasks",
+      })
+    ).toBe(
+      "Rollover couldn't find '## Tasks' in today's daily note. Rolling todos to end of file.\nBrought back 2 todos from Backlog.\n- 1 was already in today's note.\n- 1 cancelled."
+    );
+    expect(bringBackNotice({ ...none, alreadyPresent: 2 })).toBe(
+      "- 2 were already in today's note."
+    );
+  });
+
+  test("nothing to say", () => {
+    expect(bringBackNotice(none)).toBe("");
   });
 });
