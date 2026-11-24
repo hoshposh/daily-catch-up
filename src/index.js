@@ -156,6 +156,23 @@ export default class RolloverTodosPlugin extends Plugin {
     if (changed) await this.saveSettings();
   }
 
+  // A note's unfinished todos grouped by their parent heading, with the
+  // options every source note is read with
+  parseNote(lines) {
+    const rules = this.settings.rules ?? [];
+    return getSections({
+      lines,
+      withChildren: this.settings.rolloverChildren,
+      doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
+      ignoreBlockquotes: this.settings.ignoreBlockquotes,
+      skipCompletedChildren: this.settings.skipCompletedChildren,
+      // "Not a todo" rules: such a line and what is nested under it stay
+      // put
+      isIgnored: (line, headingPath) =>
+        isIgnoredByRules(line, headingPath, rules),
+    });
+  }
+
   // Appends the items to the backlog note, creating it (and its folder) when
   // missing. Returns what undo needs to put the note back.
   async writeBacklog(path, items, sourceNoteName) {
@@ -270,8 +287,7 @@ export default class RolloverTodosPlugin extends Plugin {
         10000
       );
     } else {
-      const { templateHeading, removeEmptyTodos, leadingNewLine, skipExistingTodos } =
-        this.settings;
+      const { templateHeading, removeEmptyTodos } = this.settings;
 
       // check if there is a daily note from yesterday; without one, only an
       // inbox note can still give todos
@@ -284,18 +300,7 @@ export default class RolloverTodosPlugin extends Plugin {
         (this.settings.backlogNotePath || "").trim() !== "";
       // unfinished todos grouped by their parent heading, with the same
       // options for every source note
-      const parse = (lines) =>
-        getSections({
-          lines,
-          withChildren: this.settings.rolloverChildren,
-          doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
-          ignoreBlockquotes: this.settings.ignoreBlockquotes,
-          skipCompletedChildren: this.settings.skipCompletedChildren,
-          // "Not a todo" rules: such a line and what is nested under it stay
-          // put
-          isIgnored: (line, headingPath) =>
-            isIgnoredByRules(line, headingPath, rules),
-        });
+      const parse = (lines) => this.parseNote(lines);
 
       // the notes todos are rolled over from, in order: the previous daily
       // note, the older daily notes Look back reads (newest first), then the
@@ -409,22 +414,6 @@ export default class RolloverTodosPlugin extends Plugin {
         return;
       }
 
-      // setup undo history
-      let undoHistoryInstance = {
-        // each source note the rollover changed: { file, oldContent }
-        sources: [],
-        today: {
-          file: undefined,
-          oldContent: "",
-        },
-        // created: the rollover made the note, so undo removes it
-        backlog: {
-          file: undefined,
-          oldContent: "",
-          created: false,
-        },
-      };
-
       const staleSettings = {
         trackRolloverCount: this.settings.trackRolloverCount,
         staleAfterRollovers: this.settings.staleAfterRollovers,
@@ -508,248 +497,308 @@ export default class RolloverTodosPlugin extends Plugin {
         }
       }
 
-      const applied = applySources({ plans, sources, decisions });
-      const { perSource, outcomeCounts } = applied;
-      // only Roll items go to today's note
-      let todosAdded = perSource.reduce(
-        (sum, decided) => sum + decided.rolledTodoCount,
+      await this.writeRollover({
+        file,
+        sources,
+        plans,
+        decisions,
+        backlogPath,
+        templaterGuard: true,
+        undoKind: "rollover",
+        buildNotice: (summary) =>
+          rolloverNotice({
+            templateHeadingNotFound: summary.templateHeadingNotFound,
+            templateHeading,
+            todosAdded: summary.todosAdded,
+            todosAlreadyPresent: summary.todosAlreadyPresent,
+            doneElsewhereCount: summary.doneElsewhereCount,
+            backlogCount: summary.outcomeCounts.backlog,
+            backlogPath,
+            cancelledCount: summary.cancelledCount,
+            sources: sources.map((source, i) => ({
+              kind: source.kind,
+              name: source.name,
+              sourceAction: source.sourceAction,
+              removedEmptyTodos: plans[i].removedEmptyTodos,
+              // the leaves the review showed (not an older note's rule leaves)
+              leftCount: summary.perSource[i].leftCount,
+              // the todos of this source actually inserted into today's note
+              rolledCount: summary.insertedPerSource[i].insertedTodos.length,
+            })),
+          }),
+      });
+    }
+  }
+
+  // Everything after the decisions are known: today's note, the backlog
+  // note, each source note, the notice and the undo entry. Shared by the
+  // rollover and Bring back from backlog. With templaterGuard the Templater
+  // safeguard runs and today's note is only undoable without Templater;
+  // without it (today's note is not new) neither applies.
+  async writeRollover({
+    file,
+    sources,
+    plans,
+    decisions,
+    backlogPath,
+    templaterGuard,
+    buildNotice,
+    undoKind,
+  }) {
+    const { templateHeading, leadingNewLine, skipExistingTodos } =
+      this.settings;
+
+    // setup undo history
+    let undoHistoryInstance = {
+      // each source note the rollover changed: { file, oldContent }
+      sources: [],
+      today: {
+        file: undefined,
+        oldContent: "",
+      },
+      // created: the rollover made the note, so undo removes it
+      backlog: {
+        file: undefined,
+        oldContent: "",
+        created: false,
+      },
+    };
+    undoHistoryInstance.kind = undoKind;
+
+    const applied = applySources({ plans, sources, decisions });
+    const { perSource, outcomeCounts } = applied;
+    // only Roll items go to today's note
+    let todosAdded = perSource.reduce(
+      (sum, decided) => sum + decided.rolledTodoCount,
+      0
+    );
+
+    // get today's content and modify it (read only now, after any review)
+    let templateHeadingNotFound = false;
+
+    let todosAlreadyPresent = 0;
+    // older notes' todos done in a newer note, kept out of today's note
+    let todosDoneElsewhere = 0;
+    let duplicateTodos = [];
+    let insertedTodos = [];
+    // per source: what insertSources() did with its todos, including the
+    // lines of duplicates dropped by skip-existing (they did not move)
+    let insertedPerSource = sources.map(() => ({
+      todosAlreadyPresent: 0,
+      duplicateTodos: [],
+      retainedLineIndices: [],
+      insertedTodos: [],
+      todosDoneElsewhere: 0,
+    }));
+
+    if (perSource.some((decided) => decided.rolledSections.length > 0)) {
+      // Read, plan and write today's note in one atomic step, so an edit
+      // made in between (by the user, a sync client or another plugin) is
+      // neither lost nor planned against stale content.
+      let originalDailyNoteContent = "";
+      let inserted;
+      await this.app.vault.process(file, (content) => {
+        originalDailyNoteContent = content;
+        // Optionally leave out todos that today's note already has
+        // (compared against the note as it was before that source's
+        // insertion; they still count as handled for the source note
+        // below), and count this rollover on each item that is actually
+        // inserted. The sources go in one after the other.
+        inserted = insertSources({
+          content,
+          entries: sources.map((source, i) => ({
+            sections: perSource[i].rolledSections,
+            lines: source.lines,
+            noStaleLineIndices: perSource[i].noStaleLineIndices,
+            handledLineIndices: perSource[i].handledLineIndices,
+          })),
+          settings: {
+            skipExistingTodos,
+            rolloverChildren: this.settings.rolloverChildren,
+            trackRolloverCount: this.settings.trackRolloverCount,
+            doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
+            templateHeading,
+            leadingNewLine,
+          },
+        });
+        return inserted.content;
+      });
+      insertedPerSource = inserted.perSource;
+      todosAlreadyPresent = insertedPerSource.reduce(
+        (sum, part) => sum + part.todosAlreadyPresent,
         0
       );
+      duplicateTodos = insertedPerSource.flatMap(
+        (part) => part.duplicateTodos
+      );
+      todosDoneElsewhere = insertedPerSource.reduce(
+        (sum, part) => sum + part.todosDoneElsewhere,
+        0
+      );
+      insertedTodos = insertedPerSource.flatMap((part) => part.insertedTodos);
+      todosAdded -= todosAlreadyPresent + todosDoneElsewhere;
+      if (insertedTodos.length > 0) {
+        // insertSources() only reports the heading missing when it inserted
+        templateHeadingNotFound = inserted.templateHeadingNotFound;
 
-      // get today's content and modify it (read only now, after any review)
-      let templateHeadingNotFound = false;
-
-      let todosAlreadyPresent = 0;
-      // older notes' todos done in a newer note, kept out of today's note
-      let todosDoneElsewhere = 0;
-      let duplicateTodos = [];
-      let insertedTodos = [];
-      // per source: what insertSources() did with its todos, including the
-      // lines of duplicates dropped by skip-existing (they did not move)
-      let insertedPerSource = sources.map(() => ({
-        todosAlreadyPresent: 0,
-        duplicateTodos: [],
-        retainedLineIndices: [],
-        insertedTodos: [],
-        todosDoneElsewhere: 0,
-      }));
-
-      if (perSource.some((decided) => decided.rolledSections.length > 0)) {
-        // Read, plan and write today's note in one atomic step, so an edit
-        // made in between (by the user, a sync client or another plugin) is
-        // neither lost nor planned against stale content.
-        let originalDailyNoteContent = "";
-        let inserted;
-        await this.app.vault.process(file, (content) => {
-          originalDailyNoteContent = content;
-          // Optionally leave out todos that today's note already has
-          // (compared against the note as it was before that source's
-          // insertion; they still count as handled for the source note
-          // below), and count this rollover on each item that is actually
-          // inserted. The sources go in one after the other.
-          inserted = insertSources({
-            content,
-            entries: sources.map((source, i) => ({
-              sections: perSource[i].rolledSections,
-              lines: source.lines,
-              noStaleLineIndices: perSource[i].noStaleLineIndices,
-              handledLineIndices: perSource[i].handledLineIndices,
-            })),
-            settings: {
-              skipExistingTodos,
-              rolloverChildren: this.settings.rolloverChildren,
-              trackRolloverCount: this.settings.trackRolloverCount,
-              doneStatusMarkers: effectiveDoneStatusMarkers(this.settings),
-              templateHeading,
-              leadingNewLine,
-            },
-          });
-          return inserted.content;
-        });
-        insertedPerSource = inserted.perSource;
-        todosAlreadyPresent = insertedPerSource.reduce(
-          (sum, part) => sum + part.todosAlreadyPresent,
-          0
-        );
-        duplicateTodos = insertedPerSource.flatMap(
-          (part) => part.duplicateTodos
-        );
-        todosDoneElsewhere = insertedPerSource.reduce(
-          (sum, part) => sum + part.todosDoneElsewhere,
-          0
-        );
-        insertedTodos = insertedPerSource.flatMap((part) => part.insertedTodos);
-        todosAdded -= todosAlreadyPresent + todosDoneElsewhere;
-        if (insertedTodos.length > 0) {
-          // insertSources() only reports the heading missing when it inserted
-          templateHeadingNotFound = inserted.templateHeadingNotFound;
-
-          // With Templater, the note we read was still the unrendered template,
-          // so undoing today's note would replace Templater's output with it.
-          // Only the source notes are undoable in that case.
-          if (!this.isTemplaterEnabled()) {
-            undoHistoryInstance.today = {
-              file: file,
-              oldContent: originalDailyNoteContent,
-            };
-          }
-        }
-
-        // Before touching the source notes, make sure another plugin did not
-        // overwrite what we just inserted. If it did, the todos would
-        // otherwise be lost from both notes. Todos skipped because today's note
-        // already had them must still be there too.
-        if (
-          sources.some((source) => source.sourceAction !== "none") &&
-          this.isTemplaterEnabled() &&
-          (insertedTodos.length > 0 || duplicateTodos.length > 0)
-        ) {
-          await this.waitForSettle(TEMPLATER_SETTLE_MS);
-          const settledContent = await this.app.vault.read(file);
-          if (
-            !verifyTodosPresent(
-              settledContent,
-              insertedTodos,
-              originalDailyNoteContent,
-              duplicateTodos
-            )
-          ) {
-            // No undo is recorded: it would restore today's note to its
-            // state before Templater rendered it. An earlier rollover must not
-            // stay undoable as if it were the latest one.
-            this.undoHistory = [];
-            new Notice(
-              templaterNotice(templaterNoticeSources(sources, perSource)),
-              15000
-            );
-            return;
-          }
+        // With Templater, the note we read was still the unrendered template,
+        // so undoing today's note would replace Templater's output with it.
+        // Only the source notes are undoable in that case.
+        if (!templaterGuard || !this.isTemplaterEnabled()) {
+          undoHistoryInstance.today = {
+            file: file,
+            oldContent: originalDailyNoteContent,
+          };
         }
       }
 
-      // Backlog items go to the backlog note: after today's note, before the
-      // source notes, which are left alone if this fails
-      if (applied.backlogItems.length > 0) {
-        try {
-          undoHistoryInstance.backlog = await this.writeBacklog(
-            backlogPath,
-            applied.backlogItems,
-            sources[0].name
-          );
-        } catch (error) {
-          console.error(
-            "Daily Catch-Up: could not write the backlog note",
-            error
-          );
+      // Before touching the source notes, make sure another plugin did not
+      // overwrite what we just inserted. If it did, the todos would
+      // otherwise be lost from both notes. Todos skipped because today's note
+      // already had them must still be there too.
+      if (
+        templaterGuard &&
+        sources.some((source) => source.sourceAction !== "none") &&
+        this.isTemplaterEnabled() &&
+        (insertedTodos.length > 0 || duplicateTodos.length > 0)
+      ) {
+        await this.waitForSettle(TEMPLATER_SETTLE_MS);
+        const settledContent = await this.app.vault.read(file);
+        if (
+          !verifyTodosPresent(
+            settledContent,
+            insertedTodos,
+            originalDailyNoteContent,
+            duplicateTodos
+          )
+        ) {
+          // No undo is recorded: it would restore today's note to its
+          // state before Templater rendered it. An earlier rollover must not
+          // stay undoable as if it were the latest one.
+          this.undoHistory = [];
           new Notice(
-            backlogFailedNotice({
-              backlogPath,
-              error,
-              todosAdded: insertedTodos.length > 0 ? todosAdded : 0,
-              sources,
-            }),
+            templaterNotice(templaterNoticeSources(sources, perSource)),
             15000
           );
-          this.recordUndo(undoHistoryInstance);
           return;
         }
       }
+    }
 
-      // Cancel marks and the configured action ("delete" | "mark") on each
-      // source note, in order. Whatever throws, today's note, the backlog
-      // note and the source notes already written stay undoable.
-      let cancelledCount = 0;
+    // Backlog items go to the backlog note: after today's note, before the
+    // source notes, which are left alone if this fails
+    if (applied.backlogItems.length > 0) {
       try {
-        for (const [i, source] of sources.entries()) {
-          const decided = perSource[i];
-          // nothing to cancel, mark or delete (an older note with only Leave
-          // items, or a source whose action is "none" without Cancel items)
-          if (!sourceNeedsWrite(source, decided)) continue;
-          // Read, check and write in one atomic step: the line positions
-          // refer to the content we parsed, and the note may have been edited
-          // since (by the user, a sync client or another plugin, e.g. during
-          // the Templater wait). Only change it when it is still exactly that.
-          let editedMeanwhile = false;
-          let changed = false;
-          let writtenContent = null;
-          try {
-            await this.app.vault.process(source.file, (currentContent) => {
-              if (currentContent !== source.content) {
-                editedMeanwhile = true;
-                return currentContent;
-              }
-              const result = writeSource({
-                content: currentContent,
-                source,
-                decided,
-                retainedLineIndices: insertedPerSource[i].retainedLineIndices,
-                settings: this.settings,
-              });
-              changed = result.changed;
-              writtenContent = result.content;
-              return result.content;
-            });
-          } catch (error) {
-            // this note stays as it was; the next one is still written
-            console.error(
-              "Daily Catch-Up: could not write the source note",
-              source.file.path,
-              error
-            );
-            new Notice(sourceWriteFailedNotice(source, error), 15000);
-            continue;
-          }
-          if (editedMeanwhile) {
-            new Notice(sourceUnchangedNotice(source), 10000);
-          } else {
-            // the cancel marks were applied
-            cancelledCount += decided.outcomeCounts.cancel;
-            if (changed) {
-              const entry = {
-                file: source.file,
-                oldContent: `${source.content}`,
-              };
-              // the inbox can gain captures from another device before an
-              // undo: undo keeps those lines (see undo-merge.js)
-              if (source.kind === "inbox") {
-                entry.newContent = writtenContent;
-                entry.keepNewLines = true;
-              }
-              undoHistoryInstance.sources.push(entry);
-            }
-          }
-        }
-
-        // Let user know rollover has been successful with X todos
-        const message = rolloverNotice({
-          templateHeadingNotFound,
-          templateHeading,
-          todosAdded,
-          todosAlreadyPresent,
-          doneElsewhereCount: perSource.reduce(
-            (sum, decided) => sum + decided.handledCount,
-            0
-          ),
-          backlogCount: outcomeCounts.backlog,
+        undoHistoryInstance.backlog = await this.writeBacklog(
           backlogPath,
-          cancelledCount,
-          sources: sources.map((source, i) => ({
-            kind: source.kind,
-            name: source.name,
-            sourceAction: source.sourceAction,
-            removedEmptyTodos: plans[i].removedEmptyTodos,
-            // the leaves the review showed (not an older note's rule leaves)
-            leftCount: perSource[i].leftCount,
-            // the todos of this source actually inserted into today's note
-            rolledCount: insertedPerSource[i].insertedTodos.length,
-          })),
-        });
-        if (message.length > 0) {
-          new Notice(message, 4000 + message.length * 3);
-        }
-      } finally {
+          applied.backlogItems,
+          sources[0].name
+        );
+      } catch (error) {
+        console.error(
+          "Daily Catch-Up: could not write the backlog note",
+          error
+        );
+        new Notice(
+          backlogFailedNotice({
+            backlogPath,
+            error,
+            todosAdded: insertedTodos.length > 0 ? todosAdded : 0,
+            sources,
+          }),
+          15000
+        );
         this.recordUndo(undoHistoryInstance);
+        return;
       }
+    }
+
+    // Cancel marks and the configured action ("delete" | "mark") on each
+    // source note, in order. Whatever throws, today's note, the backlog
+    // note and the source notes already written stay undoable.
+    let cancelledCount = 0;
+    try {
+      for (const [i, source] of sources.entries()) {
+        const decided = perSource[i];
+        // nothing to cancel, mark or delete (an older note with only Leave
+        // items, or a source whose action is "none" without Cancel items)
+        if (!sourceNeedsWrite(source, decided)) continue;
+        // Read, check and write in one atomic step: the line positions
+        // refer to the content we parsed, and the note may have been edited
+        // since (by the user, a sync client or another plugin, e.g. during
+        // the Templater wait). Only change it when it is still exactly that.
+        let editedMeanwhile = false;
+        let changed = false;
+        let writtenContent = null;
+        try {
+          await this.app.vault.process(source.file, (currentContent) => {
+            if (currentContent !== source.content) {
+              editedMeanwhile = true;
+              return currentContent;
+            }
+            const result = writeSource({
+              content: currentContent,
+              source,
+              decided,
+              retainedLineIndices: insertedPerSource[i].retainedLineIndices,
+              settings: this.settings,
+            });
+            changed = result.changed;
+            writtenContent = result.content;
+            return result.content;
+          });
+        } catch (error) {
+          // this note stays as it was; the next one is still written
+          console.error(
+            "Daily Catch-Up: could not write the source note",
+            source.file.path,
+            error
+          );
+          new Notice(sourceWriteFailedNotice(source, error), 15000);
+          continue;
+        }
+        if (editedMeanwhile) {
+          new Notice(sourceUnchangedNotice(source), 10000);
+        } else {
+          // the cancel marks were applied
+          cancelledCount += decided.outcomeCounts.cancel;
+          if (changed) {
+            const entry = {
+              file: source.file,
+              oldContent: `${source.content}`,
+            };
+            // the inbox can gain captures from another device before an
+            // undo: undo keeps those lines (see undo-merge.js)
+            if (source.kind === "inbox") {
+              entry.newContent = writtenContent;
+              entry.keepNewLines = true;
+            }
+            undoHistoryInstance.sources.push(entry);
+          }
+        }
+      }
+
+      // Let user know rollover has been successful with X todos
+      const message = buildNotice({
+        templateHeadingNotFound,
+        todosAdded,
+        todosAlreadyPresent,
+        doneElsewhereCount: perSource.reduce(
+          (sum, decided) => sum + decided.handledCount,
+          0
+        ),
+        outcomeCounts,
+        cancelledCount,
+        backlogPath,
+        perSource,
+        insertedPerSource,
+        plans,
+      });
+      if (message.length > 0) {
+        new Notice(message, 4000 + message.length * 3);
+      }
+    } finally {
+      this.recordUndo(undoHistoryInstance);
     }
   }
 
