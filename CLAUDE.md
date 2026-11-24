@@ -107,6 +107,10 @@ Plans write an e2e test where they would have written a manual check in the test
 
 When a feature is visual or interactive (dialogs, settings, layout), offer the user a private review clip: a throwaway `e2e/demos/private/<feature>.demo.js`, recorded with `pnpm demo <feature>`, handing over the GIF's absolute path. Never commit these.
 
+## Designs and plans
+
+Designs go in `docs/design/YYYY-MM-DD-<topic>-design.md` and stay there (see `docs/design/README.md`). An implementation plan goes in `docs/design/plans/YYYY-MM-DD-<topic>.md` on its feature branch, and the branch's last commit deletes it, so a merged feature leaves only its design. The roadmap links designs, never plans.
+
 ## Origins and upstream
 
 Daily Catch-Up is an independent plugin that started as a fork of `git@github.com:lumoe/obsidian-rollover-daily-todos.git` (Rollover Daily Todos, the upstream Obsidian community plugin). Upstream changes can still be adopted selectively. The GitHub repository is `hoshposh/daily-catch-up` (renamed from `hoshposh/obsidian-rollover-daily-todos` on 2026-11-10; GitHub redirects the old URL). It is still a GitHub fork of upstream.

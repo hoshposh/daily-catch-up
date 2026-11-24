@@ -47,7 +47,7 @@ The Chrome DevTools screencast (`Page.startScreencast`) was dropped: it streams 
 
 ## What exists today
 
-- **The e2e harness** (`e2e/helpers/`, see `docs/superpowers/specs/2026-11-15-e2e-tests-design.md`): `reset()` puts `e2e-vault` in a known state with given notes and settings; `bootstrap()` builds the current branch into the vault's own plugin folder; `openToday()`, `runCommand()`, `setOutcome()`, `clickButton()`, `waitForReview()`, `waitForIdle()` drive a rollover; `settings-tab.js` drives the settings window and rule dialog; `startAsync()` / `awaitAsync()` run async code in the app.
+- **The e2e harness** (`e2e/helpers/`, see `docs/design/2026-11-15-e2e-tests-design.md`): `reset()` puts `e2e-vault` in a known state with given notes and settings; `bootstrap()` builds the current branch into the vault's own plugin folder; `openToday()`, `runCommand()`, `setOutcome()`, `clickButton()`, `waitForReview()`, `waitForIdle()` drive a rollover; `settings-tab.js` drives the settings window and rule dialog; `startAsync()` / `awaitAsync()` run async code in the app.
 - **Probe of the running app (2026-11-16):** in `eval`, `require("@electron/remote").getCurrentWebContents()` is available, with `capturePage()` and `beginFrameSubscription()`, and `require("fs")` works. 20 sequential `capturePage()` + `toPNG()` + `writeFileSync` at the window's full size (2030×1000) took 1.56 s, about 13 frames per second. `dev:cdp method=Page.captureScreenshot` also works.
 - **Tools:** ffmpeg is installed with the `gif`, `libwebp_anim` and `apng` encoders. gifsicle 1.96 is in apt but not installed. gifski is not in apt.
 - **The settings window is a popout window** in Obsidian 1.15, with its own document and web contents. Capturing the main window does not capture it.

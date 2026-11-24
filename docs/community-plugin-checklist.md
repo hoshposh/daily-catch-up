@@ -4,7 +4,7 @@ What remains for this fork to be listed in Obsidian's community plugins under it
 
 State as of 2026-11-09: the review and aging features and the grouped settings screen are on `main`, pushed, and CI is green. What's left is identity, packaging and cleanup.
 
-Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-review-and-aging-design.md` (Intent). Its own work is the review dialog, rollover counting and stale todos, the backlog note, and the heading-aware rollover. Mark-as-moved, skip-existing, the Templater safeguard, `ignoreBlockquotes` and `skipCompletedChildren` came from upstream's unreleased `release/v1.3.0` branch, so they are not differentiators. Credit them as upstream's.
+Why the plugin is distinct: see `docs/design/2026-11-03-migration-review-and-aging-design.md` (Intent). Its own work is the review dialog, rollover counting and stale todos, the backlog note, and the heading-aware rollover. Mark-as-moved, skip-existing, the Templater safeguard, `ignoreBlockquotes` and `skipCompletedChildren` came from upstream's unreleased `release/v1.3.0` branch, so they are not differentiators. Credit them as upstream's.
 
 ## 1. Identity (decide first; everything below depends on it)
 
@@ -64,7 +64,7 @@ Why the plugin is distinct: see `docs/superpowers/specs/2026-11-03-migration-rev
 
 ## 5. Optional cleanup before submitting
 
-- [ ] Triage the deferred minor findings from the review and aging work. They're listed in the local `.superpowers/sdd/2026-11-07-migration-review-and-aging/progress.md`, which isn't committed. None blocks submission.
+- [ ] Triage the deferred minor findings from the review and aging work. They're listed in a local progress file that isn't committed. None blocks submission.
 
 ## 6. Submit
 

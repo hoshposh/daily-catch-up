@@ -4,7 +4,7 @@ Design for an automated end-to-end suite that runs the plugin inside the real Ob
 
 ## Intent
 
-Every feature branch so far ended with manual checks in a test vault: `.claude/manual-test-checklist.md` (eight checks for review and aging) and the "Manual check in the test vault" steps in each plan (for example Tasks 5 and 6 of `docs/superpowers/plans/2026-11-12-rules.md`). Each check means resetting the vault with `/setup-test-fixture`, hand-editing settings, opening today's note, clicking through a dialog, and asking Claude to compare the vault files. Each check is done once, on its branch, and never again.
+Every feature branch so far ended with manual checks in a test vault: `.claude/manual-test-checklist.md` (eight checks for review and aging) and the "Manual check in the test vault" steps in each plan (for example Tasks 5 and 6 of the rules plan, now in git history). Each check means resetting the vault with `/setup-test-fixture`, hand-editing settings, opening today's note, clicking through a dialog, and asking Claude to compare the vault files. Each check is done once, on its branch, and never again.
 
 The goal (decided) is fewer manual tests and more automated ones. A committed suite that reruns every past check on every branch was chosen over having Claude drive each branch's checklist through the CLI (decided), because only the suite reduces manual work over time and catches a later change breaking an earlier feature.
 
