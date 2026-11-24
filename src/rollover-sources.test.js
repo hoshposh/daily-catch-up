@@ -7,6 +7,7 @@ import {
   earlierSources,
   planSources,
   backlogFailedNotice,
+  backlogSource,
   BACKLOG_GUARD_EARLIER_NOTICE,
   BACKLOG_GUARD_NOTICE,
   INBOX_GUARD_NOTICE,
@@ -1318,5 +1319,84 @@ describe("notices and guards for earlier notes", () => {
         backlogPathConflict({ ...paths, backlogPath: "Daily/2026-11-15.md" })
       ).toBe(BACKLOG_GUARD_EARLIER_NOTICE);
     });
+  });
+});
+
+describe("the backlog source", () => {
+  function backlog(lines) {
+    return backlogSource({
+      file: { basename: "Backlog" },
+      content: lines.join("\n"),
+      lines,
+      sections: getSections({
+        lines,
+        withChildren: true,
+        doneStatusMarkers: "xX-",
+      }),
+    });
+  }
+
+  test("backlogSource", () => {
+    const src = backlog(["- [ ] a"]);
+    expect(src).toMatchObject({
+      key: "backlog/",
+      kind: "backlog",
+      name: "Backlog",
+      content: "- [ ] a",
+      lines: ["- [ ] a"],
+      sourceAction: "delete",
+      keepHeadings: true,
+      countRollover: false,
+      flatten: true,
+    });
+    expect(src.file).toEqual({ basename: "Backlog" });
+    expect(src.sections).toHaveLength(1);
+  });
+
+  test("every item stays, and an outcome rule does not choose", () => {
+    const rule = {
+      id: "r",
+      enabled: true,
+      match: "tag",
+      value: "#someday",
+      effect: "roll",
+    };
+    const { plans, decisions } = planSources({
+      sources: [backlog(["- [ ] Learn Rust #someday", "- [ ] Fix bike"])],
+      settings: { ...PLAN_SETTINGS, rules: [rule] },
+    });
+    expect(Object.values(decisions)).toEqual(["leave", "leave"]);
+    expect(plans[0].items[0].rule.outcomeRule).toBeUndefined();
+    expect(plans[0].items[0].rule.outcome).toBeUndefined();
+  });
+
+  test("a move rule still moves", () => {
+    const rule = {
+      id: "m",
+      enabled: true,
+      match: "tag",
+      value: "#errands",
+      effect: "move",
+      target: "## Errands",
+    };
+    const { plans } = planSources({
+      sources: [backlog(["- [ ] Buy soil #errands"])],
+      settings: { ...PLAN_SETTINGS, rules: [rule] },
+    });
+    expect(plans[0].items[0].rule.moveTo).toBe("## Errands");
+  });
+
+  test("sourceNeedsWrite: only with lines to change", () => {
+    const src = { kind: "backlog", sourceAction: "delete" };
+    const none = {
+      movedLineIndices: [],
+      cancelledLineIndices: [],
+      deleteLineIndices: [],
+      skippedLineIndices: [],
+    };
+    expect(sourceNeedsWrite(src, none)).toBe(false);
+    expect(sourceNeedsWrite(src, { ...none, movedLineIndices: [2] })).toBe(
+      true
+    );
   });
 });

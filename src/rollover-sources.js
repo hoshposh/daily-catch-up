@@ -2,7 +2,8 @@
 // shared by index.js and the unit flow test (src/rollover-flow.test.js). It
 // loops the steps of rollover-plan.js over a list of sources, in this order:
 // the previous day's note (kind "previous"), the older daily notes Look back
-// reads, newest first (kind "earlier"), and the inbox note (kind "inbox"). A
+// reads, newest first (kind "earlier"), and the inbox note (kind "inbox"); or,
+// for Bring back from backlog, the backlog note alone (kind "backlog"). A
 // source is `{ key, kind, name, lines, sections, sourceAction }`; `key` is put
 // in front of its item ids ("" for the previous day's note, so its ids stay as
 // they were) and `name` is what its backlog items say they came from. An
@@ -22,6 +23,7 @@
 import { normalizeHeading } from "./backlog";
 import { insertSections } from "./insert-sections";
 import { cumulativeDoneKeys, handledItemIds } from "./look-back";
+import { stripFromField } from "./rolled-count";
 import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import {
   applySourceAction,
@@ -66,6 +68,45 @@ export function inboxSource({ file, content, lines, sections, settings }) {
     countRollover: false,
     placement: heading.trim() ? normalizeHeading(heading) : null,
   };
+}
+
+/**
+ * The backlog note as the only source of Bring back from backlog. Every item
+ * stays unless the user picks it, so no outcome rule applies; delete keeps the
+ * note's headings and only removes what was chosen (applySources()); its
+ * counters are not raised; and brought-back todos lose `[from:: …]` and land
+ * without the backlog's headings (`flatten`).
+ *
+ * @param {object} args
+ * @param {{ basename: string }} args.file - the backlog note
+ * @param {string} args.content - as read
+ * @param {string[]} args.lines - splitLines(content)
+ * @param {object[]} args.sections - getSections() of `lines`, with the same
+ *   options as the rollover's sources
+ */
+export function backlogSource({ file, content, lines, sections }) {
+  return {
+    key: "backlog/",
+    kind: "backlog",
+    name: file.basename,
+    file,
+    content,
+    lines,
+    sections,
+    sourceAction: "delete",
+    keepHeadings: true,
+    countRollover: false,
+    flatten: true,
+  };
+}
+
+// A backlog item's rule without its outcome: in the backlog every item stays
+// unless the user picks it, whatever a rule says. Moves still apply.
+function withoutOutcome(rule) {
+  if (!rule) return rule;
+  // eslint-disable-next-line no-unused-vars
+  const { outcome, outcomeRule, ...rest } = rule;
+  return rest;
 }
 
 /**
@@ -283,6 +324,17 @@ export function planSources({ sources, settings }) {
     if (source.kind === "earlier") {
       return markEarlierItems(plan, source, settings.doneStatusMarkers ?? "");
     }
+    if (source.kind === "backlog") {
+      const items = plan.items.map((item) => ({
+        ...item,
+        rule: withoutOutcome(item.rule),
+      }));
+      return {
+        ...plan,
+        items,
+        decisions: Object.fromEntries(items.map((item) => [item.id, "leave"])),
+      };
+    }
     if (typeof source.placement !== "string") return plan;
     // a source with a placement sends its items there, unless a Move to
     // heading rule already sends them somewhere
@@ -311,6 +363,21 @@ export function planSources({ sources, settings }) {
   };
 }
 
+// What brought-back todos look like in today's note: each item's head without
+// `[from:: …]`, and with `flatten` every section without a move target under
+// no heading (the backlog's headings mean nothing in a daily note)
+function backlogReturns(sections, items, flatten) {
+  const heads = new Set(items.map((item) => item.lineIndices[0]));
+  return sections.map((section) => ({
+    ...section,
+    headingPath:
+      flatten && !section.moveTo ? [] : section.headingPath,
+    incompleteTodos: section.incompleteTodos.map((line, i) =>
+      heads.has(section.incompleteLineIndices[i]) ? stripFromField(line) : line
+    ),
+  }));
+}
+
 /**
  * Turns the decisions into what each source gets (applyPlan()), the backlog
  * items of all sources, and the outcome counts added up.
@@ -328,14 +395,22 @@ export function planSources({ sources, settings }) {
 export function applySources({ plans, sources, decisions }) {
   const perSource = plans.map((plan, i) => {
     const handled = plan.items.filter((item) => item.handled);
+    const backlog = sources[i].kind === "backlog";
     const applied = {
-      ...applyPlan({ plan, decisions }),
+      ...applyPlan({ plan, decisions, deleteOnlyChosen: backlog }),
       handledLineIndices: handled.flatMap((item) => item.lineIndices),
       handledCount: handled.length,
       leftCount: plan.items.filter(
         (item) => !item.hidden && decisions[item.id] === "leave"
       ).length,
     };
+    if (backlog) {
+      applied.rolledSections = backlogReturns(
+        applied.rolledSections,
+        plan.items,
+        sources[i].flatten
+      );
+    }
     // a source that does not count keeps every item's counter as it is
     if (sources[i].countRollover === false) {
       applied.noStaleLineIndices = plan.items.map(
@@ -439,7 +514,7 @@ export function sourceNeedsWrite(source, decided) {
   if (source.sourceAction === "none") {
     return decided.cancelledLineIndices.length > 0;
   }
-  if (source.kind !== "earlier") return true;
+  if (source.kind !== "earlier" && source.kind !== "backlog") return true;
   return [
     decided.movedLineIndices,
     decided.cancelledLineIndices,

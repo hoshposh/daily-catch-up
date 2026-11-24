@@ -5,10 +5,12 @@ import { dedupeAgainstExisting } from "./insert-todos";
 import { appendToBacklog, normalizeHeading } from "./backlog";
 import {
   applySources,
+  backlogSource,
   earlierSources,
   inboxSource,
   insertSources,
   planSources,
+  sourceNeedsWrite,
   writeSource,
 } from "./rollover-sources";
 import {
@@ -18,6 +20,7 @@ import {
 } from "./source-action";
 import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
 import { lookBackDoneMarkers } from "./look-back";
+import { itemLabel } from "./rollover-items";
 
 // The parts of rollover() that do not need Obsidian, run end to end
 function rollover({
@@ -220,6 +223,117 @@ function reviewedRollover({
     reviewItems: planned.reviewItems,
   };
 }
+
+
+// Bring back from the backlog, through the same calls as index.js: the
+// backlog as the only source, decided, inserted into today's note, written
+function bringBack({
+  backlog,
+  today = "",
+  decisions,
+  templateHeading = "none",
+  skipExisting = false,
+  removeEmpty = false,
+  skipCompleted = false,
+  track = false,
+  rules = [],
+}) {
+  const settings = {
+    onRolloverSourceAction: "none",
+    rolloverSourceMarker: ">",
+    cancelMarker: "-",
+    doneStatusMarkers: "xX-",
+    ignoreBlockquotes: false,
+    moveNestedItemsOnMark: false,
+    rolloverChildren: true,
+    inboxNotePath: "",
+    inboxSourceAction: "delete",
+  };
+  const lines = splitLines(backlog);
+  const sources = [
+    backlogSource({
+      file: { basename: "Backlog" },
+      content: backlog,
+      lines,
+      sections: getSections({
+        lines,
+        withChildren: true,
+        doneStatusMarkers: "xX-",
+        skipCompletedChildren: skipCompleted,
+        isIgnored: (line, path) => isIgnoredByRules(line, path, rules),
+      }),
+    }),
+  ];
+  const planned = planSources({
+    sources,
+    settings: {
+      removeEmptyTodos: removeEmpty,
+      rolloverChildren: true,
+      trackRolloverCount: track,
+      staleAfterRollovers: 5,
+      staleBehavior: "keep",
+      backlogEnabled: false,
+      cancelEnabled: true,
+      rules,
+      doneStatusMarkers: "xX-",
+    },
+  });
+  const decided = decisions
+    ? decisions(planned.items, planned.decisions)
+    : planned.decisions;
+  const applied = applySources({
+    plans: planned.plans,
+    sources,
+    decisions: decided,
+  });
+  const inserted = insertSources({
+    content: today,
+    entries: sources.map((source, i) => ({
+      sections: applied.perSource[i].rolledSections,
+      lines: source.lines,
+      noStaleLineIndices: applied.perSource[i].noStaleLineIndices,
+      handledLineIndices: applied.perSource[i].handledLineIndices,
+    })),
+    settings: {
+      skipExistingTodos: skipExisting,
+      rolloverChildren: true,
+      trackRolloverCount: track,
+      doneStatusMarkers: "xX-",
+      templateHeading,
+      leadingNewLine: true,
+    },
+  });
+  const needsWrite = sourceNeedsWrite(sources[0], applied.perSource[0]);
+  const written = needsWrite
+    ? writeSource({
+        content: backlog,
+        source: sources[0],
+        decided: applied.perSource[0],
+        retainedLineIndices: inserted.perSource[0].retainedLineIndices,
+        settings,
+      }).content
+    : backlog;
+  return {
+    today: inserted.content,
+    backlog: written,
+    items: planned.items,
+    defaults: planned.decisions,
+    inserted,
+    needsWrite,
+  };
+}
+
+// decisions that set the items whose label is in `map`, defaults otherwise
+const pick = (map) => (items, defaults) => {
+  const decisions = { ...defaults };
+  for (const item of items) {
+    const label = itemLabel(item).replace(/ \[from::.*$/, "").replace(/ \(\+\d+ nested\)$/, "");
+    if (label in map) decisions[item.id] = map[label];
+  }
+  return decisions;
+};
+const allRoll = (items, defaults) =>
+  Object.fromEntries(Object.keys(defaults).map((id) => [id, "roll"]));
 
 describe("rollover without a template heading", () => {
   const yesterday = [
@@ -1295,5 +1409,156 @@ describe("earlier notes", () => {
     expect(r.today).toBe(today);
     expect(r.reviewItems).toEqual([]);
     expect(r.earlier).toEqual(["- [>] Call Sam\n- [ ] Stretch #habit\n"]);
+  });
+});
+
+describe("bring back from the backlog", () => {
+  const BACKLOG = [
+    "## Someday",
+    "",
+    "- [ ] Learn Rust [from:: [[2026-11-01]]]",
+    "  - [ ] pick a book",
+    "  - [x] install toolchain",
+    "- [ ] Fix bike [from:: [[2026-11-02]]]",
+    "- [ ] ",
+    "  - [x] done under empty",
+    "- [ ] Read Dune [from:: [[2026-11-03]]]",
+    "",
+  ].join("\n");
+  const todayLines = (r) => r.today.split("\n");
+
+  test("chosen items move, the rest stay", () => {
+    const r = bringBack({
+      backlog: BACKLOG,
+      skipCompleted: true,
+      removeEmpty: true,
+      templateHeading: "## Tasks",
+      today: "## Tasks\n\n- [ ] Standup\n",
+      decisions: pick({ "Learn Rust": "roll", "Fix bike": "cancel" }),
+    });
+    expect(r.backlog).toBe(
+      "## Someday\n\n- [-] Fix bike [from:: [[2026-11-02]]]\n- [ ] \n  - [x] done under empty\n- [ ] Read Dune [from:: [[2026-11-03]]]\n"
+    );
+    const lines = todayLines(r);
+    const tasks = lines.indexOf("## Tasks");
+    expect(lines.indexOf("- [ ] Learn Rust")).toBeGreaterThan(tasks);
+    expect(lines.indexOf("  - [ ] pick a book")).toBeGreaterThan(
+      lines.indexOf("- [ ] Learn Rust")
+    );
+    expect(r.today).not.toContain("[from::");
+    expect(r.today).not.toContain("Someday");
+  });
+
+  test("without a template heading, no backlog heading is recreated", () => {
+    const r = bringBack({
+      backlog: BACKLOG,
+      decisions: pick({ "Learn Rust": "roll" }),
+    });
+    expect(r.today).toContain("- [ ] Learn Rust");
+    expect(todayLines(r).filter((line) => line.startsWith("#"))).toEqual([]);
+  });
+
+  test("everything on Stay writes nothing", () => {
+    const r = bringBack({ backlog: BACKLOG });
+    expect(Object.values(r.defaults).every((d) => d === "leave")).toBe(true);
+    expect(r.needsWrite).toBe(false);
+    expect(r.backlog).toBe(BACKLOG);
+    expect(r.today).toBe("");
+  });
+
+  test("skip existing compares without the from field", () => {
+    const r = bringBack({
+      backlog: BACKLOG,
+      skipExisting: true,
+      today: "- [ ] Read Dune\n",
+      decisions: pick({ "Read Dune": "roll" }),
+    });
+    expect(todayLines(r).filter((l) => l === "- [ ] Read Dune")).toHaveLength(1);
+    expect(r.backlog).not.toContain("Read Dune");
+    expect(r.inserted.perSource[0].todosAlreadyPresent).toBe(1);
+  });
+
+  test("the same todo parked twice: both come back, both leave the backlog", () => {
+    // skip existing compares with today's note, not two todos of one source
+    // with each other, as for a daily note with the same todo twice
+    const r = bringBack({
+      backlog:
+        "- [ ] Read Dune [from:: [[2026-11-03]]]\n- [ ] Read Dune [from:: [[2026-11-05]]]\n",
+      skipExisting: true,
+      decisions: allRoll,
+    });
+    expect(todayLines(r).filter((l) => l === "- [ ] Read Dune")).toHaveLength(2);
+    expect(r.backlog).not.toContain("Read Dune");
+  });
+
+  test("a move rule wins", () => {
+    const rule = {
+      id: "m",
+      enabled: true,
+      match: "tag",
+      value: "#errands",
+      effect: "move",
+      target: "## Errands",
+    };
+    const r = bringBack({
+      backlog: "- [ ] Buy soil #errands [from:: [[2026-11-01]]]\n",
+      rules: [rule],
+      templateHeading: "## Tasks",
+      today: "## Tasks\n",
+      decisions: allRoll,
+    });
+    const lines = todayLines(r).filter((l) => l !== "");
+    const at = lines.indexOf("## Errands");
+    expect(at).toBeGreaterThan(-1);
+    expect(lines[at + 1]).toBe("- [ ] Buy soil #errands");
+  });
+
+  test("an outcome rule does not preselect", () => {
+    const rule = {
+      id: "r",
+      enabled: true,
+      match: "tag",
+      value: "#someday",
+      effect: "roll",
+    };
+    const r = bringBack({
+      backlog: "- [ ] Learn Rust #someday [from:: [[d]]]\n",
+      rules: [rule],
+    });
+    expect(Object.values(r.defaults)).toEqual(["leave"]);
+  });
+
+  test("counters are kept, not raised", () => {
+    const r = bringBack({
+      backlog: "- [ ] A [rolled:: 2] [from:: [[d]]]\n",
+      track: true,
+      decisions: allRoll,
+    });
+    expect(todayLines(r)).toContain("- [ ] A [rolled:: 2]");
+  });
+
+  test("CRLF", () => {
+    const r = bringBack({
+      backlog: "## Someday\r\n\r\n- [ ] A [from:: [[d]]]\r\n- [ ] B [from:: [[d]]]\r\n",
+      decisions: pick({ A: "roll" }),
+    });
+    expect(r.backlog).toBe("## Someday\r\n\r\n- [ ] B [from:: [[d]]]\r\n");
+    expect(r.today).toContain("- [ ] A");
+    expect(r.today).not.toContain("[from::");
+  });
+
+  test("round trip: parked, then brought back", () => {
+    const parked = reviewedRollover({
+      yesterday: "- [ ] Learn Rust [rolled:: 3]\n  - [ ] pick a book\n",
+      action: "delete",
+      track: true,
+      decisions: () => ({ "0:0": "backlog" }),
+    });
+    expect(parked.backlog).toContain("[from:: [[2026-11-06]]]");
+    const r = bringBack({ backlog: parked.backlog, decisions: allRoll });
+    expect(todayLines(r).filter((l) => l.trim() !== "")).toEqual([
+      "- [ ] Learn Rust",
+      "  - [ ] pick a book",
+    ]);
   });
 });

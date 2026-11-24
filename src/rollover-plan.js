@@ -91,8 +91,11 @@ export function planDecisions({ sections, lines, settings, idPrefix = "" }) {
  * @param {object} args
  * @param {object} args.plan - from planDecisions()
  * @param {Record<string, string>} args.decisions - item id -> outcome
+ * @param {boolean} [args.deleteOnlyChosen] - delete only the Roll and Backlog
+ *   items and the dropped empty todos and skipped completed children that
+ *   belong to them (the backlog: nothing the user did not choose goes)
  */
-export function applyPlan({ plan, decisions }) {
+export function applyPlan({ plan, decisions, deleteOnlyChosen = false }) {
   const { sections, lines, items, foundLineIndices } = plan;
   const decided = applyDecisions({
     sections,
@@ -111,14 +114,18 @@ export function applyPlan({ plan, decisions }) {
     cancelledLineIndices: decided.cancelledLineIndices,
     // delete also removes empty todos that were not rolled over, but never
     // Cancel or Leave items
-    deleteLineIndices: decided.deleteLineIndices,
-    skippedLineIndices: skippedLinesToDelete({
-      skippedLineIndices: plan.skippedLineIndices,
-      sections,
-      items,
-      decisions,
-      lines,
-    }),
+    deleteLineIndices: deleteOnlyChosen
+      ? decided.chosenLineIndices
+      : decided.deleteLineIndices,
+    skippedLineIndices: deleteOnlyChosen
+      ? decided.skippedLineIndices
+      : skippedLinesToDelete({
+          skippedLineIndices: plan.skippedLineIndices,
+          sections,
+          items,
+          decisions,
+          lines,
+        }),
     outcomeCounts: countOutcomes(items, decisions),
     // heads of the items whose counter a No stale count rule keeps as it is
     noStaleLineIndices: items

@@ -219,6 +219,17 @@ export function applyDecisions({
     }
   });
   const deleteLineIndices = foundLineIndices.filter((i) => !kept.has(i));
+  // what delete removes when only the chosen lines may go (the backlog): the
+  // Roll and Backlog items and the dropped empty todos that belong to them
+  const chosenLineIndices = [...movedLineIndices];
+  sections.forEach((section, sectionIndex) => {
+    for (const line of section.droppedLineIndices ?? []) {
+      const owner = ownerOf(owners[sectionIndex], line);
+      if (owner !== null && movedItemIds.has(owner.id)) {
+        chosenLineIndices.push(line);
+      }
+    }
+  });
 
   // the skipped lines that move with a Roll or Backlog item
   const skippedKept = (sectionIndex) =>
@@ -256,6 +267,7 @@ export function applyDecisions({
     movedLineIndices,
     cancelledLineIndices,
     deleteLineIndices,
+    chosenLineIndices,
     skippedLineIndices,
   };
 }
