@@ -40,6 +40,7 @@ import {
   writeSource,
 } from "./rollover-sources";
 import { appendToBacklog } from "./backlog";
+import { stripFromField } from "./rolled-count";
 import { followRename } from "./note-paths";
 import { EXAMPLE_RULES, isIgnoredByRules, sanitizeRules } from "./rules";
 import {
@@ -160,8 +161,9 @@ export default class RolloverTodosPlugin extends Plugin {
   }
 
   // A note's unfinished todos grouped by their parent heading, with the
-  // options every source note is read with
-  parseNote(lines) {
+  // options every source note is read with. `ruleLine` is the text "Not a
+  // todo" rules see (the backlog's lines without their `[from:: …]` link).
+  parseNote(lines, { ruleLine = (line) => line } = {}) {
     const rules = this.settings.rules ?? [];
     return getSections({
       lines,
@@ -172,7 +174,7 @@ export default class RolloverTodosPlugin extends Plugin {
       // "Not a todo" rules: such a line and what is nested under it stay
       // put
       isIgnored: (line, headingPath) =>
-        isIgnoredByRules(line, headingPath, rules),
+        isIgnoredByRules(ruleLine(line), headingPath, rules),
     });
   }
 
@@ -333,7 +335,7 @@ export default class RolloverTodosPlugin extends Plugin {
       file: backlogFile,
       content,
       lines,
-      sections: this.parseNote(lines),
+      sections: this.parseNote(lines, { ruleLine: stripFromField }),
     });
     if (!source.sections.some((s) => s.incompleteTodos.length > 0)) {
       new Notice(

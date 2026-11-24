@@ -21,6 +21,7 @@ import {
 import { EXAMPLE_RULES, isIgnoredByRules } from "./rules";
 import { lookBackDoneMarkers } from "./look-back";
 import { itemLabel } from "./rollover-items";
+import { stripFromField } from "./rolled-count";
 
 // The parts of rollover() that do not need Obsidian, run end to end
 function rollover({
@@ -260,7 +261,9 @@ function bringBack({
         withChildren: true,
         doneStatusMarkers: "xX-",
         skipCompletedChildren: skipCompleted,
-        isIgnored: (line, path) => isIgnoredByRules(line, path, rules),
+        // as index.js: rules do not see the `[from:: …]` link
+        isIgnored: (line, path) =>
+          isIgnoredByRules(stripFromField(line), path, rules),
       }),
     }),
   ];
@@ -1511,6 +1514,25 @@ describe("bring back from the backlog", () => {
     const at = lines.indexOf("## Errands");
     expect(at).toBeGreaterThan(-1);
     expect(lines[at + 1]).toBe("- [ ] Buy soil #errands");
+  });
+
+  test("a regex rule does not see the from field", () => {
+    const rule = {
+      id: "d",
+      enabled: true,
+      match: "regex",
+      value: String.raw`\d{4}-\d{2}-\d{2}`,
+      effect: "move",
+      target: "## Dated",
+    };
+    const r = bringBack({
+      backlog: "- [ ] Learn Rust [from:: [[2026-11-01]]]\n",
+      rules: [rule],
+      decisions: allRoll,
+    });
+    expect(r.items[0].rule.moveTo ?? null).toBeNull();
+    expect(r.today).not.toContain("## Dated");
+    expect(r.today).toContain("- [ ] Learn Rust");
   });
 
   test("an outcome rule does not preselect", () => {

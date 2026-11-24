@@ -115,6 +115,29 @@ test("brings back the chosen todos", async () => {
   );
 });
 
+test("a Not a todo regex does not see the from link", async () => {
+  const dates = {
+    id: "dates",
+    enabled: true,
+    match: "regex",
+    value: String.raw`\d{4}-\d{2}-\d{2}`,
+    effect: "ignore",
+  };
+  await reset({
+    notes: withBacklog(),
+    settings: { ...SETTINGS, rules: [dates] },
+  });
+
+  const rows = await openBringBack();
+  expect(rows.map((row) => row.label)).toEqual([
+    "Learn Rust",
+    "Fix bike",
+    "Read Dune",
+  ]);
+  await pressEscape();
+  await waitForIdle();
+});
+
 test("cancel marks in the backlog", async () => {
   await reset({ notes: withBacklog(), settings: SETTINGS });
 

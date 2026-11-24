@@ -24,6 +24,7 @@ import { normalizeHeading } from "./backlog";
 import { insertSections } from "./insert-sections";
 import { cumulativeDoneKeys, handledItemIds } from "./look-back";
 import { stripFromField } from "./rolled-count";
+import { ruleResult } from "./rules";
 import { applyPlan, planDecisions, planInsert } from "./rollover-plan";
 import {
   applySourceAction,
@@ -325,9 +326,21 @@ export function planSources({ sources, settings }) {
       return markEarlierItems(plan, source, settings.doneStatusMarkers ?? "");
     }
     if (source.kind === "backlog") {
+      // rules judge the todo, not the `[from:: [[date]]]` link the backlog
+      // added to it
       const items = plan.items.map((item) => ({
         ...item,
-        rule: withoutOutcome(item.rule),
+        rule: withoutOutcome(
+          ruleResult(
+            stripFromField(item.lines[0]),
+            item.headingPath,
+            settings.rules ?? [],
+            {
+              backlogEnabled: settings.backlogEnabled,
+              cancelEnabled: settings.cancelEnabled,
+            }
+          )
+        ),
       }));
       return {
         ...plan,
