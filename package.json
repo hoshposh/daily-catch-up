@@ -1,6 +1,6 @@
 {
   "name": "daily-catch-up",
-  "version": "1.6.0-preview.2",
+  "version": "1.6.0-preview.3",
   "description": "Catch up on unfinished todos from your recent daily notes and an inbox note: roll them over to today, park them in a backlog, or cancel them.",
   "main": "main.js",
   "scripts": {
