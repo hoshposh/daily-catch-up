@@ -1,7 +1,7 @@
 {
   "name": "daily-catch-up",
   "version": "1.5.0",
-  "description": "Catch up on unfinished todos from your previous daily note: roll them over to today, park them in a backlog, or cancel them.",
+  "description": "Catch up on unfinished todos from your recent daily notes and an inbox note: roll them over to today, park them in a backlog, or cancel them.",
   "main": "main.js",
   "scripts": {
     "dev": "rollup -c -w",
