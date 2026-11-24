@@ -1,6 +1,6 @@
 // The four review outcomes, and undoing them (checklist checks 2 and 5).
 import { afterEach, expect, test } from "vitest";
-import { evalJson, waitFor } from "./helpers/obsidian";
+import { evalJs, evalJson, waitFor } from "./helpers/obsidian";
 import {
   clickButton,
   notices,
@@ -15,6 +15,7 @@ import {
   CHECKLIST_PROFILE,
   day,
   expectNoErrors,
+  plugin,
   fixture,
   readNote,
   reset,
@@ -129,4 +130,27 @@ test("undo restores both notes and deletes the new backlog note", async () => {
   await waitFor(async () => (await readNote(BACKLOG)) === null, {
     message: "the backlog note to be deleted",
   });
+});
+
+test("a setting changed while the review is open waits for the next rollover", async () => {
+  await reset({
+    notes: standardNotes({ withToday: true }),
+    settings: { templateHeading: "## Tasks" },
+  });
+
+  await runCommand("review-and-rollover");
+  await waitForReview();
+  // as if changed in the settings window while the dialog is open
+  await evalJs(`${plugin}.settings.templateHeading = "## Nowhere"; true`);
+  await clickButton("Apply");
+  await waitForNotice("rolled over");
+  await waitForIdle();
+
+  expect(
+    (await notices()).filter((text) => text.includes("couldn't find"))
+  ).toEqual([]);
+  const lines = (await readNote(today())).split("\n");
+  expect(lines.indexOf("- [ ] Write report")).toBeGreaterThan(
+    lines.indexOf("## Tasks")
+  );
 });

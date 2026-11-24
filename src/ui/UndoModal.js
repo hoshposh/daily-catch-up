@@ -96,6 +96,10 @@ export default class UndoModal extends Modal {
     let modTextArray = []
     if (undoHistoryInstance.today.file != undefined) {
       modTextArray.push(await this.parseDay(undoHistoryInstance.today))
+    } else if (bringBack) {
+      // a bring back always snapshots today's note when it added to it, so
+      // here it added nothing (Cancel only)
+      modTextArray.push("- Today's note will not be changed.")
     } else {
       modTextArray.push("- Today's note will not be changed. Remove the rolled over todos from it yourself if you want them gone.")
     }

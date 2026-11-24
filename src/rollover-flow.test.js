@@ -225,7 +225,6 @@ function reviewedRollover({
   };
 }
 
-
 // Bring back from the backlog, through the same calls as index.js: the
 // backlog as the only source, decided, inserted into today's note, written
 function bringBack({

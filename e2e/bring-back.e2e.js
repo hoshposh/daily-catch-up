@@ -205,6 +205,28 @@ test("undo puts both notes back", async () => {
   );
 });
 
+test("undo after a Cancel-only bring back says today's note stays", async () => {
+  await reset({ notes: withBacklog(), settings: SETTINGS });
+
+  await openBringBack();
+  await setOutcome("Fix bike", "cancel");
+  await clickButton("Apply");
+  await waitForNotice("- 1 cancelled.");
+  await waitForIdle();
+
+  await runCommand("undo-rollover");
+  await waitForUndoDialog();
+  const text = await evalJson(
+    "[...document.querySelectorAll('.modal')].map((m) => m.textContent).join('\\n')"
+  );
+  expect(text).toContain("Today's note will not be changed.");
+  expect(text).not.toContain("rolled over todos");
+  await clickButton("Confirm Undo");
+  await waitFor(async () => (await readNote(BACKLOG)) === BACKLOG_CONTENT, {
+    message: "the backlog restored",
+  });
+});
+
 test("without today's note it only says so", async () => {
   await reset({
     notes: { ...standardNotes(), [BACKLOG]: BACKLOG_CONTENT },

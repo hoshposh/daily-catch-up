@@ -41,6 +41,7 @@ export default class ReviewModal extends Modal {
   ) {
     super(app);
     this.bringBack = mode === "bringBack";
+    this.missingOutcome = this.bringBack ? "leave" : "roll";
     this.labels = this.bringBack ? BRING_BACK_LABELS : OUTCOME_LABELS;
     // [{ name, sections, items }]: each item's sectionIndex is within its
     // own source's sections
@@ -93,7 +94,9 @@ export default class ReviewModal extends Modal {
 
   updateMoveBadge(itemId) {
     const badge = this.moveBadges.get(itemId);
-    if (badge) badge.toggle((this.decisions[itemId] ?? "roll") === "roll");
+    if (badge) {
+      badge.toggle((this.decisions[itemId] ?? this.missingOutcome) === "roll");
+    }
   }
 
   updateSummary() {
@@ -229,7 +232,9 @@ export default class ReviewModal extends Modal {
             dropdown.addOption(outcome, this.labels[outcome]);
           }
           dropdown
-            .setValue(this.decisions[item.id] ?? "roll")
+            // as applySources() reads a missing decision: a backlog item
+            // stays
+            .setValue(this.decisions[item.id] ?? this.missingOutcome)
             .onChange((value) => {
               this.decisions[item.id] = value;
               this.updateMoveBadge(item.id);

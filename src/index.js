@@ -372,6 +372,9 @@ export default class RolloverTodosPlugin extends Plugin {
       return;
     }
 
+    // read now: a change made while the dialog is open waits for the next run
+    const { templateHeading, leadingNewLine, skipExistingTodos } =
+      this.settings;
     const decisions = await new ReviewModal(this.app, {
       sources: [
         { name: source.name, sections: plans[0].sections, items: reviewItems },
@@ -391,7 +394,6 @@ export default class RolloverTodosPlugin extends Plugin {
       return;
     }
 
-    const { templateHeading } = this.settings;
     await this.writeRollover({
       file,
       sources,
@@ -401,6 +403,7 @@ export default class RolloverTodosPlugin extends Plugin {
       // today's note is not new: Templater rendered it long ago
       templaterGuard: false,
       undoKind: "bring-back",
+      insertSettings: { templateHeading, leadingNewLine, skipExistingTodos },
       buildNotice: (summary) =>
         bringBackNotice({
           broughtBack: summary.todosAdded,
@@ -425,7 +428,12 @@ export default class RolloverTodosPlugin extends Plugin {
         10000
       );
     } else {
-      const { templateHeading, removeEmptyTodos } = this.settings;
+      const {
+        templateHeading,
+        removeEmptyTodos,
+        leadingNewLine,
+        skipExistingTodos,
+      } = this.settings;
 
       // check if there is a daily note from yesterday; without one, only an
       // inbox note can still give todos
@@ -643,6 +651,7 @@ export default class RolloverTodosPlugin extends Plugin {
         backlogPath,
         templaterGuard: true,
         undoKind: "rollover",
+        insertSettings: { templateHeading, leadingNewLine, skipExistingTodos },
         buildNotice: (summary) =>
           rolloverNotice({
             templateHeadingNotFound: summary.templateHeadingNotFound,
@@ -682,9 +691,12 @@ export default class RolloverTodosPlugin extends Plugin {
     templaterGuard,
     buildNotice,
     undoKind,
+    insertSettings,
   }) {
+    // as read before the review, so a change made while the dialog was open
+    // waits for the next run
     const { templateHeading, leadingNewLine, skipExistingTodos } =
-      this.settings;
+      insertSettings;
 
     // setup undo history
     let undoHistoryInstance = {
@@ -892,11 +904,21 @@ export default class RolloverTodosPlugin extends Plugin {
             source.file.path,
             error
           );
-          new Notice(sourceWriteFailedNotice(source, error), 15000);
+          new Notice(
+            sourceWriteFailedNotice(source, error, {
+              moved: decided.movedLineIndices.length > 0,
+            }),
+            15000
+          );
           continue;
         }
         if (editedMeanwhile) {
-          new Notice(sourceUnchangedNotice(source), 10000);
+          new Notice(
+            sourceUnchangedNotice(source, {
+              moved: decided.movedLineIndices.length > 0,
+            }),
+            10000
+          );
         } else {
           // the cancel marks were applied
           cancelledCount += decided.outcomeCounts.cancel;

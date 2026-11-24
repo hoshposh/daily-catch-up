@@ -404,7 +404,15 @@ function backlogReturns(sections, items, flatten) {
  *   insertSources()), `handledCount` (its handled items) and `leftCount` (its
  *   items decided "leave" that the review showed)
  */
-export function applySources({ plans, sources, decisions }) {
+export function applySources({ plans, sources, decisions: given }) {
+  // a backlog item without a decision stays, so nothing leaves the backlog
+  // unless chosen (elsewhere a missing decision rolls, as applyDecisions reads
+  // it)
+  const decisions = { ...given };
+  plans.forEach((plan, i) => {
+    if (sources[i].kind !== "backlog") return;
+    for (const item of plan.items) decisions[item.id] ??= "leave";
+  });
   const perSource = plans.map((plan, i) => {
     const handled = plan.items.filter((item) => item.handled);
     const backlog = sources[i].kind === "backlog";
@@ -717,17 +725,28 @@ const labelsOf = (sources) => sources.map(sourceLabel).join(" and ");
  * running, so it was left unchanged.
  *
  * @param {{ kind: string, name: string }} source
+ * @param {{ moved?: boolean }} [options] - moved: whether any of its todos
+ *   went to today's note or the backlog; without, the note's todos are not
+ *   said to have been added (a Cancel-only run)
  */
-export function sourceUnchangedNotice(source) {
+export function sourceUnchangedNotice(source, { moved = true } = {}) {
   if (source.kind === "backlog") {
     return `Bring back left ${sourceLabel(
       source
-    )} unchanged: it was edited while the dialog was open. Its todos were still added to today's note; remove them from the backlog yourself.`;
+    )} unchanged: it was edited while the dialog was open.${
+      moved
+        ? " Its todos were still added to today's note; remove them from the backlog yourself."
+        : ""
+    }`;
   }
   if (source.kind === "inbox") {
     return `Rollover left ${sourceLabel(
       source
-    )} unchanged: it was edited while the rollover was running. Its todos were still added to today's note; remove them from the inbox yourself.`;
+    )} unchanged: it was edited while the rollover was running.${
+      moved
+        ? " Its todos were still added to today's note; remove them from the inbox yourself."
+        : ""
+    }`;
   }
   return `Rollover left ${sourceLabel(
     source
@@ -793,16 +812,19 @@ export function backlogFailedNotice({
 
 /**
  * The notice when a source note could not be written; its todos were still
- * added to today's note.
+ * added to today's note, unless none moved (`moved: false`, Cancel only).
  *
  * @param {{ kind: string, name: string }} source
  * @param {Error|string} error
+ * @param {{ moved?: boolean }} [options]
  */
-export function sourceWriteFailedNotice(source, error) {
+export function sourceWriteFailedNotice(source, error, { moved = true } = {}) {
   const who = source.kind === "backlog" ? "Bring back" : "Rollover";
   return `${who} couldn't write ${sourceLabel(source)} (${
     error?.message ?? error
-  }), so it was left unchanged. Its todos were still added to today's note.`;
+  }), so it was left unchanged.${
+    moved ? " Its todos were still added to today's note." : ""
+  }`;
 }
 
 // The template heading line, as rolloverNotice() writes it

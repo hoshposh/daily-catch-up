@@ -1459,3 +1459,61 @@ describe("bring back notices", () => {
     expect(bringBackNotice(none)).toBe("");
   });
 });
+
+describe("notices when nothing of the note moved", () => {
+  const BACKLOG = { kind: "backlog", name: "Backlog" };
+  const INBOX = { kind: "inbox", name: "Inbox" };
+
+  test("edited meanwhile, Cancel only: no word of todos added", () => {
+    expect(sourceUnchangedNotice(BACKLOG, { moved: false })).toBe(
+      "Bring back left the backlog note 'Backlog' unchanged: it was edited while the dialog was open."
+    );
+    expect(sourceUnchangedNotice(INBOX, { moved: false })).toBe(
+      "Rollover left the inbox note 'Inbox' unchanged: it was edited while the rollover was running."
+    );
+  });
+
+  test("write failed, Cancel only: no word of todos added", () => {
+    expect(
+      sourceWriteFailedNotice(BACKLOG, new Error("locked"), { moved: false })
+    ).toBe(
+      "Bring back couldn't write the backlog note 'Backlog' (locked), so it was left unchanged."
+    );
+  });
+
+  test("with todos moved, the texts are as before", () => {
+    expect(sourceUnchangedNotice(BACKLOG, { moved: true })).toBe(
+      sourceUnchangedNotice(BACKLOG)
+    );
+    expect(
+      sourceWriteFailedNotice(BACKLOG, new Error("x"), { moved: true })
+    ).toBe(sourceWriteFailedNotice(BACKLOG, new Error("x")));
+  });
+});
+
+describe("a backlog item without a decision", () => {
+  test("stays in the backlog", () => {
+    const lines = ["- [ ] Learn Rust [from:: [[d]]]", "- [ ] Fix bike"];
+    const src = backlogSource({
+      file: { basename: "Backlog" },
+      content: lines.join("\n"),
+      lines,
+      sections: getSections({
+        lines,
+        withChildren: true,
+        doneStatusMarkers: "xX-",
+      }),
+    });
+    const { plans } = planSources({
+      sources: [src],
+      settings: { ...PLAN_SETTINGS, backlogEnabled: false },
+    });
+    // no decision for either item
+    const applied = applySources({ plans, sources: [src], decisions: {} });
+    const decided = applied.perSource[0];
+    expect(decided.rolledSections).toEqual([]);
+    expect(decided.movedLineIndices).toEqual([]);
+    expect(decided.deleteLineIndices).toEqual([]);
+    expect(applied.outcomeCounts.leave).toBe(2);
+  });
+});
