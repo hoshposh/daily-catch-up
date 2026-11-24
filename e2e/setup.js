@@ -1,6 +1,7 @@
 // vitest globalSetup: prepares the e2e vault once per run, and afterwards
 // checks that the repo-root main.js and data.json (the manual test vault's
-// plugin, through its symlink) were not touched.
+// plugin, through its symlink) were not touched, and removes the e2e tests'
+// recordings from e2e/demos/out.
 import { createHash } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
@@ -11,6 +12,7 @@ import {
   setMobile,
   setViewportWidth,
 } from "./helpers/obsidian";
+import { removeTestOutput } from "./helpers/recorder";
 import { bootstrap } from "./helpers/vault";
 
 const GUARDED = ["main.js", "data.json"];
@@ -47,6 +49,9 @@ export async function teardown() {
     await setViewportWidth(null);
     await setMobile(false);
   }
+  // the frames the recorder, pointer and demo tests recorded, before the
+  // check below can throw
+  await removeTestOutput();
   const after = await hashes();
   for (const file of GUARDED) {
     if (before[file] !== after[file]) {

@@ -3,12 +3,28 @@
 // second and writes PNG frames. Windows are found only through this vault's
 // documents, never picked from the app-wide window list, because one
 // Obsidian app also runs the user's own vaults.
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { REPO_ROOT, evalJs, evalJson, waitFor } from "./obsidian";
 import { guardVault } from "./vault";
 
 export const OUT_DIR = path.join(REPO_ROOT, "e2e", "demos", "out");
+
+/**
+ * Removes the folders the e2e tests record into (their names start with
+ * "e2e-") from `outDir`, keeping demos and their GIFs. The e2e run's teardown
+ * calls it, so a test's frames never outlive the run, passed or failed.
+ */
+export async function removeTestOutput(outDir = OUT_DIR) {
+  const entries = await readdir(outDir, { withFileTypes: true }).catch(
+    () => []
+  );
+  for (const entry of entries) {
+    if (entry.isDirectory() && entry.name.startsWith("e2e-")) {
+      await rm(path.join(outDir, entry.name), { recursive: true, force: true });
+    }
+  }
+}
 
 const NO_BLINK_ID = "demo-no-blink";
 
