@@ -370,6 +370,17 @@ describe("handledItemIds", () => {
     expect(handledItemIds(items, new Set(["A"]), DONE)).toEqual(new Set());
   });
 
+  test("a nested line the parser takes as an open todo blocks it, whatever follows the checkbox", () => {
+    // no space after "]": not a checkbox for matching done copies, but the
+    // parser rolls it as open work, so the item must not count as handled
+    for (const nested of ["  - [ ]sub", "  - [[]] x"]) {
+      const items = [item("0:0", "- [ ] A", nested)];
+      expect(handledItemIds(items, new Set(["A", "sub", "x"]), DONE)).toEqual(
+        new Set()
+      );
+    }
+  });
+
   test("an open nested todo done in a newer note too does not block", () => {
     const items = [item("0:0", "- [ ] A", "  - [ ] sub")];
     expect(handledItemIds(items, new Set(["A", "sub"]), DONE)).toEqual(

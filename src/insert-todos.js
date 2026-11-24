@@ -1,6 +1,6 @@
 // Pure helpers for choosing which rolled todos get inserted into today's note.
 
-import { getTodos } from "./get-todos";
+import { isOpenTodo } from "./get-todos";
 import { stripRolledCount } from "./rolled-count";
 
 // An open or closed checkbox list item, e.g. "- [ ] text" or "> * [/] text"
@@ -11,9 +11,6 @@ const CHECKBOX_LINE = /^\s*(?:>\s*)*[*+-] \[.+?\]/;
 const keyOf = (line) => stripRolledCount(line).trim();
 
 const indentationOf = (line) => line.search(/\S/);
-
-const isOpenTodo = (line, doneStatusMarkers) =>
-  getTodos({ lines: [line], doneStatusMarkers }).length > 0;
 
 // Whether the children of a duplicate parent allow it to be skipped. Only open
 // todos can stop it: they are work that would otherwise be lost, so each has to

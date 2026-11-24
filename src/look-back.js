@@ -3,7 +3,7 @@
 // settings. Days are local "YYYY-MM-DD" strings; `today` is passed in, so
 // nothing here reads a clock or a date library.
 
-import { splitGraphemes } from "./get-todos";
+import { isOpenTodo, splitGraphemes } from "./get-todos";
 import { stripRolledCount } from "./rolled-count";
 import {
   DEFAULT_DONE_MARKERS,
@@ -131,11 +131,16 @@ export function parseLookBackSince(text, today) {
   return isValidDay(trimmed) && trimmed <= today ? trimmed : undefined;
 }
 
-// A list item's checkbox, strictly: indentation and quote prefixes, a list
-// marker, then "[" one character "]" followed by a space or the end of the
-// line, as the parser takes a todo. So "- [[Sam Smith]] note" (a link) and
-// "- [[]] x" are plain bullets. The single character is checked with
-// graphemes below, so an emoji status counts as one.
+// A list item's checkbox, for matching a todo with its done copy only:
+// indentation and quote prefixes, a list marker ("-", "*", "+" or a number),
+// then "[" one character "]" followed by a space or the end of the line. This
+// is not the parser's test: it is stricter after "]" (the parser takes
+// "- [ ]sub" and "- [[]] x" as todos) and looser before "[" (numbered lists,
+// several spaces), so a link such as "- [[Sam Smith]] note" never matches and
+// an odd line never counts as a done copy, which errs toward offering a todo.
+// Whether a nested line is open work is the parser's own isOpenTodo(). The
+// single character is checked with graphemes below, so an emoji status counts
+// as one.
 const CHECKBOX = /^(?:\s*>)*\s*(?:[-*+]|\d+[.)])\s+\[([^\]]+)\](?=\s|$)/u;
 
 // zero-width and direction characters the parser never takes as a status on
@@ -212,14 +217,12 @@ export function handledItemIds(items, newerDoneKeys, doneStatusMarkers) {
   for (const item of items) {
     const [head, ...nested] = item.lines;
     if (!newerDoneKeys.has(todoKey(head))) continue;
-    const blocked = nested.some((line) => {
-      const marker = checkboxMarker(line);
-      return (
-        marker !== null &&
-        !doneStatusMarkers.includes(marker) &&
-        !newerDoneKeys.has(todoKey(line))
-      );
-    });
+    // the parser's own test, as skip-existing uses: any line it would roll as
+    // open work blocks, so nothing open is lost with a handled item
+    const blocked = nested.some(
+      (line) =>
+        isOpenTodo(line, doneStatusMarkers) && !newerDoneKeys.has(todoKey(line))
+    );
     if (!blocked) handled.add(item.id);
   }
   return handled;

@@ -304,6 +304,12 @@ class TodoParser {
 // Utility-function that acts as a thin wrapper around `TodoParser`
 export const getTodos = (options) => getTodosAndSkipped(options).todos;
 
+// Whether the parser takes `line` on its own as an open todo: the one test
+// for "open work" wherever a nested line can stop something (skip-existing,
+// Look back's "done in a newer note")
+export const isOpenTodo = (line, doneStatusMarkers) =>
+  getTodos({ lines: [line], doneStatusMarkers }).length > 0;
+
 // Like `getTodos`, but also returns where things are in `lines`:
 // `todoIndices` are the indices of the returned todos (same order), and
 // `skippedIndices` those of completed children left out by
