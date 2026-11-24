@@ -38,6 +38,14 @@ Every item below reads todos from a second note, and the rollover is written aro
 - [x] Pull from the backlog note as a source, so parked todos can return: shipped as the **Bring back from backlog…** command (see above).
 - [ ] Pull next actions from project notes as a source. Needs a tag or marker rule from Phase 4 to avoid pulling every todo. Phase 4's rules now exist, but they only act on todos already read from the previous note (`isIgnoredByRules()` in the parser, `ruleResult()` per item). Choosing which todos a source contributes needs a new hook, for example a rule effect or a per-source match evaluated before items are formed.
 
+Follow-ups from the final review of the bring-back branch (graded minor, none blocked 1.6.0-preview.2):
+
+- [ ] The backlog's "edited meanwhile" and "couldn't write" notices say "Its todos were still added to today's note; remove them from the backlog yourself" even when only **Cancel** was chosen and nothing was added. Pass whether anything was inserted to `sourceUnchangedNotice()` / `sourceWriteFailedNotice()` and drop that sentence when nothing was.
+- [ ] The undo dialog's line "Today's note will not be changed. Remove the rolled over todos from it yourself…" shows after a Cancel-only bring back, which added nothing. Give `kind: "bring-back"` its own line, or leave it out.
+- [ ] A missing decision defaults to Roll (`?? "roll"` in `ReviewModal`, `outcomeOf()` in `rollover-items.js`), which for a backlog item means Bring back and a delete from the backlog. It can't happen today, because `planSources()` decides every backlog item, but a Stay fallback in bring-back mode would make "nothing leaves the backlog unless chosen" hold by construction.
+- [ ] Since the `writeRollover()` refactor, `templateHeading`, `leadingNewLine` and `skipExistingTodos` are read after the review dialog closes instead of before it opens, so changing one while the dialog is open takes effect (the notice can still name the old template heading). Negligible; read them once before the review if it ever matters.
+- [ ] A double blank line before the `bringBack()` helper in `src/rollover-flow.test.js`.
+
 ## Phase 4: Smart filtering
 
 Use cases for each item: [roadmap-phase-4-use-cases.md](roadmap-phase-4-use-cases.md).
