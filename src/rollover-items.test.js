@@ -14,6 +14,7 @@ import {
   needsReview,
   rebaseSections,
   skippedLinesToDelete,
+  summarizeBringBack,
   summarizeDecisions,
   toItems,
 } from "./rollover-items.js";
@@ -718,5 +719,19 @@ describe("re-basing indentation", () => {
     expect(rebaseSections([section], note)[0].incompleteTodos).toEqual([
       "- [ ] buy soil [rolled:: 1]",
     ]);
+  });
+});
+
+describe("summarizeBringBack", () => {
+  test("counts in the order bring back, cancelled, stay", () => {
+    expect(
+      summarizeBringBack({ a: "roll", b: "leave", c: "leave", d: "cancel" })
+    ).toBe("1 to bring back, 1 cancelled, 2 stay");
+  });
+  test("only stay", () => {
+    expect(summarizeBringBack({ a: "leave" })).toBe("1 stay");
+  });
+  test("nothing", () => {
+    expect(summarizeBringBack({})).toBe("nothing to do");
   });
 });

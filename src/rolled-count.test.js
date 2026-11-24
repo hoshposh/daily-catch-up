@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
 import {
+  fromNote,
   insertField,
   parseRolledCount,
   setRolledCount,
+  stripFromField,
   stripRolledCount,
 } from "./rolled-count";
 
@@ -90,5 +92,39 @@ describe("a status character outside the Basic Multilingual Plane", () => {
     expect(insertField("- [📅] a", "[from:: [[d]]]")).toBe(
       "- [📅] a [from:: [[d]]]"
     );
+  });
+});
+
+describe("stripFromField", () => {
+  test.each([
+    ["- [ ] Learn Rust [from:: [[2026-11-01]]]", "- [ ] Learn Rust"],
+    [
+      "- [ ] Pay tax [from:: [[2026-11-01]]] 📅 2026-12-01",
+      "- [ ] Pay tax 📅 2026-12-01",
+    ],
+    ["- [ ] Call Sam [from:: [[Inbox]]] ^abc", "- [ ] Call Sam ^abc"],
+    ["- [ ] A [rolled:: 2] [from:: [[d]]]", "- [ ] A [rolled:: 2]"],
+    ["- [ ] Mon [from:: [[2026-11-01|Monday]]]\r", "- [ ] Mon\r"],
+    ["- [ ] Typed [from:: somewhere]", "- [ ] Typed"],
+    ["- [ ] Plain", "- [ ] Plain"],
+  ])("%s", (line, expected) => {
+    expect(stripFromField(line)).toBe(expected);
+  });
+});
+
+describe("fromNote", () => {
+  test("the linked note", () => {
+    expect(fromNote("- [ ] Learn Rust [from:: [[2026-11-01]]]")).toBe(
+      "2026-11-01"
+    );
+  });
+  test("an alias is left out", () => {
+    expect(fromNote("- [ ] Mon [from:: [[2026-11-01|Monday]]]")).toBe(
+      "2026-11-01"
+    );
+  });
+  test("no field, or a field without a link", () => {
+    expect(fromNote("- [ ] Plain")).toBeNull();
+    expect(fromNote("- [ ] Typed [from:: somewhere]")).toBeNull();
   });
 });

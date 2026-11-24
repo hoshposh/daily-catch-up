@@ -23,6 +23,21 @@ export function stripRolledCount(line) {
   return line.replace(ROLLED_FIELDS_WITH_SPACE, "");
 }
 
+// `[from:: …]` fields, whose value may hold one `[[…]]` link, with the
+// whitespace before them
+const FROM_FIELDS_WITH_SPACE = /\s*\[from::(?:[^[\]]|\[\[[^\]]*\]\])*\]/g;
+const FROM_LINK = /\[from::\s*\[\[([^\]|]*)(?:\|[^\]]*)?\]\]\s*\]/;
+
+// The line without its `[from:: …]` fields (written by the backlog)
+export function stripFromField(line) {
+  return line.replace(FROM_FIELDS_WITH_SPACE, "");
+}
+
+// The note a `[from:: [[note]]]` field links to (an alias left out), or null
+export function fromNote(line) {
+  return FROM_LINK.exec(line)?.[1] ?? null;
+}
+
 export function setRolledCount(line, n) {
   return insertField(stripRolledCount(line), `[rolled:: ${n}]`);
 }

@@ -442,3 +442,19 @@ export function summarizeDecisions(decisions) {
     .map(([n, text]) => `${n} ${text}`);
   return parts.length > 0 ? parts.join(", ") : "nothing to do";
 }
+
+// The bring-back dialog's summary: what comes back, is cancelled or stays
+export function summarizeBringBack(decisions) {
+  const counts = { roll: 0, cancel: 0, leave: 0 };
+  for (const outcome of Object.values(decisions)) {
+    if (outcome in counts) counts[outcome]++;
+  }
+  const parts = [
+    [counts.roll, "to bring back"],
+    [counts.cancel, "cancelled"],
+    [counts.leave, "stay"],
+  ]
+    .filter(([n]) => n > 0)
+    .map(([n, text]) => `${n} ${text}`);
+  return parts.length > 0 ? parts.join(", ") : "nothing to do";
+}
