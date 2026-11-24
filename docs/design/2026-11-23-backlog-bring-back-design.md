@@ -196,6 +196,10 @@ Also: `baseline.e2e.js` and the rest of the e2e suite after the refactor commit,
 
 Offer the user a private review clip of the bring-back dialog (`e2e/demos/private/bring-back.demo.js`).
 
+## Known limitation
+
+A brought-back todo still carries its tags, so a rule that parks them sends it back. With a `#someday` → Backlog rule on, "Learn Rust #someday" brought back today goes back to the backlog on the next rollover without a review (with the review, it opens on Backlog with the rule's badge). Accepted by the user on 2026-11-23: the README says to remove the tag when bringing such a todo back.
+
 ## Follow-ups
 
 - A filter field in the dialog, should real backlogs make scrolling painful.
